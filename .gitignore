@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+
+# Environments
+.env
+.venv/
+
+# Data
+data/
+outputs/
+
+# Models / embeddings
+*.pt
+*.bin
+*.faiss
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
