@@ -10,6 +10,9 @@ __pycache__/
 data/
 outputs/
 
+#qdrant
+qdrant_data/
+
 # Models / embeddings
 *.pt
 *.bin
