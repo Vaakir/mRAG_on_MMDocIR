@@ -1,8 +1,13 @@
 Date,Name,Start,End,Tag,WorkingOn
-11.09.2025,jon-tj,12:15,15:15,Design Document,Setting up workflows and design specs
-
 25.03.2026,vaakir,12:15,14:00,Planning,Planning filestructure etc
-26.03.2026,vaakir,08:15,12:00,Education & recap,React tutorial tictactoe (https://react.dev/learn/tutorial-tic-tac-toe#setup-for-the-tutorial)
+26.03.2026,vaakir,08:30,16:00,System 1,Reading and chunking
+
+25.03.2026,BaalCat,12:15,14:00,Planning,Planning filestructure etc
+26.03.2026,BaalCat,07:45,15:30,Reading Theory & Coding,"Theory about RAG, Vector Databases and related, Implementing First Draft of Vector DB with simple test"
+
+25.03.2026,GabIsr,12:15,14:00,Planning,Planning filestructure etc
+25.03.2026,GabIsr,20:30,11:15,Reading & Exploration,"Reading about dataset structure, and potential tools/libraries/frameworks that we can use for the project" 
+26.03.2026,GabIsr,09:30,16:40,System 1,Reading & Coding,"Experimented with an initial skeleton code for the RAG baseline pipeline, to get a feel for the overall architecture and data flow. Tried with an initial choice of PDF-parsing tools (pdfplumber), Embedding tools (CLIP) and FAISS (initial attempt), mostly to check if the skeleton code would suffice when integrating/replacing with the actual tools/libraries"
 
 
 25.03.2026,togun,17:42,20:00, Planning, understanding project, looking at data structure
