@@ -1,11 +1,22 @@
-# src/generation/generator.py
+"""
+LLM-based answer generator using Ollama with chat API.
+
+This implementation uses the ollama Python library for more robust communication
+with the Ollama server, following the pattern from the generative AI course.
+"""
 
 import os
-import requests
-from typing import Dict, Any, Optional
 import logging
+from typing import Dict, Any, Optional, List
 from pathlib import Path
 from dotenv import load_dotenv
+
+try:
+    from ollama import Client, ResponseError
+except ImportError:
+    raise ImportError(
+        "ollama package not found. Install it with: pip install ollama"
+    )
 
 # Load environment variables from .env file
 env_path = Path(__file__).parent.parent / '.env'
@@ -13,27 +24,16 @@ load_dotenv(dotenv_path=env_path)
 
 logger = logging.getLogger(__name__)
 
-# Simple baseline prompt template
-# BASELINE_PROMPT = """You are a helpful assistant that answers questions based on the provided context.
 
-# Context:
-# {context}
+def normalize_ws(text: str) -> str:
+    """Normalize whitespace in text (collapse multiple spaces/newlines)."""
+    if not text:
+        return text
+    return " ".join(text.split())
 
-# Question: {question}
 
-# Instructions:
-# - Answer the question based ONLY on the information provided in the context above.
-# - If the answer cannot be found in the context, say "I cannot find the answer in the provided context."
-# - Be concise and direct in your answer.
-
-# Answer:"""
-
-BASELINE_PROMPT = """"You are a helpful assistant that answers questions based on the provided context.
-
-Context:
-{context}
-
-Question: {question}
+# Baseline prompt template for the system role
+SYSTEM_PROMPT = """You are a helpful assistant that answers questions based on the provided context.
 
 Instructions:
 - Answer the question using ONLY the provided context.
@@ -43,22 +43,32 @@ Instructions:
   - Ensure the final count is correct.
 - If the answer is partially available, explain what is missing.
 - If the answer cannot be found, say: "I cannot find the answer in the provided context."
-- Be concise but ensure accuracy.
+- Be concise but ensure accuracy."""
 
-Answer:"""
 
 class BaselineGenerator:
-    """LLM-based answer generator using Ollama."""
+    """LLM-based answer generator using Ollama via the ollama Python library."""
     
     def __init__(
         self,
         base_url: str = "https://ollama.ux.uis.no",
-        model: str = "qwen2.5:7b",
+        model: str = "qwen3-vl:8b",
         api_key: str = None
     ):
+        """
+        Initialize the Ollama client.
+        
+        Parameters
+        ----------
+        base_url : str
+            Base URL of the Ollama server
+        model : str
+            Model name to use
+        api_key : str, optional
+            API key for authentication. If None, attempts to load from OLLAMA_API_KEY env var.
+        """
         self.base_url = base_url.rstrip('/')
         self.model = model
-        self.api_url = f"{self.base_url}/api/generate"
         
         # Get API key from parameter or environment variable
         self.api_key = api_key or os.getenv('OLLAMA_API_KEY')
@@ -67,74 +77,176 @@ class BaselineGenerator:
             logger.warning("No OLLAMA_API_KEY found. API calls may fail.")
         else:
             logger.info(f"Loaded API key: {self.api_key[:10]}...")
+        
+        # Initialize the Ollama client with authentication header
+        headers = {}
+        if self.api_key:
+            headers['Authorization'] = f'Bearer {self.api_key}'
+        
+        self._client = Client(
+            host=self.base_url,
+            headers=headers if self.api_key else None
+        )
+        logger.info(f"Initialized Ollama client for model: {self.model}")
+    
+    def _pull_model(self, model_name: str) -> None:
+        """
+        Pull a model from Ollama if it doesn't exist.
+        
+        Parameters
+        ----------
+        model_name : str
+            The model name to pull
+        """
+        logger.info(f"Pulling model {model_name}...")
+        self._client.pull(model_name)
+        logger.info(f"Successfully pulled model {model_name}")
+    
+    def chat(self, messages: List[Dict[str, str]], **kwargs) -> str:
+        """
+        Send a chat request to the Ollama model and return the generated response.
+        
+        Parameters
+        ----------
+        messages : List[Dict[str, str]]
+            A list of message dictionaries following the chat format:
+            [
+                {"role": "system", "content": "..."},
+                {"role": "user", "content": "..."},
+                ...
+            ]
+        **kwargs : dict
+            Optional keyword arguments.
+            Supported:
+            - options (dict): Generation parameters such as:
+              {
+                  "temperature": float,
+                  "top_p": float
+              }
+              If not provided, defaults to: {"temperature": 0.0, "top_p": 0.1}
+        
+        Returns
+        -------
+        str
+            The generated text response from the model.
+        
+        Raises
+        ------
+        ResponseError
+            If the API request fails and cannot be recovered.
+        """
+        # Default options for generation
+        options = {"temperature": 0.0, "top_p": 0.1}
+        options.update(kwargs.pop("options", {}))
+        
+        def _call_chat() -> Any:
+            """Internal function to call the chat API."""
+            return self._client.chat(
+                model=self.model,
+                messages=messages,
+                options=options,
+                stream=False,
+                think=False,  # Disable reasoning/thinking for faster responses
+                **kwargs,
+            )
+        
+        # Try to call chat, with auto-pull if model not found
+        try:
+            resp = _call_chat()
+        except ResponseError as e:
+            # If model not found (404), try to pull it and retry
+            if getattr(e, "status_code", None) == 404:
+                logger.warning(f"Model {self.model} not found on server, attempting to pull...")
+                self._pull_model(self.model)
+                resp = _call_chat()
+            else:
+                logger.error(f"Ollama API error: {e}")
+                raise
+        
+        # Extract content from response
+        # The response object has a 'message' attribute with content
+        content = getattr(getattr(resp, "message", None), "content", "")
+        
+        if not content:
+            raise ResponseError("Empty response from Ollama chat API")
+        
+        return normalize_ws(content)
     
     def generate(
         self,
         question: str,
         context: str,
-        prompt_template: str = BASELINE_PROMPT
+        system_prompt: str = SYSTEM_PROMPT
     ) -> str:
-        """Generate an answer given a question and context."""
+        """
+        Generate an answer given a question and context.
         
-        # Format the prompt
-        prompt = prompt_template.format(
-            context=context,
-            question=question
-        )
-        print(f"THE PROMPT IS: {prompt}")
+        This is the main interface that converts prompt-based format to chat format.
+        
+        Parameters
+        ----------
+        question : str
+            The question to answer
+        context : str
+            The context/document snippets to use for answering
+        system_prompt : str
+            The system prompt template
+        
+        Returns
+        -------
+        str
+            The generated answer
+        """
+        # Construct the user message with context and question
+        user_message = f"""Context:
+{context}
 
-        # Call Ollama API with retry logic
-        max_retries = 3
-        retry_delay = 2  # seconds
+Question: {question}"""
         
-        for attempt in range(max_retries):
-            try:
-                # Prepare headers with API key if available
-                headers = {}
-                if self.api_key:
-                    headers['Authorization'] = f'Bearer {self.api_key}'
-                
-                # Use longer timeout (3 minutes) for potentially slow model loading
-                response = requests.post(
-                    self.api_url,
-                    json={
-                        "model": self.model,
-                        "prompt": prompt,
-                        "stream": False,
-                        "options": {
-                            "temperature": 0.1,
-                            "num_predict": 256
-                        }
-                    },
-                    headers=headers,
-                    timeout=180  # 3 minutes
-                )
-                response.raise_for_status()
-                result = response.json()
-                print(f"RESULT IS: {result}")
-                return result.get("response", "").strip()
-            
-            except requests.exceptions.Timeout:
-                if attempt < max_retries - 1:
-                    logger.warning(f"Request timed out, retrying ({attempt + 1}/{max_retries})...")
-                    import time
-                    time.sleep(retry_delay)
-                else:
-                    logger.error(f"Error calling Ollama API: Request timed out after {max_retries} attempts")
-                    return "Error generating response"
-            
-            except requests.exceptions.RequestException as e:
-                logger.error(f"Error calling Ollama API: {e}")
-                return "Error generating response"
+        # Build messages in chat format
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_message}
+        ]
+        
+        try:
+            logger.debug(f"Generating answer for question: {question[:100]}...")
+            answer = self.chat(messages)
+            logger.debug(f"Generated answer: {answer[:100]}...")
+            return answer
+        except ResponseError as e:
+            logger.error(f"Error generating response: {e}")
+            return f"Error generating response: {str(e)}"
+        except Exception as e:
+            logger.error(f"Unexpected error during generation: {e}")
+            return f"Error generating response: {str(e)}"
     
     def generate_batch(
         self,
         questions: list,
         contexts: list
     ) -> list:
-        """Generate answers for multiple questions."""
+        """
+        Generate answers for multiple questions.
+        
+        Parameters
+        ----------
+        questions : list
+            List of questions
+        contexts : list
+            List of contexts (one per question)
+        
+        Returns
+        -------
+        list
+            List of generated answers
+        """
         answers = []
-        for q, c in zip(questions, contexts):
-            answer = self.generate(q, c)
-            answers.append(answer)
+        for i, (q, c) in enumerate(zip(questions, contexts)):
+            try:
+                answer = self.generate(q, c)
+                answers.append(answer)
+            except Exception as e:
+                logger.error(f"Error generating answer for question {i}: {e}")
+                answers.append(f"Error: {str(e)}")
         return answers
