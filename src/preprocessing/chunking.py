@@ -209,6 +209,7 @@ class Chunking:
         - Level 2 (child): Individual paragraphs/blocks within that section.
         
         This prevents context loss when a logical section spills across a physical page break.
+        Consecutive headers without body text are merged together.
         """
         hierarchical_sections: List[Dict[str, Any]] = []
         
@@ -217,6 +218,7 @@ class Chunking:
         current_children: List[Dict[str, Any]] = []
         current_parent_texts: List[str] = []
         current_pages = set() # Using a set to track all pages this section spans
+        has_body = False # Tracks if the current section has actual content
         
         for block in self.blocks:
             text = block.text.strip()
@@ -228,35 +230,50 @@ class Chunking:
             is_heading = block.category in getattr(self, "HEADING_CATEGORIES", [])
             
             if is_heading:
-                # 1. Flush the previous section to our list before starting this new one
-                if current_children or current_parent_texts:
+                # 1. Flush ONLY if the current section actually has body text
+                if has_body:
                     parent_chunk = self._make_chunk(
                         current_parent_texts,
                         extra_meta={
                             "level": "section", 
                             "title": current_parent_title,
-                            "page_numbers": sorted(list(current_pages)) # e.g., [1, 2]
+                            "page_numbers": sorted(list(current_pages))
                         }
                     )
                     parent_chunk["chunks"] = current_children
                     hierarchical_sections.append(parent_chunk)
-
-                
-                # 2. Reset the state for the new section
-                current_parent_title = text
-                current_children = []
-                current_parent_texts = [text]
-                current_pages = {page_num}
+                    
+                    # Reset the state for the new section
+                    current_parent_title = text
+                    current_children = []
+                    current_parent_texts = [text]
+                    current_pages = {page_num}
+                    has_body = False
+                else:
+                    # 2. Consecutive headings: Merge them together
+                    if current_parent_title == "Document Start" and not current_parent_texts:
+                        current_parent_title = text
+                    else:
+                        current_parent_title += f" {text}"
+                        
+                    current_parent_texts.append(text)
+                    current_pages.add(page_num)
                 
             else:
                 # 3. We are inside a section body. Append text and track the page.
+                has_body = True
                 current_parent_texts.append(text)
                 current_pages.add(page_num)
+                
+                # If this is the first child in the section, prepend the title to its text
+                child_text = text
+                if len(current_children) == 0 and current_parent_title != "Document Start":
+                    child_text = f"{current_parent_title}\n{text}"
                 
                 # Create a child chunk for this specific paragraph/block
                 current_children.append(
                     self._make_chunk(
-                        [text],
+                        [child_text],
                         extra_meta={
                             "level": "paragraph", 
                             "page_numbers": [page_num],
