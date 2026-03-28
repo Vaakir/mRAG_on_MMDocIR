@@ -1,0 +1,10 @@
+torch
+torchvision
+open_clip_torch
+qdrant-client
+numpy
+tqdm
+requests
+python-dotenv
+matplotlib
+unstructured

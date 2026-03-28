@@ -53,9 +53,12 @@ def load_preprocessed_chunks(json_path: Path) -> List[Dict[str, Any]]:
             
             for chunk_id, chunk in enumerate(chunks):
                 # Create standardized chunk format
+                # Prepend PDF name so embeddings capture document identity
+                doc_prefix = f"[Document: {pdf_name}]\n"
+                enriched_text = doc_prefix + chunk['text']
                 chunk_dict = {
-                    'text': chunk['text'],
-                    'char_len': chunk['char_len'],
+                    'text': enriched_text,
+                    'char_len': len(enriched_text),
                     'pdf_name': pdf_name,
                     'pdf_path': pdf_path,
                     'chunk_id': chunk_id
