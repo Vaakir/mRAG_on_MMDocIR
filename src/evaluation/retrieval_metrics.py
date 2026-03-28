@@ -17,13 +17,13 @@ def precision_at_k(retrieved: List[str], relevant: Set[str], k: int) -> float:
 
 def recall_at_k(retrieved: List[str], relevant: Set[str], k: int) -> float:
     """
-    Calculate Recall@k.
+    Calculate Recall@k as a binary hit: 1.0 if any relevant doc appears in top-k, else 0.0.
+    This avoids recall > 1 when multiple chunks from the same PDF are retrieved.
     """
     if len(relevant) == 0:
         return 0.0
     retrieved_at_k = retrieved[:k]
-    relevant_retrieved = sum(1 for doc in retrieved_at_k if doc in relevant)
-    return relevant_retrieved / len(relevant)
+    return 1.0 if any(doc in relevant for doc in retrieved_at_k) else 0.0
 
 def evaluate_retrieval(
     retrieved_results: List[List[Dict[str, Any]]],

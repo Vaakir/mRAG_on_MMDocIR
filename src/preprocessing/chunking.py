@@ -33,14 +33,25 @@ class Chunking:
             if not text:
                 continue
 
-            text_len += len(text)
-            current_texts.append(text)
-            if text_len > max_chars or i == blocks_count - 1:
-                page_numbers = {"page_numbers": list(page_numbers["page_numbers"])}
-                chunks.append(Chunking._make_chunk(current_texts, page_numbers))
-                current_texts = []
-                page_numbers = {"page_numbers": set()}
-                text_len = 0
+            # Split oversized blocks into sub-chunks of max 1700 chars
+            if len(text) > 1700:
+                sub_texts = [text[j:j+1700] for j in range(0, len(text), 1700)]
+            else:
+                sub_texts = [text]
+
+            for sub_text in sub_texts:
+                text_len += len(sub_text)
+                current_texts.append(sub_text)
+                if text_len > max_chars:
+                    page_numbers = {"page_numbers": list(page_numbers["page_numbers"])}
+                    chunks.append(Chunking._make_chunk(current_texts, page_numbers))
+                    current_texts = []
+                    page_numbers = {"page_numbers": set()}
+                    text_len = 0
+
+        if current_texts:
+            page_numbers = {"page_numbers": list(page_numbers["page_numbers"])}
+            chunks.append(Chunking._make_chunk(current_texts, page_numbers))
         return chunks
     
     

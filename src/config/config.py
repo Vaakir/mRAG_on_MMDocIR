@@ -19,12 +19,13 @@ PREPROCESSED_CHUNKS_FILE = DATA_DIR / "data" / "chunks_fixed_size.json"
 USE_PREPROCESSED_CHUNKS = True  # Set to True to use team's chunks
 
 # Model settings
-# Using CLIP for embeddings (multimodal - ready for image embeddings later)
-EMBEDDING_MODEL = "ViT-B/32"  # CLIP model (text encoder for baseline, can add images later)
-EMBEDDING_DIMENSION = 512  # Dimension for CLIP ViT-B/32
+# Baseline: BGE-large for top retrieval quality (MTEB #1, 1024D)
+EMBEDDING_MODEL = "BAAI/bge-large-en-v1.5"
+EMBEDDING_DIMENSION = 1024  # Dimension for bge-large-en-v1.5
 
 # Retrieval settings
 TOP_K = 5  # Number of documents to retrieve
+USE_HYBRID_RETRIEVAL = True  # BM25 + dense with Reciprocal Rank Fusion
 
 # Chunking settings (team's fixed-size strategy for baseline)
 CHUNKING_STRATEGY = "fixed_size"  # Options: fixed_size, sliding_window, semantic, hierarchical
@@ -34,13 +35,13 @@ CHUNK_OVERLAP = 200  # Overlap between chunks (for sliding_window strategy)
 # Vector Database settings (Qdrant - as per team decision)
 VECTOR_DB_MODE = "local"  # Options: "local", "memory", "docker"
 VECTOR_DB_PATH = str(PROJECT_ROOT / "local_qdrant")  # Local storage path
-VECTOR_DB_COLLECTION = "baseline_documents"  # Collection name
+VECTOR_DB_COLLECTION = "baseline_documents_v3"  # Collection name (bge-large-1024D)
 VECTOR_DB_DISTANCE = "COSINE"  # Distance metric: COSINE, DOT, MANHATTAN, EUCLID
 
 # LLM settings (using Ollama)
 OLLAMA_BASE_URL = "https://ollama.ux.uis.no"  # UiS Ollama cluster
 # Using lightweight model for baseline (fast response). Switch to qwen3-vl:8b for multimodal system
-LLM_MODEL = "qwen3-vl:8b"  # Alternatives: qwen3-vl:8b (multimodal), qwen3:32b, llama3.1:70b
+LLM_MODEL = "qwen3:32b"  # Strong reasoning model for accurate extraction
 
 # Random seed for reproducibility
 RANDOM_SEED = 42

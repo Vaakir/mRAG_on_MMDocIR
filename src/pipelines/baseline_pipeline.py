@@ -13,12 +13,13 @@ from typing import Dict, Any, List
 from config.config import *
 from data.data_loader import load_train_data, load_test_data
 from data.pdf_processor import process_all_pdfs
-from data.pdf_cache import PDFCache
+# from data.pdf_cache import PDFCache
 from data.chunk_loader import load_preprocessed_chunks, print_chunk_statistics
 from preprocessing.chunker import chunk_documents
-from preprocessing.text_cleaner import filter_chunks
+# from preprocessing.text_cleaner import filter_chunks
 from indexing.embedder import TextEmbedder, create_chunk_embeddings
 from indexing.vector_store import QdrantConfig, QdrantVectorDB
+from indexing.hybrid_retriever import HybridRetriever
 from generation.generator import BaselineGenerator
 from evaluation.retrieval_metrics import evaluate_retrieval
 from evaluation.generation_metrics import evaluate_generation
@@ -42,6 +43,7 @@ class BaselineRAGPipeline:
     def __init__(self):
         self.embedder = None
         self.vector_db = None
+        self.hybrid_retriever = None
         self.generator = None
         self.chunks = None
     
@@ -78,9 +80,11 @@ class BaselineRAGPipeline:
                 count = self.vector_db.count_documents()
                 if count > 0:
                     logger.info(f"Loading existing index with {count} documents...")
+                    # Still need chunks in memory for BM25
+                    if USE_HYBRID_RETRIEVAL:
+                        self.chunks = load_preprocessed_chunks(PREPROCESSED_CHUNKS_FILE)
                     elapsed = time.time() - start_time
                     logger.info(f"Index loaded in {elapsed:.2f} seconds")
-                    return
             except Exception as e:
                 logger.info(f"No existing collection found ({e}), building new index...")
                 force_rebuild = True
@@ -177,9 +181,19 @@ class BaselineRAGPipeline:
                 })
             
             self.vector_db.index_documents(qdrant_docs)
-            
+
             elapsed = time.time() - start_time
             logger.info(f"Index built in {elapsed:.2f} seconds")
+
+        # Build hybrid retriever (BM25 + dense) — always, using loaded chunks
+        if USE_HYBRID_RETRIEVAL:
+            logger.info("Building hybrid BM25 + dense retriever...")
+            self.hybrid_retriever = HybridRetriever(
+                chunks=self.chunks,
+                embedder=self.embedder,
+                vector_db=self.vector_db,
+                top_k=TOP_K,
+            )
     
     def initialize_components(self):
         """Initialize generator."""
@@ -187,21 +201,18 @@ class BaselineRAGPipeline:
     
     def retrieve(self, question: str, top_k: int = TOP_K) -> List[Dict[str, Any]]:
         """
-        Retrieve relevant chunks for a question using Qdrant.
-        
+        Retrieve relevant chunks using hybrid BM25 + dense retrieval (if enabled),
+        or dense-only retrieval.
+
         Returns:
             List of dicts with: id, score, text, payload (metadata)
         """
-        # Embed query
+        if USE_HYBRID_RETRIEVAL and self.hybrid_retriever is not None:
+            return self.hybrid_retriever.retrieve(question, top_k=top_k)
+
+        # Fallback: dense-only
         query_embedding = self.embedder.embed_query(question)
-        
-        # Retrieve from Qdrant
-        results = self.vector_db.retrieve(
-            query_embedding=query_embedding,
-            top_k=top_k
-        )
-        
-        return results
+        return self.vector_db.retrieve(query_embedding=query_embedding, top_k=top_k)
     
     def run_query(self, question: str, top_k: int = TOP_K) -> Dict[str, Any]:
         """Run a single query through the pipeline."""
