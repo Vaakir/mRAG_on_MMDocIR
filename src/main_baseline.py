@@ -18,7 +18,7 @@ def main():
     
     # Build/load index (set to False to use existing index)
     # IMPORTANT: Set to True when switching to pre-processed chunks!
-    pipeline.build_index(force_rebuild=False)
+    pipeline.build_index(force_rebuild=True)
 
     # Initialize components
     pipeline.initialize_components()

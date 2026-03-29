@@ -176,7 +176,8 @@ class BaselineRAGPipeline:
                         'pdf_name': chunk['pdf_name'],
                         'pdf_path': chunk['pdf_path'],
                         'chunk_id': chunk['chunk_id'],
-                        'char_len': chunk['char_len']
+                        'char_len': chunk['char_len'],
+                        'page_numbers': chunk['page_numbers'],
                     }
                 })
             
