@@ -3,7 +3,7 @@
 import os
 from pathlib import Path
 
-# Paths
+# Paths for data and resources
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 DATA_DIR = PROJECT_ROOT / "src"
 PDF_DIR = DATA_DIR / "pdfs_train" / "pdfs_train"

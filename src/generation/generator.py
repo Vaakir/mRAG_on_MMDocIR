@@ -17,21 +17,20 @@ except ImportError:
     raise ImportError(
         "ollama package not found. Install it with: pip install ollama"
     )
-
+# -------------------------------------------------------------------
 # Load environment variables from .env file
 env_path = Path(__file__).parent.parent / '.env'
 load_dotenv(dotenv_path=env_path)
 
 logger = logging.getLogger(__name__)
 
-
+# -------------------------------------------------------------------
 def normalize_ws(text: str) -> str:
     """Normalize whitespace in text (collapse multiple spaces/newlines)."""
     if not text:
         return text
     return " ".join(text.split())
-
-
+# -------------------------------------------------------------------
 # Baseline prompt template for the system role
 SYSTEM_PROMPT = """You are a helpful assistant that answers questions based on the provided context.
 
@@ -44,8 +43,7 @@ Instructions:
 - If the answer is partially available, explain what is missing.
 - If the answer cannot be found, say: "I cannot find the answer in the provided context."
 - Be concise but ensure accuracy."""
-
-
+# -------------------------------------------------------------------
 class BaselineGenerator:
     """LLM-based answer generator using Ollama via the ollama Python library."""
     
@@ -67,8 +65,8 @@ class BaselineGenerator:
         api_key : str, optional
             API key for authentication. If None, attempts to load from OLLAMA_API_KEY env var.
         """
-        self.base_url = base_url.rstrip('/')
-        self.model = model
+        self.base_url = base_url.rstrip('/') # Ensure no trailing slash
+        self.model = model # Model name to use for generation
         
         # Get API key from parameter or environment variable
         self.api_key = api_key or os.getenv('OLLAMA_API_KEY')
@@ -81,14 +79,14 @@ class BaselineGenerator:
         # Initialize the Ollama client with authentication header
         headers = {}
         if self.api_key:
-            headers['Authorization'] = f'Bearer {self.api_key}'
+            headers['Authorization'] = f'Bearer {self.api_key}' # Ollama uses Bearer token authentication
         
-        self._client = Client(
-            host=self.base_url,
-            headers=headers if self.api_key else None
+        self._client = Client( # Initialize the Ollama client with base URL and headers
+            host=self.base_url, # Base URL of the Ollama server
+            headers=headers if self.api_key else None  # Include headers only if API key is provided
         )
         logger.info(f"Initialized Ollama client for model: {self.model}")
-    
+    #-------------------
     def _pull_model(self, model_name: str) -> None:
         """
         Pull a model from Ollama if it doesn't exist.
@@ -99,9 +97,9 @@ class BaselineGenerator:
             The model name to pull
         """
         logger.info(f"Pulling model {model_name}...")
-        self._client.pull(model_name)
+        self._client.pull(model_name) # Pull the model from Ollama server (blocking call)
         logger.info(f"Successfully pulled model {model_name}")
-    
+    #-------------------
     def chat(self, messages: List[Dict[str, str]], **kwargs) -> str:
         """
         Send a chat request to the Ollama model and return the generated response.
@@ -136,9 +134,9 @@ class BaselineGenerator:
             If the API request fails and cannot be recovered.
         """
         # Default options for generation
-        options = {"temperature": 0.0, "top_p": 0.1}
-        options.update(kwargs.pop("options", {}))
-        
+        options = {"temperature": 0.0, "top_p": 0.1} # Default to deterministic output for baseline (want these to be low for accurate extraction)
+        options.update(kwargs.pop("options", {})) # Allow overriding options via kwargs
+        #-------------------
         def _call_chat() -> Any:
             """Internal function to call the chat API."""
             return self._client.chat(
@@ -149,7 +147,7 @@ class BaselineGenerator:
                 think=False,  # Disable reasoning/thinking for faster responses
                 **kwargs,
             )
-        
+        #-------------------
         # Try to call chat, with auto-pull if model not found
         try:
             resp = _call_chat()
@@ -171,7 +169,7 @@ class BaselineGenerator:
             raise ResponseError("Empty response from Ollama chat API")
         
         return normalize_ws(content)
-    
+    #-------------------
     def generate(
         self,
         question: str,
@@ -188,7 +186,7 @@ class BaselineGenerator:
         question : str
             The question to answer
         context : str
-            The context/document snippets to use for answering
+            The context/document snippets/chunks to use for answering
         system_prompt : str
             The system prompt template
         
@@ -211,7 +209,7 @@ Question: {question}"""
         
         try:
             logger.debug(f"Generating answer for question: {question[:100]}...")
-            answer = self.chat(messages)
+            answer = self.chat(messages) # Call the chat method to get the answer
             logger.debug(f"Generated answer: {answer[:100]}...")
             return answer
         except ResponseError as e:
@@ -220,7 +218,7 @@ Question: {question}"""
         except Exception as e:
             logger.error(f"Unexpected error during generation: {e}")
             return f"Error generating response: {str(e)}"
-    
+    #-------------------
     def generate_batch(
         self,
         questions: list,

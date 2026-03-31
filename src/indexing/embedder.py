@@ -8,7 +8,7 @@ from sentence_transformers import SentenceTransformer
 
 logger = logging.getLogger(__name__)
 
-
+# -------------------------------------------------------------------
 class TextEmbedder:
     """Wrapper for Jina CLIP v2 embedding model (text + image, shared vector space)."""
 
@@ -25,10 +25,14 @@ class TextEmbedder:
         texts: List[str],
         batch_size: int = 32
     ) -> np.ndarray:
-        """Embed a list of texts using Jina CLIP v2 text encoder."""
-        logger.info(f"Embedding {len(texts)} texts with Jina CLIP v2...")
-        all_embeddings = []
+        """
+        Embed a list of texts.
+        Returns numpy array of shape (n_texts, embedding_dim).
+        """
+        logger.info(f"Embedding {len(texts)} texts...")
+        all_embeddings = [] # List to hold embeddings for all texts
 
+        # Process texts in batches to avoid memory issues
         for i in tqdm(range(0, len(texts), batch_size), desc="Encoding texts"):
             batch_texts = texts[i:i + batch_size]
             embeddings = self.model.encode(
@@ -38,20 +42,21 @@ class TextEmbedder:
             )
             all_embeddings.append(embeddings)
 
+    #-------------------
             if torch.backends.mps.is_available():
                 torch.mps.empty_cache()
 
-        return np.vstack(all_embeddings)
+        return np.vstack(all_embeddings) # Stack all batch embeddings into a single numpy array
 
     def embed_query(self, query: str) -> np.ndarray:
         """Embed a single query text."""
         return self.model.encode([query], prompt_name="retrieval.query")[0]
 
-
+# -------------------------------------------------------------------
 def create_chunk_embeddings(
     chunks: List[Dict[str, Any]],
     embedder: TextEmbedder
 ) -> np.ndarray:
     """Create embeddings for all chunks."""
-    texts = [chunk["text"] for chunk in chunks]
-    return embedder.embed_texts(texts)
+    texts = [chunk["text"] for chunk in chunks] # Extract the text from each chunk to create a list of texts for embedding
+    return embedder.embed_texts(texts)          # Use the embedder to get embeddings for all the chunk texts
