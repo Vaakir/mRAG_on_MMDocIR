@@ -20,8 +20,8 @@ USE_PREPROCESSED_CHUNKS = True  # Set to True to use team's chunks
 
 # Model settings
 # Baseline: BGE-large for top retrieval quality (MTEB #1, 1024D)
-EMBEDDING_MODEL = "BAAI/bge-large-en-v1.5"
-EMBEDDING_DIMENSION = 1024  # Dimension for bge-large-en-v1.5
+EMBEDDING_MODEL = "jinaai/jina-clip-v2"
+EMBEDDING_DIMENSION = 1024  # Jina CLIP v2 outputs 1024 dimensions
 
 # Retrieval settings
 TOP_K = 5  # Number of documents to retrieve
@@ -35,7 +35,7 @@ CHUNK_OVERLAP = 200  # Overlap between chunks (for sliding_window strategy)
 # Vector Database settings (Qdrant - as per team decision)
 VECTOR_DB_MODE = "local"  # Options: "local", "memory", "docker"
 VECTOR_DB_PATH = str(PROJECT_ROOT / "local_qdrant")  # Local storage path
-VECTOR_DB_COLLECTION = "baseline_documents_v3"  # Collection name (bge-large-1024D)
+VECTOR_DB_COLLECTION = "baseline_documents_jina"  # Collection name (jina-clip-v2-1024D)
 VECTOR_DB_DISTANCE = "COSINE"  # Distance metric: COSINE, DOT, MANHATTAN, EUCLID
 
 # LLM settings (using Ollama)
