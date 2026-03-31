@@ -1,5 +1,5 @@
 # src/indexing/embedder.py
-
+import torch
 from typing import List, Dict, Any
 import numpy as np
 import logging
@@ -10,44 +10,42 @@ logger = logging.getLogger(__name__)
 
 
 class TextEmbedder:
-    """Wrapper for sentence-transformers text embedding model (baseline)."""
+    """Wrapper for Jina CLIP v2 embedding model (text + image, shared vector space)."""
 
-    # BGE models require a query prefix for retrieval tasks
-    BGE_QUERY_PREFIX = "Represent this sentence for searching relevant passages: "
+    def __init__(self, model_name: str = "jinaai/jina-clip-v2"):
+        logger.info(f"Loading Jina CLIP v2 model: {model_name}")
 
-    def __init__(self, model_name: str = "sentence-transformers/all-MiniLM-L6-v2"):
-        logger.info(f"Loading sentence-transformers model: {model_name}")
+        self.model = SentenceTransformer(model_name, trust_remote_code=True, device="cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
+        self.dimension = 1024  # Jina CLIP v2 outputs 1024 dimensions
 
-        self.model = SentenceTransformer(model_name)
-        self.dimension = self.model.get_sentence_embedding_dimension()
-        self.is_bge = "bge" in model_name.lower()
-
-        logger.info(f"Model loaded. Embedding dimension: {self.dimension}")
+        logger.info(f"Jina CLIP v2 loaded. Embedding dimension: {self.dimension}")
 
     def embed_texts(
         self,
         texts: List[str],
-        batch_size: int = 64
+        batch_size: int = 32
     ) -> np.ndarray:
-        """
-        Embed a list of texts.
-        Returns numpy array of shape (n_texts, embedding_dim).
-        """
-        logger.info(f"Embedding {len(texts)} texts...")
+        """Embed a list of texts using Jina CLIP v2 text encoder."""
+        logger.info(f"Embedding {len(texts)} texts with Jina CLIP v2...")
         all_embeddings = []
 
         for i in tqdm(range(0, len(texts), batch_size), desc="Encoding texts"):
             batch_texts = texts[i:i + batch_size]
-            embeddings = self.model.encode(batch_texts, normalize_embeddings=True)
+            embeddings = self.model.encode(
+                batch_texts,
+                prompt_name="document",
+                batch_size=8,
+            )
             all_embeddings.append(embeddings)
+
+            if torch.backends.mps.is_available():
+                torch.mps.empty_cache()
 
         return np.vstack(all_embeddings)
 
     def embed_query(self, query: str) -> np.ndarray:
-        """Embed a single query text (with BGE prefix if applicable)."""
-        if self.is_bge:
-            query = self.BGE_QUERY_PREFIX + query
-        return self.model.encode([query], normalize_embeddings=True)[0]
+        """Embed a single query text."""
+        return self.model.encode([query], prompt_name="retrieval.query")[0]
 
 
 def create_chunk_embeddings(
