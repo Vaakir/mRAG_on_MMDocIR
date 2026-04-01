@@ -17,7 +17,7 @@ from data.pdf_processor import process_all_pdfs
 # from data.pdf_cache import PDFCache
 from data.chunk_loader import load_preprocessed_chunks, print_chunk_statistics
 # from generated_stuff.pdf_cache import PDFCache
-from generated_stuff.text_cleaner import filter_chunks
+# from generated_stuff.text_cleaner import filter_chunks
 from preprocessing.chunker import chunk_documents
 # from preprocessing.text_cleaner import filter_chunks
 from indexing.embedder import TextEmbedder, create_chunk_embeddings
