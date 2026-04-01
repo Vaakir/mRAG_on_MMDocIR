@@ -12,8 +12,10 @@ test/
 temp/
 outputs/
 
-#qdrant
+# Qdrant local storage (large binary files, rebuild locally)
 qdrant_data/
+local_qdrant/collection/
+
 
 # Models / embeddings
 *.pt
