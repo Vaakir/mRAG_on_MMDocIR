@@ -19,7 +19,7 @@ PREPROCESSED_CHUNKS_FILE = DATA_DIR / "data" / "chunks_fixed_size.json"
 USE_PREPROCESSED_CHUNKS = True  # Set to True to use team's chunks
 
 # Model settings
-# Baseline: BGE-large for top retrieval quality (MTEB #1, 1024D)
+# Baseline: Jina CLIP v2 for multimodal embeddings (team's choice)
 EMBEDDING_MODEL = "jinaai/jina-clip-v2"
 EMBEDDING_DIMENSION = 1024  # Jina CLIP v2 outputs 1024 dimensions
 

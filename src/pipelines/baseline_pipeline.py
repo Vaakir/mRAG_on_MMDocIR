@@ -3,7 +3,7 @@
 # - unstructured for PDF processing
 # - Team's Chunking class with fixed_size strategy
 # - Qdrant vector database
-# - BAAI/bge-large-en-v1.5 for embeddings (1024D)
+# - Jina CLIP v2 for embeddings (1024D, multimodal text + image shared space)
 # - Ollama API for generation (qwen3:32b for strong reasoning)
 
 import logging
@@ -17,7 +17,7 @@ from data.pdf_processor import process_all_pdfs
 # from data.pdf_cache import PDFCache
 from data.chunk_loader import load_preprocessed_chunks, print_chunk_statistics
 # from generated_stuff.pdf_cache import PDFCache
-# from generated_stuff.text_cleaner import filter_chunks
+from preprocessing.text_cleaner import filter_chunks
 from preprocessing.chunker import chunk_documents
 # from preprocessing.text_cleaner import filter_chunks
 from indexing.embedder import TextEmbedder, create_chunk_embeddings
@@ -38,7 +38,7 @@ class BaselineRAGPipeline:
     Components:
     - PDF Processing: unstructured library (structured blocks)
     - Chunking: Team's fixed_size strategy (1000 chars)
-    - Embeddings: BAAI/bge-large-en-v1.5 (1024D, MTEB #1 for retrieval)
+    - Embeddings: Jina CLIP v2 (1024D, text-only for System 1, ready for multimodal in System 2)
     - Vector DB: Qdrant (local mode)
     - Generation: Ollama API
     """
@@ -173,8 +173,8 @@ class BaselineRAGPipeline:
                 logger.info(f"Filtered out {filtered_count} noisy chunks ({filtered_count/original_count*100:.1f}%)")
                 logger.info(f"Retained {len(self.chunks)} high-quality chunks")
             
-            # Step 3: Create embeddings using BAAI/bge-large-en-v1.5 (1024D)
-            logger.info("Step 3: Creating BAAI/bge-large-en-v1.5 embeddings...")
+            # Step 3: Create embeddings using Jina CLIP v2 (1024D, text-only for System 1)
+            logger.info("Step 3: Creating Jina CLIP v2 embeddings (text-only)...")
             embeddings = create_chunk_embeddings(self.chunks, self.embedder)
             logger.info(f"Created {len(embeddings)} embeddings")
             

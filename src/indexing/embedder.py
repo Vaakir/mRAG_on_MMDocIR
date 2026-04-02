@@ -10,15 +10,15 @@ logger = logging.getLogger(__name__)
 
 # -------------------------------------------------------------------
 class TextEmbedder:
-    """Wrapper for Jina CLIP v2 embedding model (text + image, shared vector space)."""
+    """Wrapper for embedding models (supports Jina CLIP v2, BGE, and others)."""
 
     def __init__(self, model_name: str = "jinaai/jina-clip-v2"):
-        logger.info(f"Loading Jina CLIP v2 model: {model_name}")
+        logger.info(f"Loading embedding model: {model_name}")
 
         self.model = SentenceTransformer(model_name, trust_remote_code=True, device="cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
         self.dimension = 1024  # Jina CLIP v2 outputs 1024 dimensions
 
-        logger.info(f"Jina CLIP v2 loaded. Embedding dimension: {self.dimension}")
+        logger.info(f"Embedding model loaded. Dimension: {self.dimension}, Device: {device}")
 
     def embed_texts(
         self,
