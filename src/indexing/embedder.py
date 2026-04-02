@@ -50,7 +50,7 @@ class TextEmbedder:
 
     def embed_query(self, query: str) -> np.ndarray:
         """Embed a single query text."""
-        return self.model.encode([query], prompt_name="retrieval.query")[0]
+        return self.model.encode([query], normalize_embeddings=True)[0]
 
 # -------------------------------------------------------------------
 def create_chunk_embeddings(

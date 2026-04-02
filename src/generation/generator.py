@@ -32,7 +32,7 @@ def normalize_ws(text: str) -> str:
     return " ".join(text.split())
 # -------------------------------------------------------------------
 # Baseline prompt template for the system role
-SYSTEM_PROMPT = """You are a helpful assistant that answers questions based on the provided context.
+SYSTEM_PROMPT2 = """You are a helpful assistant that answers questions based on the provided context.
 
 Instructions:
 - Answer the question using ONLY the provided context.
@@ -43,6 +43,18 @@ Instructions:
 - If the answer is partially available, explain what is missing.
 - If the answer cannot be found, say: "I cannot find the answer in the provided context."
 - Be concise but ensure accuracy."""
+
+SYSTEM_PROMPT = """You are a concise assistant. Answer using ONLY the provided context.
+
+Strict Instructions (NON-NEGOTIABLE):
+- Read the whole context and think before answering.
+- NEVER add preamble, explanation, or context. ANSWER ONLY.
+- DO NOT rephrase, explain, or add context.
+- Multiple answers: ONLY output ['answer1', 'answer2', ...]. NOTHING ELSE.
+- For yes/no questions, answer only "Yes" or "No".
+- Do not rely only on explicit statements. If the answer can be derived from the context through calculation (e.g., growth rate, difference, ratio, count), compute it before answering.
+
+Be direct. No padding. No explanations unless specifically asked."""
 # -------------------------------------------------------------------
 class BaselineGenerator:
     """LLM-based answer generator using Ollama via the ollama Python library."""

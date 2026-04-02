@@ -92,3 +92,21 @@ class HybridRetriever:
             results.append(entry)
 
         return results
+    
+    def retrieve_by_embedding(self, embedding: np.ndarray, top_k: int = None) -> List[Dict[str, Any]]:
+        """
+        Retrieve documents using a pre-computed embedding (useful for HyDE and other embedding-based techniques).
+        
+        Args:
+            embedding: Pre-computed embedding vector
+            top_k: Number of top results to return
+            
+        Returns:
+            List of retrieved documents
+        """
+        k = top_k or self.top_k
+        
+        # Dense retrieval only (no BM25 for embedding-based search)
+        dense_results = self.vector_db.retrieve(embedding, top_k=k)
+        
+        return dense_results
