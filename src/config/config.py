@@ -5,9 +5,14 @@ from pathlib import Path
 
 # Paths for data and resources
 PROJECT_ROOT = Path(__file__).parent.parent.parent
-DATA_DIR = PROJECT_ROOT / "src"
-PDF_DIR = DATA_DIR / "pdfs_train" / "pdfs_train"
-COLLECTION_DIR = DATA_DIR / "project_collection"
+SRC_DIR = PROJECT_ROOT / "src"
+DATA_DIR = SRC_DIR / "data" 
+
+PDFS_DIR = DATA_DIR / "train" / "pdfs_train"
+PREPROCESSED_DATA_DIR = DATA_DIR / "preprocessed"
+PREPROCESSED_DOCUMENTS_FILE = DATA_DIR / "preprocessed" / "all_documents.json"
+
+COLLECTION_DIR = SRC_DIR / "project_collection"
 TRAIN_JSONL = COLLECTION_DIR / "train" / "train.jsonl"
 TEST_JSONL = COLLECTION_DIR / "test" / "test.jsonl"
 
@@ -15,7 +20,7 @@ TEST_JSONL = COLLECTION_DIR / "test" / "test.jsonl"
 CACHE_DIR = PROJECT_ROOT / "cache"
 
 # Pre-processed chunks from team (fixed-size chunking already done)
-PREPROCESSED_CHUNKS_FILE = DATA_DIR / "data" / "chunks_fixed_size.json"
+PREPROCESSED_CHUNKS_FILE = SRC_DIR / "data" / "chunks_fixed_size.json"
 USE_PREPROCESSED_CHUNKS = True  # Set to True to use team's chunks
 
 # Model settings
