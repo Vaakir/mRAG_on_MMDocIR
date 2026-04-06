@@ -84,11 +84,12 @@ def contains_match(prediction: str, ground_truth: Any) -> float:
 # -------------------------------------------------------------------
 def token_f1(prediction: str, ground_truth: Any) -> float:
     """
-    Calculate token-level F1 score.
+    Calculate token-level F1 score (SQuAD-style, using token frequency).
     
     - **Formula: F1 = 2 * (precision * recall) / (precision + recall)**, where:
         - precision = (number of common tokens) / (number of tokens in prediction)
         - recall = (number of common tokens) / (number of tokens in ground truth)
+        - Common tokens are counted respecting frequency (uses Counter intersection)
     
     Args:
         prediction: The generated answer to evaluate
@@ -97,17 +98,26 @@ def token_f1(prediction: str, ground_truth: Any) -> float:
     Returns:
         F1 score between 0 and 1
     """
-    pred_tokens = set(normalize_answer(prediction).split()) # Tokenize the normalized prediction into a set of unique tokens for comparison
-    gt_tokens = set(normalize_answer(ground_truth).split()) # Tokenize the normalized ground truth into a set of unique tokens for comparison
+    # STANDARD (SQuAD-style): Use list tokenization with Counter to preserve token frequencies
+    pred_tokens = normalize_answer(prediction).split()  # Keep as list to preserve frequencies
+    gt_tokens = normalize_answer(ground_truth).split()  # Keep as list to preserve frequencies
 
     if len(pred_tokens) == 0 and len(gt_tokens) == 0: # If both prediction and ground truth have no tokens (empty), consider it a perfect match with F1 of 1.0
         return 1.0
     if len(pred_tokens) == 0 or len(gt_tokens) == 0:  # If one of them is empty and the other is not, then there are no common tokens, so F1 is 0.0
         return 0.0
 
-    common = pred_tokens & gt_tokens # Find the set of common tokens between prediction and ground truth
-    precision = len(common) / len(pred_tokens) # Calculate precision as the ratio of common tokens to total number of tokens in the prediction
-    recall = len(common) / len(gt_tokens) # Calculate recall as the ratio of common tokens to total number of tokens in the ground truth
+    # OLD (NON-STANDARD): Set-based approach loses token frequency information
+    # pred_tokens_set = set(pred_tokens)
+    # gt_tokens_set = set(gt_tokens)
+    # common = pred_tokens_set & gt_tokens_set
+    # precision = len(common) / len(pred_tokens)
+    # recall = len(common) / len(gt_tokens)
+    
+    # STANDARD: Counter-based approach respects token frequency (SQuAD/NLP standard)
+    common = Counter(pred_tokens) & Counter(gt_tokens)  # Intersection of Counters: min frequency for each token
+    precision = sum(common.values()) / len(pred_tokens)  # Common token counts / total prediction tokens
+    recall = sum(common.values()) / len(gt_tokens)  # Common token counts / total ground truth tokens
 
     if precision + recall == 0: # If both precision and recall are zero (no common tokens), return F1 as 0.0 to avoid division by zero
         return 0.0
@@ -187,7 +197,7 @@ def semantic_similarity(prediction: str, ground_truth: Any, embedder: Optional[A
     
     try:
         # Use embeddings to compute cosine similarity
-        pred_emb = embedder.embed_texts([prediction])[0] # Embed the prediction using the provided embedder (assuming it has an embed_texts method that takes a list of texts and returns a list of embeddings, we take the first embedding since we only have one prediction)
+        pred_emb = embedder.embed_texts([normalize_answer(prediction)])[0] # Embed the prediction using the provided embedder (assuming it has an embed_texts method that takes a list of texts and returns a list of embeddings, we take the first embedding since we only have one prediction)
         gt_emb = embedder.embed_texts([normalize_answer(ground_truth)])[0] # Embed the normalized ground truth using the same embedder (normalizing it first to ensure consistency in embedding) and take the first embedding since we only have one ground truth answer
         
         # Calculate Cosine similarity

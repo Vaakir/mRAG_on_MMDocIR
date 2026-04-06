@@ -34,11 +34,11 @@ def precision_at_k(retrieved: List[str], relevant: Set[str], k: int) -> float:
 # -------------------------------------------------------------------
 def recall_at_k(retrieved: List[str], relevant: Set[str], k: int) -> float:
     """
-    Calculate Recall@k as a binary hit: 1.0 if any relevant doc appears in top-k, else 0.0.
-    This avoids recall > 1 when multiple chunks from the same PDF are retrieved.
-
-    - **Formula: Binary hit: 1.0 if any relevant doc in top-k, else 0.0**
-    - Shows: Coverage of relevant documents. Higher is better, but can be 0 or 1 due to binary nature.
+    Calculate Recall@k.
+    This measures the fraction of all relevant documents that appear in the top-k retrieved results.
+    
+    - **Formula: (# relevant docs in top-k) / (total # relevant docs)**
+    - Shows: Coverage of relevant documents. Higher is better. Maximum of 1.0 when all relevant docs are retrieved.
     
     Args:
         retrieved: list of retrieved document identifiers
@@ -46,7 +46,7 @@ def recall_at_k(retrieved: List[str], relevant: Set[str], k: int) -> float:
         k: number of top documents to consider
     
     Returns:
-        1.0 if any relevant doc in top-k, else 0.0
+        Recall@k value (between 0 and 1)
     """
     # Avoid division by zero and empty relevant set
     if len(relevant) == 0:
@@ -55,8 +55,13 @@ def recall_at_k(retrieved: List[str], relevant: Set[str], k: int) -> float:
     # Consider only the top-k retrieved documents
     retrieved_at_k = retrieved[:k]
     
-    # Return 1.0 if any relevant document is in the top-k retrieved documents, else 0.0
-    return 1.0 if any(doc in relevant for doc in retrieved_at_k) else 0.0
+    # Count how many of the top-k retrieved documents are relevant
+    relevant_retrieved = sum(1 for doc in retrieved_at_k if doc in relevant)
+    
+    # FIXED: Changed from binary hit (0/1) to standard recall formula
+    # return 1.0 if any(doc in relevant for doc in retrieved_at_k) else 0.0
+    
+    return relevant_retrieved / len(relevant)
 # -------------------------------------------------------------------
 def page_recall_at_k(retrieved: List[Dict[str, Any]], relevant_pdf: str, relevant_pages: Set[int], k: int) -> float:
     """
@@ -238,7 +243,11 @@ def evaluate_retrieval(
         relevant_pages = set(gt.get("page_ids") or []) # Make a set of relevant page IDs (for page recall)
 
         # Retrieved PDF names (for existing precision/recall)
-        retrieved_docs = [r["payload"]["pdf_name"] for r in retrieved]
+        # Deprecated: (non-deduplicated - includes duplicate PDFs from multiple chunks, may inflate metrics):
+        # retrieved_docs = [r["payload"]["pdf_name"] for r in retrieved]
+        
+        # Deduplicated: doc-level evaluation, preserves order of first occurrence:
+        retrieved_docs = list(dict.fromkeys([r["payload"]["pdf_name"] for r in retrieved]))
 
         # Calculate MAP and MRR for this query
         map_scores.append(mean_average_precision(retrieved_docs, relevant)) # Calculate and store the MAP score for this query
