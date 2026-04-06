@@ -120,7 +120,7 @@ class BaselineRAGPipeline:
                 self.chunks = load_preprocessed_chunks(PREPROCESSED_CHUNKS_FILE)
                 print_chunk_statistics(self.chunks)
                 
-                logger.info(f"✓ Loaded {len(self.chunks)} pre-processed chunks")
+                logger.info(f"[OK] Loaded {len(self.chunks)} pre-processed chunks")
             else:
                 # Original flow: Extract PDFs → Chunk → Filter
                 logger.info("Processing PDFs from scratch (USE_PREPROCESSED_CHUNKS=False)")
@@ -136,7 +136,7 @@ class BaselineRAGPipeline:
                     logger.info("Found cached processed PDFs, loading...")
                     documents = pdf_cache.load() # Load the processed PDF documents from cache if it exists and we're not forcing a rebuild (this allows us to skip the potentially time-consuming PDF processing step if we've already done it once and saved the results)
                     if documents: # If we successfully loaded documents from cache, we can proceed with those instead of re-processing the PDFs (this is a big time saver for development and testing)
-                        logger.info(f"✓ Loaded {len(documents)} PDFs from cache")
+                        logger.info(f"[OK] Loaded {len(documents)} PDFs from cache")
                     else: # If cache load failed (e.g. corrupted cache), we fall back to processing the PDFs from source and then save to cache for future runs (this ensures we can recover gracefully if the cache is not usable for some reason, while still benefiting from caching in subsequent runs)
                         logger.info("Cache load failed, processing PDFs...")
                         documents = process_all_pdfs(PDF_DIR) # Process the PDFs from the source directory using the defined PDF processing function (this is where we extract text and metadata from the raw PDF files, which can be time-consuming, hence the importance of caching)
@@ -144,7 +144,7 @@ class BaselineRAGPipeline:
                 else: # If no cache exists or we're forcing a rebuild, we process the PDFs from source and then save to cache for future runs (this ensures we have a fresh processing of the PDFs when needed, while still benefiting from caching in subsequent runs)
                     logger.info("Processing PDFs from source...")
                     documents = process_all_pdfs(PDF_DIR) # Process the PDFs from the source directory using the defined PDF processing function (this is where we extract text and metadata from the raw PDF files, which can be time-consuming, hence the importance of caching)
-                    logger.info(f"Extracted {len(documents)} PDFs")
+                    logger.info(f"[OK] Extracted {len(documents)} PDFs")
                     
                     # Save to cache for future inspection
                     logger.info("Saving processed PDFs to cache...")
@@ -153,7 +153,7 @@ class BaselineRAGPipeline:
                         'processing_method': 'pdfplumber with unstructured fallback'
                     })
                 
-                logger.info(f"✓ Total documents: {len(documents)}")
+                logger.info(f"[OK] Total documents: {len(documents)}")
 
                 
                 # Step 2: Chunk documents using the chosen chunking strategy (CHUNKING_STRATEGY) and chunk size (CHUNK_SIZE))
@@ -233,49 +233,80 @@ class BaselineRAGPipeline:
         return self.vector_db.retrieve(query_embedding=query_embedding, top_k=top_k) # Retrieve relevant chunks from Qdrant based on the query embedding, returning the top_k most similar chunks according to the specified distance metric (e.g. cosine similarity). The retrieved results will include the chunk text and associated metadata for use in the generation step.
     #-------------------
     def run_query(self, question: str, top_k: int = TOP_K) -> Dict[str, Any]:
-        """Run a single query through the pipeline."""
-        # Retrieve relevant chunks to use as context for answering the question
-        retrieved = self.retrieve(question, top_k)
+        """
+        Run a single query through the pipeline with timing instrumentation.
         
-        # Formatting the context (Concatenate chunk texts for context; metadata optional for better output.)
+        Tracks:
+        - Retrieval time
+        - Generation time
+        - Total query time
+        
+        Returns:
+            Dict with question, retrieved_docs, context, answer, and timing info
+        """
+        query_total_start = time.time() # Track time for total time taken for processing this query through the entire pipeline (including retrieval and generation) for reference and monitoring purposes
+        
+        # ===== STEP 1: RETRIEVAL =====
+        retrieval_start = time.time() # Start time for measurement of retrieval time for this query
+        retrieved = self.retrieve(question, top_k)
+        retrieval_time = time.time() - retrieval_start # Time taken for retrieval for this query (this includes the time to embed the query and retrieve relevant chunks from Qdrant, as well as any additional processing in the hybrid retriever if enabled)
+        
+        # ===== STEP 2: CONTEXT FORMATTING =====
         context = "\n\n".join([
             f"[Document {i+1}]:\n{result['text']}"
             for i, result in enumerate(retrieved)
         ])
         
-        # Generate the answer/response using the generator with the retrieved context
+        # ===== STEP 3: GENERATION =====
+        generation_start = time.time() # Track time for measurement of generation time for this query 
         answer = self.generator.generate(question, context)
+        generation_time = time.time() - generation_start # Time taken for generation for this query (this includes the time to send the request to the Ollama API and receive the generated response based on the question and retrieved context)
         
+        query_total_time = time.time() - query_total_start # Time taken for total query processing time for this query (including both retrieval and generation)
+        
+        # Return the results along with timing information for retrieval, generation, and total query processing time for reference and potential use in logging or analysis during evaluation
         return {
             "question": question,
             "retrieved_docs": retrieved,
             "context": context,
-            "answer": answer
+            "answer": answer,
+            "timing": {
+                "retrieval": retrieval_time,
+                "generation": generation_time,
+                "total": query_total_time
+            }
         }
     #-------------------
     def evaluate(self, test_data: List[Dict[str, Any]]) -> Dict[str, float]:
         """
-        Evaluate the pipeline on test data.
+        Evaluate the pipeline on test data with comprehensive timing instrumentation.
         
         Returns metrics:
-        - Retrieval: precision@k, recall@k
-        - Generation: exact_match, token_f1
+        - Retrieval: precision@k, recall@k, MAP, MRR, NDCG@k, page_recall@k
+        - Generation: exact_match, token_f1, bleu, semantic_similarity
+        - Timing: phase1 (retrieval), phase2 (generation), total
         """
-        logger.info(f"Evaluating on {len(test_data)} test queries...")
+        logger.info(f"Evaluating on {len(test_data)} test queries... \n")
+        
+        eval_total_start = time.time()  # Track OVERALL evaluation time
         
         all_retrieved = []     # List to hold retrieved documents for all queries for retrieval evaluation
         all_predictions = []   # List to hold generated answers for all queries for generation evaluation
         all_ground_truths = [] # List to hold ground truth answers for all queries for generation evaluation
         
+        # ===== PHASE 1: RETRIEVAL & GENERATION (per-query) =====
+        phase1_start = time.time()  # Track time for retrieval phase
+        
         # Loop through each test query (i.e. query from test_data) and run it through the pipeline to collect retrieved documents, generated answers, and ground truth answers for evaluation
         for i, record in enumerate(test_data, 1):
+            print(f"Entry #{i}")
             logger.info(f"Processing query {i}/{len(test_data)}")
             
             # Run the query through the pipeline
             result = self.run_query(record["question"])
-            print(f"Question: {record['question']}")       # Print the question for reference
+            print(f"\nQuestion: {record['question']}")       # Print the question for reference
             print(f"Ground Truth: {record['answer']}")     # Print the ground truth answer for reference
-            print(f"Generated Answer: {result['answer']}") # Print the generated answer for reference
+            print(f"Generated Answer: {result['answer']} \n") # Print the generated answer for reference
 
             # Collect retrieved docs (keep as list of dicts for eval)
             all_retrieved.append(result['retrieved_docs'])
@@ -284,18 +315,56 @@ class BaselineRAGPipeline:
             all_predictions.append(result['answer'])
             all_ground_truths.append(record['answer'])
         
+        phase1_time = time.time() - phase1_start  # Time for retrieval + generation per-query processing
+        logger.info(f"Phase 1 (Retrieval + Generation): {phase1_time:.2f}s")
+        
+        # ===== PHASE 2: METRIC COMPUTATION =====
+        phase2_start = time.time()  # Track time for metric computation
+        
         # Evaluating the retrieval process
         retrieval_metrics = evaluate_retrieval(all_retrieved, test_data)
         
         # Evaluating the generation process
         generation_metrics = evaluate_generation(all_predictions, all_ground_truths)
         
-        # Combine the metrics (for logging and return)
-        all_metrics = {**retrieval_metrics, **generation_metrics}
+        phase2_time = time.time() - phase2_start  # Time for metric computation
+        logger.info(f"Phase 2 (Metric Computation): {phase2_time:.2f}s")
+        
+        # ===== COMBINE METRICS WITH TIMING =====
+        eval_total_time = time.time() - eval_total_start # Total evaluation time (including both phases)
+        
+        # Combine all metrics and timing into a single dictionary for return and logging
+        all_metrics = {
+            **retrieval_metrics,
+            **generation_metrics,
+            'timing': {
+                'phase1': phase1_time,       # Retrieval + generation per query
+                'phase2': phase2_time,       # Metric computation
+                'total': eval_total_time     # Total evaluation time
+            }
+        }
         
         # Log results
-        logger.info("=== EVALUATION RESULTS ===")
-        for metric, value in all_metrics.items():
-            logger.info(f"{metric}: {value:.4f}")
+        # logger.info("=== EVALUATION RESULTS ===")
+        print(f"\n === EVALUATION RESULTS ===")
+        for metric_key, metric_value in all_metrics.items():
+            if metric_key != 'timing':
+                if isinstance(metric_value, (int, float)):
+                    # logger.info(f"{metric_key}: {metric_value:.4f}")
+                    print(f"{metric_key}: {metric_value:.4f}")
+                else:
+                    # logger.info(f"{metric_key}: {metric_value}")
+                    print(f"{metric_key}: {metric_value}")
+                    
+        
+        # Log timing
+        # logger.info("=== TIMING BREAKDOWN ===")
+        print(f"\n === TIMING BREAKDOWN ===")
+        # logger.info(f"Phase 1 (Query Processing): {phase1_time:.2f}s")
+        # logger.info(f"Phase 2 (Metric Computation): {phase2_time:.2f}s")
+        # logger.info(f"Total Evaluation Time: {eval_total_time:.2f}s")
+        print(f"Phase 1 (Query Processing): {phase1_time:.2f}s")
+        print(f"Phase 2 (Metric Computation): {phase2_time:.2f}s")
+        print(f"Total Evaluation Time: {eval_total_time:.2f}s")
         
         return all_metrics
