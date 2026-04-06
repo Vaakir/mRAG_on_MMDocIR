@@ -5,6 +5,7 @@ Date,Name,Start,End,Tag,WorkingOn
 27.03.2026,vaakir,08:30,10:00,System 1,PDF Reading and chunking using multiprocessing
 27.03.2026,vaakir,10:00,11:30,Planning,Reading code on different branches and planning TODOs
 06.04.2026,vaakir,12:00,14:00,System 1,Refactor + Preprocessing pipeline
+06.04.2026,vaakir,14:40,16:00,System 1,Refactor + Preprocessing pipeline
 
 25.03.2026,BaalCat,12:15,14:00,Planning,Planning filestructure etc
 26.03.2026,BaalCat,07:45,15:30,Reading Theory & Coding,"Theory about RAG, Vector Databases and related, Implementing First Draft of Vector DB with simple test"

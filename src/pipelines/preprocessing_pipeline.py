@@ -1,4 +1,4 @@
-# File that calls upon the following preprocessing files
+# The preprocessing pipeline calls upon the following preprocessing files
 # 1. pdf_loader.py
 # 2. pdf_chunker.py
 import logging
@@ -46,7 +46,7 @@ def preprocessing_pipeline(
     # 2. pdf_chunker.py
     logger.info("Loading documents for chunking...")
     all_documents = load_read_documents(PREPROCESSED_DOCUMENTS_FILE)
-    
+
     logger.info("Running chunking methods and saving outputs...")
     chunk_result = chunk_and_save_pdf_data(
         all_documents, output_dir=PREPROCESSED_DATA_DIR
@@ -62,3 +62,6 @@ def preprocessing_pipeline(
 if __name__ == "__main__":
     result = preprocessing_pipeline(reading_method="multiprocessing")
     print(f"Preprocessing pipeline completed successfully: {result}")
+
+    # how to run:
+    # DAT560project/src> python -m pipelines.preprocessing_pipeline
