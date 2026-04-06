@@ -7,8 +7,11 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 SRC_DIR = PROJECT_ROOT / "src"
 DATA_DIR = SRC_DIR / "data" 
-PDF_DIR = SRC_DIR / "pdfs_train" / "pdfs_train"
-ALL_DOCUMENTS_FILE = DATA_DIR / "all_documents.json"
+
+PDFS_DIR = DATA_DIR / "train" / "pdfs_train"
+PREPROCESSED_DATA_DIR = DATA_DIR / "preprocessed"
+PREPROCESSED_DOCUMENTS_FILE = DATA_DIR / "preprocessed" / "all_documents.json"
+
 COLLECTION_DIR = SRC_DIR / "project_collection"
 TRAIN_JSONL = COLLECTION_DIR / "train" / "train.jsonl"
 TEST_JSONL = COLLECTION_DIR / "test" / "test.jsonl"

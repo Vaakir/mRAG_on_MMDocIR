@@ -13,7 +13,9 @@ import multiprocessing
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
+# Removed a Consistent spamming warning on this: 
+# WARNING:pdfminer.pdfinterp:Cannot set non-stroke color because expected 4 components but got [0.525]
+logging.getLogger("pdfminer").setLevel(logging.ERROR) 
 
 def extract_text_from_pdf(pdf_path: Path) -> Dict[str, Any]:
     """
@@ -113,7 +115,7 @@ def load_read_documents(path):
             SimpleNamespace(
                 category=b["category"],
                 text=b["text"],
-                metadata=SimpleNamespace(**b.get("metadata", {}))
+                page_number=b.get("page_number")
             ) for b in doc["blocks"]
         ]
     return docs

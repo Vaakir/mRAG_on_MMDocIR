@@ -5,14 +5,14 @@ import logging
 from pathlib import Path
 from typing import Any, Literal
 
-from config.config import DATA_DIR, PDF_DIR, ALL_DOCUMENTS_FILE
+from config.config import PDFS_DIR, PREPROCESSED_DOCUMENTS_FILE, PREPROCESSED_DATA_DIR
 from preprocessing.pdf_loader import (
     process_all_pdfs,
     process_all_pdfs_fast,
     save_read_pdf_data,
     load_read_documents,
 )
-from preprocessing.pdf_chunker import Chunking, chunk_and_save_pdf_data
+from preprocessing.pdf_chunker import chunk_and_save_pdf_data
 
 logger = logging.getLogger(__name__)
 
@@ -28,25 +28,29 @@ def preprocessing_pipeline(
         "standard": process_all_pdfs,
         "multiprocessing": process_all_pdfs_fast,
     }
-    
+
     if reading_method not in reading_method_map.keys():
-        raise ValueError(f"Reading method is not among {list(reading_method_map.keys())}")
-    
+        raise ValueError(
+            f"Reading method is not among {list(reading_method_map.keys())}"
+        )
+
     logger.info(f"Extracting PDFs using {reading_method}...")
-    all_documents = reading_method_map[reading_method](PDF_DIR)
+    all_documents = reading_method_map[reading_method](PDFS_DIR)
 
     if not all_documents:
         raise ValueError("PDF extraction returned no documents.")
 
-    logger.info(f"Saving extracted JSON to {ALL_DOCUMENTS_FILE}...")
-    save_read_pdf_data(all_documents, path=ALL_DOCUMENTS_FILE)
+    logger.info(f"Saving extracted JSON to {PREPROCESSED_DOCUMENTS_FILE}...")
+    save_read_pdf_data(all_documents, path=PREPROCESSED_DOCUMENTS_FILE)
 
     # 2. pdf_chunker.py
     logger.info("Loading documents for chunking...")
-    all_documents = load_read_documents(ALL_DOCUMENTS_FILE)
-
+    all_documents = load_read_documents(PREPROCESSED_DOCUMENTS_FILE)
+    
     logger.info("Running chunking methods and saving outputs...")
-    chunk_result = chunk_and_save_pdf_data(all_documents, output_dir=DATA_DIR)
+    chunk_result = chunk_and_save_pdf_data(
+        all_documents, output_dir=PREPROCESSED_DATA_DIR
+    )
 
     return {
         "status": "success",
@@ -56,6 +60,5 @@ def preprocessing_pipeline(
 
 
 if __name__ == "__main__":
-    preprocessing_pipeline(reading_method="ok")
-    # result = preprocessing_pipeline(reading_method="multiprocessing")
-    # print(f"Pipeline completed successfully: {result}")
+    result = preprocessing_pipeline(reading_method="multiprocessing")
+    print(f"Preprocessing pipeline completed successfully: {result}")
