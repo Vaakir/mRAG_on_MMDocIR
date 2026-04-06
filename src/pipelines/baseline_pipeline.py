@@ -13,13 +13,8 @@ from typing import Dict, Any, List
 
 from config.config import *
 from data.data_loader import load_train_data, load_test_data
-from data.pdf_processor import process_all_pdfs
-# from data.pdf_cache import PDFCache
 from data.chunk_loader import load_preprocessed_chunks, print_chunk_statistics
-# from generated_stuff.pdf_cache import PDFCache
 from preprocessing.text_cleaner import filter_chunks
-from preprocessing.chunker import chunk_documents
-# from preprocessing.text_cleaner import filter_chunks
 from indexing.embedder import TextEmbedder, create_chunk_embeddings
 from indexing.vector_store import QdrantConfig, QdrantVectorDB
 from indexing.hybrid_retriever import HybridRetriever
@@ -109,69 +104,16 @@ class BaselineRAGPipeline:
         if force_rebuild:
             logger.info("Building new index...")
             
-            # Check if we should use pre-processed chunks
-            if USE_PREPROCESSED_CHUNKS: # If set to True, then we just load the pre-processed chunks directly 
-                logger.info("=" * 80)
-                logger.info("USING PRE-PROCESSED CHUNKS")
-                logger.info("=" * 80)
-                logger.info(f"Loading chunks from: {PREPROCESSED_CHUNKS_FILE}")
-                
-                # Load pre-processed chunks directly (i.e. skip PDF extraction and chunking)
-                self.chunks = load_preprocessed_chunks(PREPROCESSED_CHUNKS_FILE)
-                print_chunk_statistics(self.chunks)
-                
-                logger.info(f"[OK] Loaded {len(self.chunks)} pre-processed chunks")
-            else:
-                # Original flow: Extract PDFs → Chunk → Filter
-                logger.info("Processing PDFs from scratch (USE_PREPROCESSED_CHUNKS=False)")
-                
-                # Initialize PDF cache
-                pdf_cache = PDFCache(CACHE_DIR)
-                
-                # Step 1: Extract text from PDFs (or load from cache)
-                logger.info("Step 1: Extracting text from PDFs...")
-                
-                # Check if we have cached PDFs
-                if pdf_cache.exists() and not force_rebuild:
-                    logger.info("Found cached processed PDFs, loading...")
-                    documents = pdf_cache.load() # Load the processed PDF documents from cache if it exists and we're not forcing a rebuild (this allows us to skip the potentially time-consuming PDF processing step if we've already done it once and saved the results)
-                    if documents: # If we successfully loaded documents from cache, we can proceed with those instead of re-processing the PDFs (this is a big time saver for development and testing)
-                        logger.info(f"[OK] Loaded {len(documents)} PDFs from cache")
-                    else: # If cache load failed (e.g. corrupted cache), we fall back to processing the PDFs from source and then save to cache for future runs (this ensures we can recover gracefully if the cache is not usable for some reason, while still benefiting from caching in subsequent runs)
-                        logger.info("Cache load failed, processing PDFs...")
-                        documents = process_all_pdfs(PDF_DIR) # Process the PDFs from the source directory using the defined PDF processing function (this is where we extract text and metadata from the raw PDF files, which can be time-consuming, hence the importance of caching)
-                        pdf_cache.save(documents) # Save the processed documents to cache for future runs (this allows us to avoid re-processing the PDFs every time, which can save a lot of time during development and testing when we may be iterating on other parts of the pipeline)
-                else: # If no cache exists or we're forcing a rebuild, we process the PDFs from source and then save to cache for future runs (this ensures we have a fresh processing of the PDFs when needed, while still benefiting from caching in subsequent runs)
-                    logger.info("Processing PDFs from source...")
-                    documents = process_all_pdfs(PDF_DIR) # Process the PDFs from the source directory using the defined PDF processing function (this is where we extract text and metadata from the raw PDF files, which can be time-consuming, hence the importance of caching)
-                    logger.info(f"[OK] Extracted {len(documents)} PDFs")
-                    
-                    # Save to cache for future inspection
-                    logger.info("Saving processed PDFs to cache...")
-                    pdf_cache.save(documents, metadata={
-                        'source_dir': str(PDF_DIR),
-                        'processing_method': 'pdfplumber with unstructured fallback'
-                    })
-                
-                logger.info(f"[OK] Total documents: {len(documents)}")
-
-                
-                # Step 2: Chunk documents using the chosen chunking strategy (CHUNKING_STRATEGY) and chunk size (CHUNK_SIZE))
-                logger.info("Step 2: Chunking documents (fixed_size strategy)...")
-                self.chunks = chunk_documents( # Use the team's chunking function to create chunks from the extracted PDF documents using the specified chunking strategy (fixed_size) and chunk size (1000 characters). This will break down the long PDF texts into smaller, manageable chunks that can be embedded and indexed effectively. The resulting chunks will also include metadata such as source PDF name, path, chunk ID, character length, and page numbers for reference during retrieval and generation.
-                    documents, # The list of processed PDF documents to be chunked, where each document contains the extracted text and associated metadata (e.g. PDF name, path, page numbers)
-                    strategy=CHUNKING_STRATEGY, # The chunking strategy to use (in this case, 'fixed_size' which creates chunks of a fixed number of characters)
-                    max_chars=CHUNK_SIZE # The maximum number of characters per chunk (1000 characters as per the implementation), which determines how the text from the PDFs will be split into chunks for embedding and indexing
-                )
-                logger.info(f"Created {len(self.chunks)} chunks")
-                
-                # Step 2.5: Filter out low-quality/noisy chunks (NOTE/OBS: not sure if this is necessary)
-                logger.info("Step 2.5: Filtering noisy chunks...")
-                original_count = len(self.chunks)                  # Store the original count of chunks before filtering for reference in logging
-                self.chunks = filter_chunks(self.chunks)           # Use the cleaning function to filter out low-quality or noisy chunks based on heuristics such as character length, presence of meaningful text, etc. This step helps improve the quality of the chunks that will be embedded and indexed, which can lead to better retrieval and generation performance. The filtering criteria can be adjusted in the filter_chunks function as needed to find the right balance between retaining useful information and removing noise.
-                filtered_count = original_count - len(self.chunks) # Calculate the number of chunks that were filtered out
-                logger.info(f"Filtered out {filtered_count} noisy chunks ({filtered_count/original_count*100:.1f}%)")
-                logger.info(f"Retained {len(self.chunks)} high-quality chunks")
+            logger.info("=" * 80)
+            logger.info("USING PRE-PROCESSED CHUNKS")
+            logger.info("=" * 80)
+            logger.info(f"Loading chunks from: {PREPROCESSED_CHUNKS_FILE}")
+            
+            # Load pre-processed chunks directly
+            self.chunks = load_preprocessed_chunks(PREPROCESSED_CHUNKS_FILE)
+            print_chunk_statistics(self.chunks)
+            
+            logger.info(f"[OK] Loaded {len(self.chunks)} pre-processed chunks")
             
             # Step 3: Create embeddings using Jina CLIP v2 (1024D, text-only for System 1)
             logger.info("Step 3: Creating Jina CLIP v2 embeddings (text-only)...")
