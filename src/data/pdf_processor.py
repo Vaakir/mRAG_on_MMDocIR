@@ -1,6 +1,4 @@
-# src/data/pdf_processor.py
-# Using unstructured library for PDF processing (as per team decision)
-# Falls back to pdfplumber if unstructured dependencies are missing
+# Using unstructured library for PDF processing
 
 import os
 from pathlib import Path
