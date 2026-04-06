@@ -1,11 +1,3 @@
-# src/pipelines/baseline_pipeline.py
-# Updated to use team's integrated components:
-# - unstructured for PDF processing
-# - Team's Chunking class with fixed_size strategy
-# - Qdrant vector database
-# - Jina CLIP v2 for embeddings (1024D, multimodal text + image shared space)
-# - Ollama API for generation (qwen3:32b for strong reasoning)
-
 import logging
 import time
 from pathlib import Path
@@ -33,11 +25,11 @@ logger = logging.getLogger(__name__)
 # -------------------------------------------------------------------
 class BaselineRAGPipeline:
     """
-    Complete baseline RAG pipeline using team's integrated components.
+    Complete baseline RAG pipeline.
     
     Components:
     - PDF Processing: unstructured library (structured blocks)
-    - Chunking: Team's fixed_size strategy (1000 chars)
+    - Chunking: Fixed-size strategy (1000 chars)
     - Embeddings: Jina CLIP v2 (1024D, text-only for System 1, ready for multimodal in System 2)
     - Vector DB: Qdrant (local mode)
     - Generation: Ollama API
@@ -56,7 +48,7 @@ class BaselineRAGPipeline:
         
         Steps:
         1. Extract text from PDFs (unstructured)
-        2. Chunk documents (team's fixed_size strategy)
+        2. Chunk documents (fixed_size strategy)
         3. Create embeddings
         4. Index in Qdrant
         """
@@ -100,7 +92,7 @@ class BaselineRAGPipeline:
                 
             elapsed = time.time() - start_time # Measure time taken to load the index
             logger.info(f"Index loaded in {elapsed:.2f} seconds")
-            return  # EXIT early - don't rebuild if valid collection exists
+            return  # EXIT early (don't rebuild if valid collection exists)
         
         # If we reach here: either force_rebuild=True OR collection is empty/missing
         # Either way, we need to build the index
@@ -158,7 +150,7 @@ class BaselineRAGPipeline:
                 
                 # Step 2: Chunk documents using the chosen chunking strategy (CHUNKING_STRATEGY) and chunk size (CHUNK_SIZE))
                 logger.info("Step 2: Chunking documents (fixed_size strategy)...")
-                self.chunks = chunk_documents( # Use the team's chunking function to create chunks from the extracted PDF documents using the specified chunking strategy (fixed_size) and chunk size (1000 characters). This will break down the long PDF texts into smaller, manageable chunks that can be embedded and indexed effectively. The resulting chunks will also include metadata such as source PDF name, path, chunk ID, character length, and page numbers for reference during retrieval and generation.
+                self.chunks = chunk_documents( # Chunking function to create chunks from the extracted PDF documents using the specified chunking strategy (fixed_size) and chunk size (1000 characters). This will break down the long PDF texts into smaller, manageable chunks that can be embedded and indexed effectively. The resulting chunks will also include metadata such as source PDF name, path, chunk ID, character length, and page numbers for reference during retrieval and generation.
                     documents, # The list of processed PDF documents to be chunked, where each document contains the extracted text and associated metadata (e.g. PDF name, path, page numbers)
                     strategy=CHUNKING_STRATEGY, # The chunking strategy to use (in this case, 'fixed_size' which creates chunks of a fixed number of characters)
                     max_chars=CHUNK_SIZE # The maximum number of characters per chunk (1000 characters as per the implementation), which determines how the text from the PDFs will be split into chunks for embedding and indexing
