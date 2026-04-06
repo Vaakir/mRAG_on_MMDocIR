@@ -17,3 +17,8 @@ Date,Name,Start,End,Tag,WorkingOn
 
 25.03.2026,togun,17:42,20:00, Planning,"understanding project, looking at data structure"
 26.03.2026,togun,9:40,18:00, Implementation,"basic implementation of the baseline system and then just seeing how things work" 
+25.03.2026,togun,17:42,20:00, Planning, "understanding project, looking at data structure"
+26.03.2026,togun,9:40,18:00, Implementation, basic implementation of the baseline system and then just seeing how things work 
+27.03.2026,togun,12:30,15:00, Implementation, Finalizing of chunking strategy with vaakir
+28.03.2026,togun,7:25,15:00, Testing and reimplementing baseline system.
+29.03.2026,togun,15:00,16:00, Updating evaluation strategy to confirm page inclusion works (page_recall)

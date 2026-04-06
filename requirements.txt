@@ -1,0 +1,30 @@
+# Core ML
+torch
+torchvision
+transformers==4.51.3
+
+# Embeddings
+sentence-transformers
+FlagEmbedding==1.2.11
+einops
+open_clip_torch
+
+# Vector DB
+qdrant-client
+
+# Retrieval
+rank-bm25
+
+# LLM
+ollama
+
+# PDF processing
+unstructured
+pdfplumber
+
+# Data / utils
+numpy
+tqdm
+requests
+python-dotenv
+matplotlib
