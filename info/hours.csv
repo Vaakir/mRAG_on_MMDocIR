@@ -12,8 +12,8 @@ Date,Name,Start,End,Tag,WorkingOn
 
 25.03.2026,GabIsr,12:15,14:00,Planning,Planning filestructure etc
 25.03.2026,GabIsr,20:30,23:15,Reading & Exploration,"Reading about dataset structure, and potential tools/libraries/frameworks that we can use for the project" 
-26.03.2026,GabIsr,09:30,16:40,System 1,Reading & Coding,"Experimented with an initial skeleton code for the RAG baseline pipeline, to get a feel for the overall architecture and data flow. Tried with an initial choice of PDF-parsing tools (pdfplumber), Embedding tools (CLIP) and FAISS (initial attempt), mostly to check if the skeleton code would suffice when integrating/replacing with the actual tools/libraries"
+26.03.2026,GabIsr,09:30,16:40,System 1,"Reading & Coding, Experimented with an initial skeleton code for the RAG baseline pipeline, to get a feel for the overall architecture and data flow. Tried with an initial choice of PDF-parsing tools (pdfplumber), Embedding tools (CLIP) and FAISS (initial attempt), mostly to check if the skeleton code would suffice when integrating/replacing with the actual tools/libraries"
 
 
-25.03.2026,togun,17:42,20:00, Planning, understanding project, looking at data structure
-26.03.2026,togun,9:40,18:00, Implementation, basic implementation of the baseline system and then just seeing how things work 
+25.03.2026,togun,17:42,20:00, Planning,"understanding project, looking at data structure"
+26.03.2026,togun,9:40,18:00, Implementation,"basic implementation of the baseline system and then just seeing how things work" 
