@@ -147,7 +147,7 @@ class QdrantVectorDB:
         elif mode == "local":
             print(f"Initializing local Qdrant at {self.config.local_path}...")
             client = QdrantClient(path=self.config.local_path) # Initialize a local Qdrant instance that stores data on disk at the specified path (data will persist across runs)
-            print("[OK] Local Qdrant initialized")
+            print(f"\n[OK] Local Qdrant initialized")
 
         else:
             raise ValueError(f"Invalid mode: {mode}. Use 'docker', 'memory', or 'local'")

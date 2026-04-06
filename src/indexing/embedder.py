@@ -18,7 +18,8 @@ class TextEmbedder:
         self.model = SentenceTransformer(model_name, trust_remote_code=True, device="cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
         self.dimension = 1024  # Jina CLIP v2 outputs 1024 dimensions
 
-        logger.info(f"Embedding model loaded. Dimension: {self.dimension}, Device: {device}")
+        # logger.info(f"Embedding model loaded. Dimension: {self.dimension}")
+        print(f"\n[OK] Embedding model loaded. Dimension: {self.dimension}")
 
     def embed_texts(
         self,
