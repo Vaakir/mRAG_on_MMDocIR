@@ -1,9 +1,9 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 import json
-from .pdf_chunker import load_read_documents
+from .pdf_loader import load_read_documents
 
 
 class Chunking:
@@ -312,6 +312,43 @@ class Chunking:
         return hierarchical_sections
 
 
+def chunk_and_save_pdf_data(
+    all_documents: List[Dict[str, Any]], output_dir: str = "../data"
+) -> Dict[str, Any]:
+    """
+    Applies multiple chunking methods to the documents and saves each method's result to a JSON file.
+    """
+    out_path = Path(output_dir)
+    out_path.mkdir(parents=True, exist_ok=True)
+
+    chunk_methods = {
+        "fixed_size": lambda c: c.fixed_size(),
+        "sliding_window": lambda c: c.sliding_window(),
+        "semantic": lambda c: c.semantic(),
+        "hierarchical": lambda c: c.hierarchical(),
+        "enhanced_hierarchical": lambda c: c.enhanced_hierarchical(),
+    }
+
+    for method_name, method_fn in chunk_methods.items():
+        all_chunked_docs = []
+        for doc in all_documents:
+            chunker = Chunking(doc["blocks"])
+
+            chunked_doc = {
+                **doc,
+                "chunks": method_fn(chunker),
+            }
+
+            chunked_doc.pop("blocks", None)
+            all_chunked_docs.append(chunked_doc)
+
+        # save ONE file per method
+        final_path = out_path / f"chunks_{method_name}.json"
+        save_chunked_pdf_data(all_chunked_docs, path=str(final_path))
+
+    return {"status": "success", "methods_processed": list(chunk_methods.keys())}
+
+
 def save_chunked_pdf_data(all_chunked_docs, path):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(all_chunked_docs, f, ensure_ascii=False, indent=2)
@@ -341,30 +378,4 @@ def plot_chunk_size_distribution(chunks, label="", alpha=0.5, percentile=99.5):
 if __name__ == "__main__":
     # local tests here..
     all_documents = load_read_documents("../data/all_documents.json")
-
-    chunk_methods = {
-        "fixed_size": lambda c: c.fixed_size(),
-        "sliding_window": lambda c: c.sliding_window(),
-        "semantic": lambda c: c.semantic(),
-        "hierarchical": lambda c: c.hierarchical(),
-        "enhanced_hierarchical": lambda c: c.enhanced_hierarchical(),
-    }
-
-    for method_name, method_fn in chunk_methods.items():
-        all_chunked_docs = []  # reset per method
-
-        for doc in all_documents:
-            chunker = Chunking(doc["blocks"])
-
-            chunked_doc = {
-                **doc,
-                "chunks": method_fn(chunker),
-            }
-
-            chunked_doc.pop("blocks", None)
-            all_chunked_docs.append(chunked_doc)
-
-        # save ONE file per method
-        save_chunked_pdf_data(
-            all_chunked_docs, path=f"../data/chunks_{method_name}.json"
-        )
+    result = chunk_and_save_pdf_data(all_documents)
