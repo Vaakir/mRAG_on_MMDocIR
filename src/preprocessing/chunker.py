@@ -48,6 +48,24 @@ class Chunking:
             chunk.update(extra_meta)
         return chunk
 
+    @staticmethod
+    def _split_oversized(chunks: List[Dict[str, Any]], max_chars: int = 8000) -> List[Dict[str, Any]]:
+        """
+        Split any chunk exceeding max_chars into fixed-size sub-chunks.
+        Preserves all metadata from the original chunk.
+        """
+        result = []
+        for chunk in chunks:
+            if chunk["char_len"] <= max_chars:
+                result.append(chunk)
+                continue
+            text = chunk["text"]
+            meta = {k: v for k, v in chunk.items() if k not in ("text", "char_len")}
+            for i in range(0, len(text), max_chars):
+                sub_text = text[i:i + max_chars]
+                result.append({"text": sub_text, "char_len": len(sub_text), **meta})
+        return result
+
     def fixed_size(self, max_chars: int = 1000) -> List[Dict[str, Any]]:
         """
         Concatenate blocks until max_chars is exceeded, then start a new chunk.
@@ -137,8 +155,8 @@ class Chunking:
                 prev = chunks[-1]
                 combined = prev["text"] + " " + " ".join(current_texts)
                 chunks[-1] = {"text": combined, "char_len": len(combined)}
-        
-        return chunks
+
+        return Chunking._split_oversized(chunks)
     
     def hierarchical(self) -> List[Dict[str, Any]]:
         """
@@ -206,7 +224,7 @@ class Chunking:
                     combined = prev["text"] + " " + " ".join(section_texts)
                     chunks[-1] = {**prev, "text": combined, "char_len": len(combined)}
 
-        return chunks
+        return Chunking._split_oversized(chunks)
 
 
 def chunk_documents(
@@ -252,6 +270,8 @@ def chunk_documents(
             chunks = chunker.semantic()
         elif strategy == "hierarchical":
             chunks = chunker.hierarchical()
+        elif strategy == "enhanced_hierarchical":
+            chunks = Chunking._split_oversized(chunker.enhanced_hierarchical() if hasattr(chunker, 'enhanced_hierarchical') else [])
         else:
             raise ValueError(f"Unknown chunking strategy: {strategy}")
         
