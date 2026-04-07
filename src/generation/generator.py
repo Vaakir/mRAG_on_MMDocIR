@@ -6,6 +6,7 @@ with the Ollama server, following the pattern from the generative AI course.
 """
 
 import os
+import base64
 import logging
 from typing import Dict, Any, Optional, List
 from pathlib import Path
@@ -260,3 +261,106 @@ Question: {question}"""
                 logger.error(f"Error generating answer for question {i}: {e}")
                 answers.append(f"Error: {str(e)}")
         return answers
+
+
+# -------------------------------------------------------------------
+MULTIMODAL_SYSTEM_PROMPT = """You are a concise assistant. Answer using the provided context and page images.
+
+Strict Instructions (NON-NEGOTIABLE):
+- Use BOTH the text context and the page images to answer.
+- Images are full rendered pages from a document — read text, tables, and figures visible in them.
+- NEVER add preamble, explanation, or context. ANSWER ONLY.
+- DO NOT rephrase, explain, or add context.
+- Multiple answers: ONLY output ['answer1', 'answer2', ...]. NOTHING ELSE.
+- For yes/no questions, answer only "Yes" or "No".
+- If the answer requires calculation (growth rate, difference, ratio, count), compute it first.
+
+Be direct. No padding. No explanations unless specifically asked."""
+# -------------------------------------------------------------------
+class MultimodalGenerator(BaselineGenerator):
+    """
+    Vision-language generator that sends page images alongside text context.
+
+    Extends BaselineGenerator with generate_with_images(), which encodes
+    page image files as base64 and passes them to the vision model
+    (e.g. qwen3-vl:8b) via the Ollama chat API.
+    """
+
+    def _encode_image(self, image_path: str) -> str:
+        """Read an image file and return base64-encoded bytes as a string."""
+        with open(image_path, "rb") as f:
+            return base64.b64encode(f.read()).decode("utf-8")
+
+    def generate_with_images(
+        self,
+        question: str,
+        context: str,
+        image_paths: List[str],
+        system_prompt: str = MULTIMODAL_SYSTEM_PROMPT,
+        max_images: int = 5,
+    ) -> str:
+        """
+        Generate an answer using text context and retrieved page images.
+
+        Parameters
+        ----------
+        question : str
+            The question to answer.
+        context : str
+            Text chunks retrieved for the question (may be empty string).
+        image_paths : List[str]
+            Absolute paths to the page image files to include.
+        system_prompt : str
+            System prompt for the vision model.
+        max_images : int
+            Cap on number of images sent per request (avoid token overload).
+
+        Returns
+        -------
+        str
+            Generated answer.
+        """
+        # Encode images (cap to max_images)
+        encoded_images = []
+        for path in image_paths[:max_images]:
+            try:
+                encoded_images.append(self._encode_image(path))
+            except Exception as e:
+                logger.warning(f"Could not encode image {path}: {e}")
+
+        # Build user message content
+        if context.strip():
+            user_content = f"""Text context from retrieved documents:
+{context}
+
+Question: {question}
+
+Use the text context above and the page images provided to answer."""
+        else:
+            user_content = f"""Question: {question}
+
+Use the page images provided to answer."""
+
+        # Build messages — images go in the user message
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {
+                "role": "user",
+                "content": user_content,
+                "images": encoded_images,
+            },
+        ]
+
+        try:
+            logger.debug(
+                f"Generating multimodal answer for: {question[:80]}... "
+                f"({len(encoded_images)} images)"
+            )
+            answer = self.chat(messages)
+            logger.debug(f"Generated answer: {answer[:100]}...")
+            return answer
+        except Exception as e:
+            logger.error(f"Error in multimodal generation: {e}")
+            # Graceful fallback: answer from text context only
+            logger.info("Falling back to text-only generation.")
+            return self.generate(question, context, system_prompt=SYSTEM_PROMPT)

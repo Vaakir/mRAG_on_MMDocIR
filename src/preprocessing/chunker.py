@@ -16,7 +16,18 @@ class Chunking:
     - hierarchical: Two-level (page + section)
     """
     
-    HEADING_CATEGORIES = {"Title", "Header"}
+    SECTION_BOUNDARIES = {"Title"}          # only these start new sections
+    SKIP_CATEGORIES    = {"Header", "Footer"}  # layout noise — excluded from all chunks
+
+    @staticmethod
+    def _is_real_title(text: str) -> bool:
+        """Filter out misclassified titles (question fragments, continuations)."""
+        t = text.strip()
+        if not t or not t[0].isupper():  return False  # doesn't start with capital
+        if t.endswith('?'):              return False  # question fragment
+        if t.endswith(','):              return False  # mid-sentence continuation
+        if t.endswith(';'):              return False  # mid-sentence continuation
+        return True
 
     def __init__(self, blocks: List):
         """
@@ -46,18 +57,20 @@ class Chunking:
         text_len, blocks_count = 0, len(self.blocks)
         
         for i, block in enumerate(self.blocks):
+            if block.category in Chunking.SKIP_CATEGORIES:
+                continue
             text = block.text.strip()
             if not text:
                 continue
 
             text_len += len(text)
             current_texts.append(text)
-            
+
             if text_len > max_chars or i == blocks_count - 1:
                 chunks.append(Chunking._make_chunk(current_texts))
                 current_texts = []
                 text_len = 0
-        
+
         return chunks
 
     def sliding_window(
@@ -71,22 +84,24 @@ class Chunking:
         text_len, blocks_count = 0, len(self.blocks)
         
         for i, block in enumerate(self.blocks):
+            if block.category in Chunking.SKIP_CATEGORIES:
+                continue
             text = block.text.strip()
             if not text:
                 continue
 
             text_len += len(text)
             current_texts.append(text)
-            
+
             if text_len > window_chars or i == blocks_count - 1:
                 if chunks:
                     prev_text = chunks[-1]["text"][-overlap_chars:]
                     current_texts = [prev_text] + current_texts
-                
+
                 chunks.append(Chunking._make_chunk(current_texts))
                 current_texts = []
                 text_len = overlap_chars
-        
+
         return chunks
 
     def semantic(self) -> List[Dict[str, Any]]:
@@ -99,11 +114,13 @@ class Chunking:
         chunk_contains_text = False
         
         for block in self.blocks:
+            if block.category in Chunking.SKIP_CATEGORIES:
+                continue
             text = block.text.strip()
             if not text:
                 continue
-            
-            if block.category in self.HEADING_CATEGORIES:
+
+            if block.category in Chunking.SECTION_BOUNDARIES and Chunking._is_real_title(block.text):
                 if chunk_contains_text:
                     chunks.append(Chunking._make_chunk(current_texts))
                     current_texts = []
@@ -156,10 +173,12 @@ class Chunking:
             section_texts: list[str] = []
             has_body = False
             for block in page_blocks:
+                if block.category in Chunking.SKIP_CATEGORIES:
+                    continue
                 text = block.text.strip()
                 if not text:
                     continue
-                if block.category in self.HEADING_CATEGORIES:
+                if block.category in Chunking.SECTION_BOUNDARIES and Chunking._is_real_title(block.text):
                     if has_body and section_texts:
                         chunks.append(
                             Chunking._make_chunk(

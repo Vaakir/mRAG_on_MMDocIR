@@ -75,7 +75,7 @@ def run_single_query_test(pipeline: AdvancedRAGPipeline, question: str, ground_t
     print(f"\nGenerated Answer:\n{result['answer']}")
 
 
-def main(technique: str = 'standard', eval_subset: int = 20, force_rebuild: bool = False):
+def main(technique: str = 'standard', eval_subset: int = 20, force_rebuild: bool = False, multimodal: bool = False, page_images_dir: str = ""):
     """
     Main function to run the advanced pipeline.
     
@@ -94,6 +94,10 @@ def main(technique: str = 'standard', eval_subset: int = 20, force_rebuild: bool
     # Get configuration
     config = get_config(technique)
     config.EVAL_SUBSET_SIZE = eval_subset
+    if multimodal:
+        config.USE_MULTIMODAL_RETRIEVAL = True
+        if page_images_dir:
+            config.PAGE_IMAGES_DIR = page_images_dir
     
     print(f"Configuration:")
     print(f"  Embedding Model: {config.EMBEDDING_MODEL}")
@@ -108,13 +112,19 @@ def main(technique: str = 'standard', eval_subset: int = 20, force_rebuild: bool
     pipeline = AdvancedRAGPipeline(config)
     
     # Build/load index
-    print(f"\n{'='*80}")
+    print(f"\n{'='* 80}")
     print("BUILDING INDEX")
     print(f"{'='*80}")
     build_start = time.time()
     pipeline.build_index(force_rebuild=force_rebuild)
     build_time = time.time() - build_start
     print(f"\nIndex build completed in {build_time:.2f}s")
+
+    if multimodal:
+        print(f"\nLoading image index (force_rebuild=False)...")
+        img_start = time.time()
+        pipeline.build_image_index(force_rebuild=False)
+        print(f"Image index ready in {time.time() - img_start:.2f}s")
     
     # Initialize components (generator + query technique)
     print(f"\n{'='*80}")
@@ -340,10 +350,27 @@ if __name__ == "__main__":
         action='store_true',
         help='Compare multiple techniques'
     )
-    
+    parser.add_argument(
+        '--multimodal',
+        action='store_true',
+        help='Enable multimodal retrieval and generation (requires image index built)'
+    )
+    parser.add_argument(
+        '--page-images-dir',
+        type=str,
+        default='',
+        help='Path to page_images_train/ directory (overrides config default)'
+    )
+
     args = parser.parse_args()
-    
+
     if args.compare:
         compare_techniques(eval_subset=args.eval_subset)
     else:
-        main(technique=args.technique, eval_subset=args.eval_subset, force_rebuild=args.force_rebuild)
+        main(
+            technique=args.technique,
+            eval_subset=args.eval_subset,
+            force_rebuild=args.force_rebuild,
+            multimodal=args.multimodal,
+            page_images_dir=args.page_images_dir,
+        )

@@ -9,12 +9,13 @@ from data.pdf_processor import process_all_pdfs
 # from data.pdf_cache import PDFCache
 from data.chunk_loader import load_preprocessed_chunks, print_chunk_statistics
 # from generated_stuff.pdf_cache import PDFCache
-from preprocessing.text_cleaner import filter_chunks
+# from preprocessing.text_cleaner import filter_chunks
 from preprocessing.chunker import chunk_documents
 # from preprocessing.text_cleaner import filter_chunks
 from indexing.embedder import TextEmbedder, create_chunk_embeddings
 from indexing.vector_store import QdrantConfig, QdrantVectorDB
 from indexing.hybrid_retriever import HybridRetriever
+from indexing.reranker import CrossEncoderReranker
 from generation.generator import BaselineGenerator
 from evaluation.retrieval_metrics import evaluate_retrieval
 from evaluation.generation_metrics import evaluate_generation
@@ -39,6 +40,7 @@ class BaselineRAGPipeline:
         self.embedder = None          # TextEmbedder instance for creating embeddings
         self.vector_db = None         # QdrantVectorDB instance for indexing and retrieval
         self.hybrid_retriever = None  # HybridRetriever instance for combining multiple retrieval methods
+        self.reranker = None          # CrossEncoderReranker instance for reranking retrieved chunks
         self.generator = None         # BaselineGenerator instance for generating responses
         self.chunks = None            # List of pre-processed document chunks
     #-------------------
@@ -206,23 +208,33 @@ class BaselineRAGPipeline:
             )
     #-------------------
     def initialize_components(self):
-        """Initialize generator."""
-        self.generator = BaselineGenerator(OLLAMA_BASE_URL, LLM_MODEL) # Initialize the generator component using the specified Ollama base URL and LLM model (this will allow us to generate responses based on the retrieved context during query time)
+        """Initialize generator and reranker."""
+        self.generator = BaselineGenerator(OLLAMA_BASE_URL, LLM_MODEL)
+        if USE_RERANKING:
+            self.reranker = CrossEncoderReranker(RERANKER_MODEL) # Initialize the generator component using the specified Ollama base URL and LLM model (this will allow us to generate responses based on the retrieved context during query time)
     #-------------------
     def retrieve(self, question: str, top_k: int = TOP_K) -> List[Dict[str, Any]]:
         """
         Retrieve relevant chunks using hybrid BM25 + dense retrieval (if enabled),
-        or dense-only retrieval.
+        or dense-only retrieval. Optionally reranks with a cross-encoder.
 
         Returns:
             List of dicts with: id, score, text, payload (metadata)
         """
-        if USE_HYBRID_RETRIEVAL and self.hybrid_retriever is not None: # If hybrid retrieval is enabled and the hybrid retriever is initialized, use it to retrieve relevant chunks based on the question. The hybrid retriever will combine BM25 retrieval based on the chunk texts and dense retrieval based on the embeddings to return a ranked list of relevant chunks for the given question. This allows us to leverage both lexical and semantic matching for improved retrieval performance.
-            return self.hybrid_retriever.retrieve(question, top_k=top_k) # 
+        # Determine how many candidates to fetch before reranking
+        fetch_k = RERANKER_CANDIDATES if (USE_RERANKING and self.reranker) else top_k
 
-        # Fallback: dense-only
-        query_embedding = self.embedder.embed_query(question) # Embed the question using the embedder to get the query embedding vector, which will be used for dense retrieval in Qdrant. This allows us to retrieve chunks that are semantically similar to the question based on their embeddings, even if they don't have strong lexical overlap.
-        return self.vector_db.retrieve(query_embedding=query_embedding, top_k=top_k) # Retrieve relevant chunks from Qdrant based on the query embedding, returning the top_k most similar chunks according to the specified distance metric (e.g. cosine similarity). The retrieved results will include the chunk text and associated metadata for use in the generation step.
+        if USE_HYBRID_RETRIEVAL and self.hybrid_retriever is not None:
+            candidates = self.hybrid_retriever.retrieve(question, top_k=fetch_k)
+        else:
+            query_embedding = self.embedder.embed_query(question)
+            candidates = self.vector_db.retrieve(query_embedding=query_embedding, top_k=fetch_k)
+
+        # Rerank candidates with cross-encoder, then trim to top_k
+        if USE_RERANKING and self.reranker:
+            candidates = self.reranker.rerank(question, candidates, top_k=top_k)
+
+        return candidates
     #-------------------
     def run_query(self, question: str, top_k: int = TOP_K) -> Dict[str, Any]:
         """

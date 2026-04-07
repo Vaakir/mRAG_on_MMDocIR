@@ -19,8 +19,8 @@ TEST_JSONL = COLLECTION_DIR / "test" / "test.jsonl"
 # Cache directory for processed PDFs (for manual inspection)
 CACHE_DIR = PROJECT_ROOT / "cache"
 
-# Pre-processed chunks from team (fixed-size chunking already done)
-PREPROCESSED_CHUNKS_FILE = SRC_DIR / "data" / "chunks_fixed_size.json"
+# Pre-processed chunks from team (semantic chunking already done)
+PREPROCESSED_CHUNKS_FILE = PREPROCESSED_DATA_DIR / "chunks_semantic.json"
 USE_PREPROCESSED_CHUNKS = True  # Set to True to use team's chunks
 
 # Model settings
@@ -29,8 +29,11 @@ EMBEDDING_MODEL = "jinaai/jina-clip-v2"
 EMBEDDING_DIMENSION = 1024  # Jina CLIP v2 outputs 1024 dimensions
 
 # Retrieval settings
-TOP_K = 5  # Number of documents to retrieve
+TOP_K = 5  # Number of final documents to retrieve
 USE_HYBRID_RETRIEVAL = True  # BM25 + dense with Reciprocal Rank Fusion
+USE_RERANKING = True  # Cross-encoder reranking of top candidates
+RERANKER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+RERANKER_CANDIDATES = 20  # Retrieve this many candidates before reranking to top-k
 
 # Chunking settings (team's fixed-size strategy for baseline)
 CHUNKING_STRATEGY = "fixed_size"  # Options: fixed_size, sliding_window, semantic, hierarchical

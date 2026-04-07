@@ -28,7 +28,7 @@ def main():
     print("===========PHASE 1: Building/Loading Index=============")
     build_start = time.time() # Track time for index building/loading phase for reference and monitoring purposes
     
-    pipeline.build_index(force_rebuild=False) # 'True' if you want to rebuild the index from raw PDFs, 'False' to load existing index (must be built at least once)
+    pipeline.build_index(force_rebuild=True) # 'True' if you want to rebuild the index from raw PDFs, 'False' to load existing index (must be built at least once)
     
     build_time = time.time() - build_start # Time taken for index building/loading phase for reference and monitoring purposes
     print(f"[OK] Index build/load completed in {build_time:.2f}s\n")

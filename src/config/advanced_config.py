@@ -21,7 +21,7 @@ class AdvancedConfig:
     """
     
     # ===== EMBEDDING SETTINGS =====
-    EMBEDDING_MODEL: str = "BAAI/bge-large-en-v1.5"
+    EMBEDDING_MODEL: str = "jinaai/jina-clip-v2" #"BAAI/bge-large-en-v1.5"
     """Embedding model name from Hugging Face"""
     
     EMBEDDING_DIMENSION: int = 1024
@@ -47,10 +47,10 @@ class AdvancedConfig:
     VECTOR_DB_MODE: str = "local"
     """Vector DB mode: 'local', 'memory', or 'docker'"""
     
-    VECTOR_DB_PATH: str = "./local_qdrant"
+    VECTOR_DB_PATH: str = field(default_factory=lambda: str(Path(__file__).parent.parent.parent / "local_qdrant"))
     """Path for local Qdrant database"""
     
-    VECTOR_DB_COLLECTION: str = "baseline_documents_v3"
+    VECTOR_DB_COLLECTION: str = "baseline_documents_jina"
     """Collection name in Qdrant"""
     
     VECTOR_DB_DISTANCE: str = "COSINE"
@@ -95,6 +95,28 @@ class AdvancedConfig:
     })
     """Configuration dict for the selected query technique"""
     
+    # ===== MULTIMODAL SETTINGS =====
+    USE_MULTIMODAL_RETRIEVAL: bool = True
+    """Enable image retrieval alongside text retrieval"""
+
+    IMAGE_CHUNKING_STRATEGY: str = "page_level"
+    """Image chunking strategy: 'page_level' or 'sliding_window'"""
+
+    IMAGE_SLIDING_WINDOW_SIZE: int = 2
+    """Number of pages per sliding window image chunk"""
+
+    IMAGE_SLIDING_WINDOW_OVERLAP: int = 1
+    """Overlap in pages between sliding window image chunks"""
+
+    IMAGE_COLLECTION: str = "image_documents_jina"
+    """Qdrant collection name for image embeddings"""
+
+    PAGE_IMAGES_DIR: str = field(default_factory=lambda: str(Path(__file__).parent.parent / "project_collection" / "train" / "page_images_train"))
+    """Path to page_images_{split}/ directory (set at runtime)"""
+
+    IMAGE_TOP_K: int = 3
+    """Number of image chunks to retrieve per query"""
+
     # ===== EVALUATION SETTINGS =====
     EVAL_SUBSET_SIZE: int = 20
     """Number of test questions to evaluate on"""

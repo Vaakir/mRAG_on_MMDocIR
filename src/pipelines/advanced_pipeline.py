@@ -11,11 +11,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from config.advanced_config import AdvancedConfig
 from data.data_loader import load_train_data, load_test_data
 from data.chunk_loader import load_preprocessed_chunks, print_chunk_statistics
+from data.multimodal_loader import load_page_images, group_images_by_pdf
 from preprocessing.chunker import chunk_documents
-from indexing.embedder import TextEmbedder, create_chunk_embeddings
+from preprocessing.image_chunker import page_level as image_page_level, sliding_window as image_sliding_window
+from indexing.embedder import TextEmbedder, create_chunk_embeddings, create_image_chunk_embeddings
 from indexing.vector_store import QdrantConfig, QdrantVectorDB
 from indexing.hybrid_retriever import HybridRetriever
-from generation.generator import BaselineGenerator
+from generation.generator import BaselineGenerator, MultimodalGenerator
 from evaluation.retrieval_metrics import evaluate_retrieval
 from evaluation.generation_metrics import evaluate_generation
 from query_techniques import get_query_technique
@@ -47,10 +49,12 @@ class AdvancedRAGPipeline:
         # Components (initialized during build_index or setup)
         self.embedder: Optional[TextEmbedder] = None
         self.vector_db: Optional[QdrantVectorDB] = None
+        self.image_vector_db: Optional[QdrantVectorDB] = None
         self.hybrid_retriever: Optional[HybridRetriever] = None
         self.generator: Optional[BaselineGenerator] = None
         self.query_technique = None
         self.chunks: Optional[List[Dict]] = None
+        self.image_chunks: Optional[List[Dict]] = None
     
     def build_index(self, force_rebuild: bool = True):
         """
@@ -175,10 +179,131 @@ class AdvancedRAGPipeline:
                 top_k=self.config.TOP_K,
             )
     
+    def build_image_index(self, force_rebuild: bool = True):
+        """
+        Build or load the image index for multimodal retrieval.
+
+        Steps:
+        1. Load page images from PAGE_IMAGES_DIR
+        2. Apply chunking strategy (page_level or sliding_window)
+        3. Embed image chunks with Jina CLIP v2
+        4. Store in a separate Qdrant collection (IMAGE_COLLECTION)
+        """
+        if not self.config.PAGE_IMAGES_DIR:
+            raise ValueError("PAGE_IMAGES_DIR must be set in config to build image index.")
+
+        page_images_dir = Path(self.config.PAGE_IMAGES_DIR)
+        logger.info(f"Building image index from: {page_images_dir}")
+
+        # Reuse the existing vector_db client (local Qdrant only allows one client per path)
+        # Just point to a different collection name
+        import copy
+        self.image_vector_db = copy.copy(self.vector_db)
+        self.image_vector_db.config = copy.copy(self.vector_db.config)
+        self.image_vector_db.config.collection_name = self.config.IMAGE_COLLECTION
+        self.image_vector_db.config.top_k = self.config.IMAGE_TOP_K
+
+        # Check if image collection already exists
+        if not force_rebuild:
+            existing_count = self.image_vector_db.count_documents()
+            if existing_count > 0:
+                logger.info(f"Image index already exists with {existing_count} chunks. Skipping rebuild.")
+                return
+
+        # Load page image records
+        image_records = load_page_images(page_images_dir)
+        logger.info(f"Loaded {len(image_records)} page image records")
+
+        # Apply chunking strategy
+        strategy = self.config.IMAGE_CHUNKING_STRATEGY
+        if strategy == "page_level":
+            self.image_chunks = image_page_level(image_records)
+        elif strategy == "sliding_window":
+            grouped = group_images_by_pdf(image_records)
+            self.image_chunks = image_sliding_window(
+                grouped,
+                window=self.config.IMAGE_SLIDING_WINDOW_SIZE,
+                overlap=self.config.IMAGE_SLIDING_WINDOW_OVERLAP,
+            )
+        else:
+            raise ValueError(f"Unknown IMAGE_CHUNKING_STRATEGY: {strategy}")
+
+        logger.info(f"Created {len(self.image_chunks)} image chunks (strategy={strategy})")
+
+        # Embed image chunks
+        logger.info("Embedding image chunks...")
+        embeddings = create_image_chunk_embeddings(self.image_chunks, self.embedder)
+        logger.info(f"Created {len(embeddings)} image embeddings")
+
+        # Index in Qdrant
+        self.image_vector_db.create_collection(force_recreate=True)
+
+        image_docs = []
+        for i, (chunk, embedding) in enumerate(zip(self.image_chunks, embeddings)):
+            image_docs.append({
+                'id': i,
+                'embedding': embedding,
+                'text': '',  # No text for image chunks
+                'metadata': {
+                    'pdf_name':    chunk['pdf_name'],
+                    'page_num':    chunk['page_num'],
+                    'page_nums':   chunk['page_nums'],
+                    'image_paths': chunk['image_paths'],
+                    'chunk_type':  chunk['chunk_type'],
+                    'chunk_id':    chunk['chunk_id'],
+                }
+            })
+
+        self.image_vector_db.index_documents(image_docs)
+        logger.info(f"Image index built: {len(image_docs)} chunks in '{self.config.IMAGE_COLLECTION}'")
+
+    def retrieve_images(self, question: str, top_k: Optional[int] = None) -> List[Dict[str, Any]]:
+        """
+        Retrieve image chunks relevant to a text query via cross-modal search.
+
+        Args:
+            question: User's question (text)
+            top_k: Number of image chunks to retrieve
+
+        Returns:
+            List of image chunk dicts with image_paths and score
+        """
+        if self.image_vector_db is None:
+            raise RuntimeError("Image index not built. Call build_image_index() first.")
+        if top_k is None:
+            top_k = self.config.IMAGE_TOP_K
+
+        query_embedding = self.embedder.embed_query(question)
+        raw_results = self.image_vector_db.retrieve(
+            query_embedding=query_embedding,
+            collection_name=self.config.IMAGE_COLLECTION,
+            top_k=top_k,
+        )
+
+        results = []
+        for r in raw_results:
+            payload = r.get('payload', {})
+            results.append({
+                'id':          r['id'],
+                'score':       r['score'],
+                'text':        '',
+                'chunk_type':  payload.get('chunk_type', 'image'),
+                'chunk_id':    payload.get('chunk_id', ''),
+                'pdf_name':    payload.get('pdf_name', ''),
+                'page_num':    payload.get('page_num'),
+                'page_nums':   payload.get('page_nums', []),
+                'image_paths': payload.get('image_paths', []),
+            })
+        return results
+
     def initialize_components(self):
         """Initialize generator and query technique."""
         logger.info(f"Initializing generator: {self.config.LLM_MODEL}")
-        self.generator = BaselineGenerator(self.config.OLLAMA_BASE_URL, self.config.LLM_MODEL)
+        if self.config.USE_MULTIMODAL_RETRIEVAL:
+            self.generator = MultimodalGenerator(self.config.OLLAMA_BASE_URL, self.config.LLM_MODEL)
+            logger.info("Using MultimodalGenerator (vision-language model)")
+        else:
+            self.generator = BaselineGenerator(self.config.OLLAMA_BASE_URL, self.config.LLM_MODEL)
         
         logger.info(f"Initializing query technique: {self.config.QUERY_TECHNIQUE}")
         self.query_technique = get_query_technique(
@@ -204,11 +329,17 @@ class AdvancedRAGPipeline:
             top_k = self.config.TOP_K
         
         if self.config.USE_HYBRID_RETRIEVAL and self.hybrid_retriever:
-            return self.hybrid_retriever.retrieve(question, top_k=top_k)
-        
-        # Fallback to dense-only
-        query_embedding = self.embedder.embed_query(question)
-        return self.vector_db.retrieve(query_embedding=query_embedding, top_k=top_k)
+            text_results = self.hybrid_retriever.retrieve(question, top_k=top_k)
+        else:
+            # Fallback to dense-only
+            query_embedding = self.embedder.embed_query(question)
+            text_results = self.vector_db.retrieve(query_embedding=query_embedding, top_k=top_k)
+
+        if self.config.USE_MULTIMODAL_RETRIEVAL and self.image_vector_db is not None:
+            image_results = self.retrieve_images(question, top_k=self.config.IMAGE_TOP_K)
+            return text_results + image_results
+
+        return text_results
     
     def retrieve_with_technique(self, question: str, top_k: Optional[int] = None) -> List[Dict[str, Any]]:
         """
@@ -249,22 +380,42 @@ class AdvancedRAGPipeline:
             retrieved = self.retrieve_with_technique(question, top_k)
         else:
             retrieved = self.retrieve(question, top_k)
-        
-        # Format context
+
+        # Separate text and image chunks
+        text_chunks = [r for r in retrieved if r.get('chunk_type', '') not in ('image_page', 'image_window')]
+        image_chunks = [r for r in retrieved if r.get('chunk_type', '') in ('image_page', 'image_window')]
+
+        # Format text context
         context = "\n\n".join([
             f"[Document {i+1}]:\n{result['text']}"
-            for i, result in enumerate(retrieved)
+            for i, result in enumerate(text_chunks)
         ])
-        
+
+        # Collect all image paths from retrieved image chunks (flattened)
+        retrieved_image_paths = [
+            path
+            for chunk in image_chunks
+            for path in chunk.get('image_paths', [])
+        ]
+
         # Generate answer
-        answer = self.generator.generate(question, context)
-        
+        if (
+            retrieved_image_paths
+            and isinstance(self.generator, MultimodalGenerator)
+        ):
+            answer = self.generator.generate_with_images(
+                question, context, retrieved_image_paths
+            )
+        else:
+            answer = self.generator.generate(question, context)
+
         return {
             "question": question,
             "retrieved_docs": retrieved,
             "context": context,
             "answer": answer,
             "num_docs": len(retrieved),
+            "image_paths": retrieved_image_paths,
         }
     
     def evaluate(self, test_questions: List[Dict[str, Any]], use_technique: bool = True):
