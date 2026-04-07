@@ -12,15 +12,14 @@ PDFS_DIR = DATA_DIR / "train" / "pdfs_train"
 PREPROCESSED_DATA_DIR = DATA_DIR / "preprocessed"
 PREPROCESSED_DOCUMENTS_FILE = DATA_DIR / "preprocessed" / "all_documents.json"
 
-COLLECTION_DIR = SRC_DIR / "project_collection"
-TRAIN_JSONL = COLLECTION_DIR / "train" / "train.jsonl"
-TEST_JSONL = COLLECTION_DIR / "test" / "test.jsonl"
+TRAIN_JSONL = DATA_DIR / "train" / "train.jsonl"
+TEST_JSONL = DATA_DIR / "test" / "test.jsonl"
 
 # Cache directory for processed PDFs (for manual inspection)
 CACHE_DIR = PROJECT_ROOT / "cache"
 
 # Pre-processed chunks from team (fixed-size chunking already done)
-PREPROCESSED_CHUNKS_FILE = SRC_DIR / "data" / "chunks_fixed_size.json"
+PREPROCESSED_CHUNKS_FILE = SRC_DIR / "data" / "preprocessed" / "chunks_fixed_size.json"
 USE_PREPROCESSED_CHUNKS = True  # Set to True to use team's chunks
 
 # Model settings

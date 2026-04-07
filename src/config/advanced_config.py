@@ -67,7 +67,7 @@ class AdvancedConfig:
     USE_PREPROCESSED_CHUNKS: bool = True
     """Use pre-processed chunks or process from scratch"""
     
-    PREPROCESSED_CHUNKS_FILE: str = "./src/data/chunks_fixed_size.json"
+    PREPROCESSED_CHUNKS_FILE: str = "./src/data/preprocessed/chunks_fixed_size.json"
     """Path to pre-processed chunks file (relative to project root)"""
     
     CHUNKING_STRATEGY: str = "fixed_size"
@@ -115,7 +115,7 @@ class AdvancedConfig:
     CACHE_DIR: Path = field(default_factory=lambda: Path(__file__).parent.parent.parent / ".cache")
     """Cache directory for processed PDFs"""
     
-    TRAIN_JSONL: Path = field(default_factory=lambda: Path(__file__).parent.parent / "project_collection" / "train" / "train.jsonl")
+    TRAIN_JSONL: Path = field(default_factory=lambda: Path(__file__).parent.parent / "data" / "train" / "train.jsonl")
     """Path to training data JSONL file"""
     
     def __post_init__(self):

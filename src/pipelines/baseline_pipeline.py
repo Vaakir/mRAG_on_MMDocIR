@@ -14,7 +14,7 @@ from typing import Dict, Any, List
 from config.config import *
 from data.data_loader import load_train_data, load_test_data
 from data.chunk_loader import load_preprocessed_chunks, print_chunk_statistics
-from preprocessing.text_cleaner import filter_chunks
+# from preprocessing.text_cleaner import filter_chunks
 from indexing.embedder import TextEmbedder, create_chunk_embeddings
 from indexing.vector_store import QdrantConfig, QdrantVectorDB
 from indexing.hybrid_retriever import HybridRetriever
