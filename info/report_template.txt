@@ -1,0 +1,419 @@
+DAT560 mRAG PROJECT — REPORT TEMPLATE
+Deadline: April 20, 2026
+________________________________________
+
+
+1. INTRODUCTION
+
+    Motivation: retrieval over multimodal documents (text + images in PDFs) is
+    challenging because traditional pipelines are text-centric and miss visual signals.
+
+    Research questions:
+        - Does multimodal retrieval with Jina CLIP v2 image embeddings outperform
+          text-only retrieval?
+        - Which query technique maximises Precision@5?
+        - Does the agentic pipeline outperform the non-agentic advanced system?
+
+    Brief overview of the three systems:
+        System 1 — Baseline RAG (text-only)
+        System 2 — Advanced mRAG (multimodal, multiple query techniques)
+        System 3 — Agentic mRAG (LLM-controlled agent pipeline)
+
+    Paper structure summary.
+
+________________________________________
+
+
+2. BACKGROUND & RELATED WORK
+
+    RAG fundamentals (Lewis et al. 2020)
+    Multimodal RAG and the MMDocIR dataset (collection size, modalities, splits)
+    Embedding models:
+        - Jina CLIP v2 — 1024D, shared text/image embedding space
+        - BAAI/bge-large-en-v1.5 — 1024D text embeddings
+    Query processing techniques covered:
+        HyDE, RAG-Fusion, Multi-Query, Step-Back, Query Decomposition,
+        Query Rewriting, Query Expansion
+    Agentic RAG frameworks (LangChain / LlamaIndex)
+
+________________________________________
+
+
+3. DATASET & PREPROCESSING
+
+    MMDocIR subset statistics:
+        - Number of PDFs in train/test split
+        - Number of questions per split
+        - Answer type distribution: Pure-text, Table-based, Image-based
+
+    Data split policy:
+        - Train and test sets used as provided
+        - No fine-tuning on the test set
+
+    PDF extraction:
+        - Library: unstructured
+        - Output: block-level structured text with page numbers
+
+    Chunking strategies implemented:
+
+        Strategy          Parameters               Chunk count    Avg chars
+        -----------------------------------------------------------------------
+        Fixed-size        1000 chars               [fill]         [fill]
+        Sliding window    1000 chars, 200 overlap  [fill]         [fill]
+        Hierarchical      Heading-aware            [fill]         [fill]
+        Semantic          Boundary detection       [fill]         [fill]
+
+    Preprocessing runtime: [fill] seconds
+
+________________________________________
+
+
+4. SYSTEM 1 — BASELINE RAG
+
+    Architecture:
+        PDF  →  unstructured  →  fixed-size chunks  →  Jina CLIP v2 (text)
+        →  Qdrant  →  Hybrid BM25 + Dense RRF  →  qwen3:32b
+
+    Key design decisions:
+        - Distance metric: cosine
+        - Top-K retrieved documents: 5
+        - RRF constant K: 60
+        - Chunk source: pre-processed fixed-size chunks
+
+    Prompt strategy:
+        Concise direct answering — answer using only the provided context,
+        no padding, no preamble, no explanation.
+
+    Evaluation scope:
+        Pure-text questions only (system uses text embeddings only, so
+        table and image questions are out of scope for System 1).
+
+    Results:
+
+        Metric              Value
+        ----------------------------
+        P@1                 [fill]
+        P@3                 [fill]
+        P@5                 [fill]
+        R@1                 [fill]
+        R@3                 [fill]
+        R@5                 [fill]
+        Page Recall@5       [fill]
+        Exact Match         [fill]
+        Token F1            [fill]
+        Contains Match      [fill]
+
+________________________________________
+
+
+5. SYSTEM 2 — ADVANCED mRAG
+
+
+    5.1  Query Processing Techniques
+
+        Brief description of each technique followed by comparison results.
+
+        Technique              P@5     R@5     Exact Match    Token F1
+        -------------------------------------------------------------------
+        Standard (baseline)    [fill]  [fill]  [fill]         [fill]
+        Multi-Query            [fill]  [fill]  [fill]         [fill]
+        RAG-Fusion (RRF)       [fill]  [fill]  [fill]         [fill]
+        HyDE                   [fill]  [fill]  [fill]         [fill]
+        Step-Back              [fill]  [fill]  [fill]         [fill]
+        Query Decomposition    [fill]  [fill]  [fill]         [fill]
+        Query Rewriting        [fill]  [fill]  [fill]         [fill]
+        Query Expansion        [fill]  [fill]  [fill]         [fill]
+
+
+    5.2  Chunking Strategy Ablation
+
+        Comparison of chunking strategies on retrieval metrics.
+        Justify the final choice for the advanced system.
+
+        Strategy          P@5     R@5     Notes
+        -----------------------------------------------
+        Fixed-size        [fill]  [fill]  Baseline
+        Sliding window    [fill]  [fill]
+        Hierarchical      [fill]  [fill]
+        Semantic          [fill]  [fill]
+
+
+    5.3  Multimodal Retrieval
+
+        Text-only retrieval:     Jina CLIP v2 text mode (same as System 1)
+        Multimodal retrieval:    Jina CLIP v2 image + text shared embedding space
+                                 (cross-modal matching on image collections)
+
+        Modality               P@1     P@3     P@5     R@1     R@3     R@5
+        -----------------------------------------------------------------------
+        Text-only              [fill]  [fill]  [fill]  [fill]  [fill]  [fill]
+        Multimodal (img+txt)   [fill]  [fill]  [fill]  [fill]  [fill]  [fill]
+
+
+    5.4  Prompting Strategy Comparison
+
+        Strategy           Description                          EM      F1
+        ----------------------------------------------------------------------
+        Concise direct     Answer only, no padding              [fill]  [fill]
+        Chain-of-thought   Step-by-step reasoning               [fill]  [fill]
+        Role prompting     Domain expert persona                [fill]  [fill]
+        Few-shot           In-context examples (optional)       [fill]  [fill]
+
+
+    5.5  Full Advanced System — Best Configuration
+
+        Best combination:
+            - Chunking strategy:  [fill]
+            - Query technique:    [fill]
+            - Retrieval modality: [fill]
+            - Prompt strategy:    [fill]
+
+        System                          P@5     R@5     EM      F1
+        ---------------------------------------------------------------
+        System 1 — Baseline             [fill]  [fill]  [fill]  [fill]
+        System 2 — Advanced (best)      [fill]  [fill]  [fill]  [fill]
+
+________________________________________
+
+
+6. SYSTEM 3 — AGENTIC mRAG
+
+    Framework: LangChain / LlamaIndex
+
+    Agent architecture (3 agents minimum):
+
+        Agent 1 — Query Rewriting Agent
+            Rewrites and expands the input query using LLM-based reasoning.
+            Decision: determine whether the original query needs reformulation.
+
+        Agent 2 — Retrieval Agent
+            Decides the retrieval strategy and executes search over Qdrant.
+            Decision: choose between text-only and multimodal retrieval based
+            on query type.
+
+        Agent 3 — Answer Generation Agent
+            Synthesises retrieved evidence into a final answer.
+            Decision: assess whether retrieved context is sufficient or
+            additional retrieval is needed before generating.
+
+    Each agent uses LLM-based decision-making, not just modular function calls.
+
+    Generation model: qwen3-vl:8b on UiS Ollama cluster
+
+    System                          P@5     R@5     EM      F1
+    ---------------------------------------------------------------
+    System 1 — Baseline             [fill]  [fill]  [fill]  [fill]
+    System 2 — Advanced             [fill]  [fill]  [fill]  [fill]
+    System 3 — Agentic              [fill]  [fill]  [fill]  [fill]
+
+________________________________________
+
+
+7. EVALUATION FRAMEWORK
+
+    Retrieval metrics (evaluated on retrieved document sets):
+        - Precision@k  for k = 1, 3, 5
+        - Recall@k     for k = 1, 3, 5
+        - Page Recall@k (binary hit on correct PDF + overlapping page)
+        - MAP — Mean Average Precision
+        - MRR — Mean Reciprocal Rank
+
+    Generation metrics (evaluated on generated answers):
+        - Exact Match (after normalisation: lowercase, punctuation removal,
+          number normalisation e.g. "1,358,000" → "1358000")
+        - Token F1 — SQuAD-style token overlap using Counter intersection
+        - Contains Match — ground truth appears anywhere in the prediction
+
+    Supplementary metrics:
+        - BLEU (note: designed for longer texts, limited meaning on short answers)
+        - ROUGE-1, ROUGE-2, ROUGE-L
+        - Semantic similarity (sentence-transformers cosine)
+
+    Evaluation subset:
+        First 20 pure-text questions from the train split.
+        Justification: balances evaluation depth with runtime constraints.
+        Limitation acknowledged in Section 10.
+
+________________________________________
+
+
+8. REQUIRED COMPARISONS (per Section 11 of project specification)
+
+    1.  Baseline vs Advanced vs Agentic
+        Systems: S1 vs S2-best vs S3
+        Key metrics: P@5, Token F1
+
+    2.  With vs without query processing
+        Settings: Standard retrieval vs best query technique
+        Key metrics: P@5, R@5
+
+    3.  With vs without advanced chunking
+        Settings: Fixed-size vs best chunking strategy
+        Key metrics: P@5, R@5
+
+    4.  Text-only vs multimodal retrieval
+        Settings: Text embeddings vs image+text embeddings
+        Key metrics: P@5, R@5
+
+    5.  Prompting strategy comparison
+        Settings: 3 or more prompt strategies evaluated
+        Key metrics: Exact Match, Token F1
+
+________________________________________
+
+
+9. RUNTIME & RESOURCE ANALYSIS
+
+    Phase                               System 1    System 2    System 3
+    -----------------------------------------------------------------------
+    PDF extraction + chunking           [fill]s     N/A         N/A
+    Index build time                    [fill]s     [fill]s     [fill]s
+    Avg retrieval time per query        [fill]s     [fill]s     [fill]s
+    Avg generation time per query       [fill]s     [fill]s     [fill]s
+    Total pipeline time per query       [fill]s     [fill]s     [fill]s
+
+    Notes:
+        - HyDE generates N hypothetical documents before retrieval, making it
+          the slowest query technique (N x LLM calls before any retrieval).
+        - Standard retrieval is the fastest query technique.
+        - GPU usage (if applicable): [fill]
+        - Random seed fixed at 42 for reproducibility.
+
+________________________________________
+
+
+10. CONCLUSION
+
+    Best-performing configuration: [fill]
+    Justification: [fill]
+
+    Key findings (examples):
+        - RAG-Fusion improved P@5 by X% over standard retrieval
+        - HyDE achieved best R@5 among all query techniques
+        - Multimodal retrieval improved results on image-based questions
+          but had marginal effect on pure-text questions
+        - Chain-of-thought prompting improved F1 for complex multi-step questions
+
+    Limitations:
+        - Evaluation subset limited to 20 questions due to runtime constraints
+        - No fine-tuning performed on domain data
+        - Multimodal retrieval constrained to available pre-indexed image collections
+        - Agentic system adds latency due to sequential LLM calls
+
+    Future work:
+        - LLM-based routing between text-only and multimodal retrieval
+        - Fine-tuned embeddings trained on MMDocIR domain data
+        - Full test split evaluation for final reported numbers
+        - Reranker layer (e.g. cross-encoder) between retrieval and generation
+
+________________________________________
+
+
+REFERENCES
+
+    Lewis, P. et al. (2020). Retrieval-Augmented Generation for
+        Knowledge-Intensive NLP Tasks. NeurIPS 2020.
+
+    MMDocIR dataset paper and documentation.
+        https://mmdocrag.github.io/MMDocIR/
+
+    Jina AI. Jina CLIP v2: Unified Multimodal Embeddings.
+
+    BAAI. bge-large-en-v1.5 embedding model.
+
+    Qdrant. Vector database documentation. https://qdrant.tech
+
+    Gao, L. et al. (2022). Precise Zero-Shot Dense Retrieval without
+        Relevance Labels (HyDE). arXiv:2212.10496.
+
+    Rackauckas, Z. (2023). RAG-Fusion. GitHub.
+
+    Zheng, H. et al. (2023). Take a Step Back: Evoking Reasoning via
+        Abstraction in Large Language Models. arXiv:2310.06117.
+
+    Qwen Team. qwen3-vl model documentation.
+
+________________________________________
+
+
+APPENDIX A — PROMPT TEMPLATES
+
+    Concise Direct Prompt (System 1 and System 2 baseline):
+
+        You are a concise assistant. Answer using ONLY the provided context.
+
+        Strict Instructions (NON-NEGOTIABLE):
+        Read the whole context and think before answering.
+        NEVER add preamble, explanation, or context. ANSWER ONLY.
+        DO NOT rephrase, explain, or add context.
+        Multiple answers: ONLY output ['answer1', 'answer2', ...]. NOTHING ELSE.
+        For yes/no questions, answer only "Yes" or "No".
+        Do not rely only on explicit statements. If the answer can be derived
+        from the context through calculation, compute it before answering.
+        Be direct. No padding. No explanations unless specifically asked.
+
+
+    Chain-of-Thought Prompt:
+        [Insert CoT variant here]
+
+    Role Prompting Prompt:
+        [Insert role variant here]
+
+________________________________________
+
+
+APPENDIX B — CONFIGURATION SUMMARY
+
+    Parameter                   System 1 (Baseline)        System 2 (Advanced)
+    -------------------------------------------------------------------------------
+    Embedding model             jinaai/jina-clip-v2        BAAI/bge-large-en-v1.5
+    Embedding dimension         1024                       1024
+    Chunking strategy           Fixed-size (1000 chars)    [best from ablation]
+    Retrieval method            Hybrid BM25 + Dense RRF    Hybrid + query technique
+    Top-K                       5                          5
+    LLM model                   qwen3:32b                  qwen3:32b
+    LLM temperature             0.0                        0.0
+    RRF constant K              60                         60
+    Random seed                 42                         42
+
+________________________________________
+
+
+APPENDIX C — PER-QUESTION-TYPE RESULTS
+
+    Question Type    System    P@5     R@5     Exact Match
+    --------------------------------------------------------
+    Pure-text        S1        [fill]  [fill]  [fill]
+    Pure-text        S2        [fill]  [fill]  [fill]
+    Table-based      S2        [fill]  [fill]  [fill]
+    Image-based      S2        [fill]  [fill]  [fill]
+
+________________________________________
+
+
+APPENDIX D — REPRODUCTION INSTRUCTIONS
+
+    Environment setup:
+        pip install -r requirements.txt
+
+    Run the baseline system:
+        python src/main_baseline.py
+
+    Run the advanced system with a specific query technique:
+        python src/main_advanced.py --technique standard
+        python src/main_advanced.py --technique hyde
+        python src/main_advanced.py --technique rag_fusion
+        python src/main_advanced.py --technique multi_query
+        python src/main_advanced.py --technique step_back
+        python src/main_advanced.py --technique query_decomposition
+        python src/main_advanced.py --technique query_rewriting
+        python src/main_advanced.py --technique query_expansion
+
+    To rebuild the vector index from scratch:
+        Set force_rebuild = True in main_baseline.py or main_advanced.py
+        before running.
+
+    Vector database: stored locally in local_qdrant/
+    Pre-processed chunks: stored in src/data/preprocessed/
+
+________________________________________

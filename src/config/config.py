@@ -38,7 +38,7 @@ CHUNK_OVERLAP = 200  # Overlap between chunks (for sliding_window strategy)
 
 # Vector Database settings (Qdrant - as per team decision)
 VECTOR_DB_MODE = "local"  # Options: "local", "memory", "docker"
-VECTOR_DB_PATH = str(PROJECT_ROOT / "local_qdrant")  # Local storage path
+VECTOR_DB_PATH = str(SRC_DIR / "local_qdrant")  # Local storage path
 VECTOR_DB_COLLECTION = "baseline_documents_jina"  # Collection name (jina-clip-v2-1024D)
 VECTOR_DB_DISTANCE = "COSINE"  # Distance metric: COSINE, DOT, MANHATTAN, EUCLID
 
