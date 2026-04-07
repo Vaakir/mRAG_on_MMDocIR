@@ -5,16 +5,19 @@ Date,Name,Start,End,Tag,WorkingOn
 27.03.2026,vaakir,08:30,10:00,System 1,PDF Reading and chunking using multiprocessing
 27.03.2026,vaakir,10:00,11:30,Planning,Reading code on different branches and planning TODOs
 06.04.2026,vaakir,12:00,14:00,System 1,Refactor + Preprocessing pipeline
+06.04.2026,vaakir,14:40,16:00,System 1,Refactor + Preprocessing pipeline
 
 25.03.2026,BaalCat,12:15,14:00,Planning,Planning filestructure etc
 26.03.2026,BaalCat,07:45,15:30,Reading Theory & Coding,"Theory about RAG, Vector Databases and related, Implementing First Draft of Vector DB with simple test"
 
 25.03.2026,GabIsr,12:15,14:00,Planning,Planning filestructure etc
 25.03.2026,GabIsr,20:30,23:15,Reading & Exploration,"Reading about dataset structure, and potential tools/libraries/frameworks that we can use for the project" 
-26.03.2026,GabIsr,09:30,16:40,System 1,Reading & Coding,"Experimented with an initial skeleton code for the RAG baseline pipeline, to get a feel for the overall architecture and data flow. Tried with an initial choice of PDF-parsing tools (pdfplumber), Embedding tools (CLIP) and FAISS (initial attempt), mostly to check if the skeleton code would suffice when integrating/replacing with the actual tools/libraries"
+26.03.2026,GabIsr,09:30,16:40,System 1,"Reading & Coding, Experimented with an initial skeleton code for the RAG baseline pipeline, to get a feel for the overall architecture and data flow. Tried with an initial choice of PDF-parsing tools (pdfplumber), Embedding tools (CLIP) and FAISS (initial attempt), mostly to check if the skeleton code would suffice when integrating/replacing with the actual tools/libraries"
 
 
-25.03.2026,togun,17:42,20:00, Planning, understanding project, looking at data structure
+25.03.2026,togun,17:42,20:00, Planning,"understanding project, looking at data structure"
+26.03.2026,togun,9:40,18:00, Implementation,"basic implementation of the baseline system and then just seeing how things work" 
+25.03.2026,togun,17:42,20:00, Planning, "understanding project, looking at data structure"
 26.03.2026,togun,9:40,18:00, Implementation, basic implementation of the baseline system and then just seeing how things work 
 27.03.2026,togun,12:30,15:00, Implementation, Finalizing of chunking strategy with vaakir
 28.03.2026,togun,7:25,15:00, Testing and reimplementing baseline system.

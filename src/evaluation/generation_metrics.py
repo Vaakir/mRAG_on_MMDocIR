@@ -335,3 +335,36 @@ def evaluate_generation(
             result["faithfulness"] = np.mean(valid_scores)
     
     return result
+
+def evaluate_generation(
+    predictions: List[str],
+    ground_truths: List[Any],
+    contexts: Optional[List[str]] = None,
+    embedder: Optional[Any] = None,
+    llm_evaluator: Optional[Any] = None
+) -> Dict[str, float]:
+    
+
+    metrics_fns = { # all metric functions defined in one single place
+        "exact_match": exact_match,
+        "contains_match": contains_match,
+        "token_f1": token_f1
+    }
+
+    # call upon each function defined in metrics
+    results = []
+    for pred, gt in zip(predictions, ground_truths):
+        for name, fn in metrics_fns.items():
+            
+            out = fn(pred, gt)
+            if isinstance(out, dict):
+                # multiple metrics → merge each key
+                for k, v in out.items():
+                    results[k].append(v)
+            else:
+                # single metric → store under the name
+                results[name].append(out)
+            
+    # apply whatever
+    averaged = {name: np.mean(scores) for name, scores in results.items()}
+    return averaged

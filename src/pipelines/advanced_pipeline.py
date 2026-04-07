@@ -11,9 +11,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from config.advanced_config import AdvancedConfig
 from data.data_loader import load_train_data, load_test_data
 from data.chunk_loader import load_preprocessed_chunks, print_chunk_statistics
-from preprocessing.chunker import chunk_documents
 from indexing.embedder import TextEmbedder, create_chunk_embeddings
-from indexing.vector_store import QdrantConfig, QdrantVectorDB
+from indexing.vector_database import QdrantConfig, QdrantVectorDB
 from indexing.hybrid_retriever import HybridRetriever
 from generation.generator import BaselineGenerator
 from evaluation.retrieval_metrics import evaluate_retrieval
