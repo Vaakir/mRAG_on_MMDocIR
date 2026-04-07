@@ -23,22 +23,30 @@ class TextEmbedder:
     def embed_texts(
         self,
         texts: List[str],
-        batch_size: int = 64
+        batch_size: int = 32
     ) -> np.ndarray:
         """
         Embed a list of texts.
         Returns numpy array of shape (n_texts, embedding_dim).
         """
         logger.info(f"Embedding {len(texts)} texts...")
-        embeddings = self.model.encode(
-            texts,
-            prompt_name="document",
-            batch_size=batch_size,
-            show_progress_bar=True,
-        )
-        if torch.backends.mps.is_available():
-            torch.mps.empty_cache()
-        return np.array(embeddings)
+        all_embeddings = [] # List to hold embeddings for all texts
+
+        # Process texts in batches to avoid memory issues
+        for i in tqdm(range(0, len(texts), batch_size), desc="Encoding texts"):
+            batch_texts = texts[i:i + batch_size]
+            embeddings = self.model.encode(
+                batch_texts,
+                prompt_name="document",
+                batch_size=8,
+            )
+            all_embeddings.append(embeddings)
+
+    #-------------------
+            if torch.backends.mps.is_available():
+                torch.mps.empty_cache()
+
+        return np.vstack(all_embeddings) # Stack all batch embeddings into a single numpy array
 
     def embed_images(
         self,
@@ -53,14 +61,18 @@ class TextEmbedder:
         logger.info(f"Embedding {len(image_paths)} images...")
         all_embeddings = []
 
-        embeddings = self.model.encode(
-            image_paths,
-            batch_size=batch_size,
-            show_progress_bar=True,
-        )
-        if torch.backends.mps.is_available():
-            torch.mps.empty_cache()
-        return np.array(embeddings)
+        for i in tqdm(range(0, len(image_paths), batch_size), desc="Encoding images"):
+            batch_paths = image_paths[i:i + batch_size]
+            embeddings = self.model.encode(
+                batch_paths,
+                batch_size=4,
+            )
+            all_embeddings.append(embeddings)
+
+            if torch.backends.mps.is_available():
+                torch.mps.empty_cache()
+
+        return np.vstack(all_embeddings)
 
     def embed_query(self, query: str) -> np.ndarray:
         """Embed a single query text."""
