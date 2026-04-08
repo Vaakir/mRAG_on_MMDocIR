@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from config.advanced_config import AdvancedConfig
+from config.config import AdvancedConfig
 from data.data_loader import load_train_data, load_test_data
 from data.chunk_loader import load_preprocessed_chunks, print_chunk_statistics
 from indexing.embedder import TextEmbedder, create_chunk_embeddings

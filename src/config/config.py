@@ -1,9 +1,11 @@
-# src/config/config.py
+# src/config/advanced_config.py
+# Configuration for the advanced RAG pipeline with query techniques
 
-import os
 from pathlib import Path
+from dataclasses import dataclass, field
+from typing import Dict, Any
 
-# Paths for data and resources
+# Define paths outside the dataclass for cleaner referencing
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 SRC_DIR = PROJECT_ROOT / "src"
 DATA_DIR = SRC_DIR / "data" 
@@ -15,37 +17,128 @@ PREPROCESSED_DOCUMENTS_FILE = DATA_DIR / "preprocessed" / "all_documents.json"
 TRAIN_JSONL = DATA_DIR / "train" / "train.jsonl"
 TEST_JSONL = DATA_DIR / "test" / "test.jsonl"
 
-# Cache directory for processed PDFs (for manual inspection)
 CACHE_DIR = PROJECT_ROOT / "cache"
-
-# Pre-processed chunks from team (fixed-size chunking already done)
 PREPROCESSED_CHUNKS_FILE = SRC_DIR / "data" / "preprocessed" / "chunks_fixed_size.json"
-USE_PREPROCESSED_CHUNKS = True  # Set to True to use team's chunks
 
-# Model settings
-# Baseline: Jina CLIP v2 for multimodal embeddings (team's choice)
-EMBEDDING_MODEL = "jinaai/jina-clip-v2"
-EMBEDDING_DIMENSION = 1024  # Jina CLIP v2 outputs 1024 dimensions
+@dataclass
+class BaselineConfig:
+    """Configuration matching the baseline pipeline."""
+    
+    # ===== PATHS =====
+    PROJECT_ROOT: Path = PROJECT_ROOT
+    SRC_DIR: Path = SRC_DIR
+    DATA_DIR: Path = DATA_DIR
+    
+    PDFS_DIR: Path = PDFS_DIR
+    PREPROCESSED_DATA_DIR: Path = PREPROCESSED_DATA_DIR
+    PREPROCESSED_DOCUMENTS_FILE: str = str(PREPROCESSED_DOCUMENTS_FILE)
+    
+    TRAIN_JSONL: Path = TRAIN_JSONL
+    TEST_JSONL: Path = TEST_JSONL
+    
+    CACHE_DIR: Path = CACHE_DIR
+    
+    PREPROCESSED_CHUNKS_FILE: str = str(PREPROCESSED_CHUNKS_FILE)
 
-# Retrieval settings
-TOP_K = 5  # Number of documents to retrieve
-USE_HYBRID_RETRIEVAL = True  # BM25 + dense with Reciprocal Rank Fusion
+    # ===== EMBEDDING SETTINGS =====
+    EMBEDDING_MODEL: str = "jinaai/jina-clip-v2"
+    EMBEDDING_DIMENSION: int = 1024
+    EMBEDDING_BATCH_SIZE: int = 64
+    
+    # ===== LLM / GENERATOR SETTINGS =====
+    LLM_MODEL: str = "qwen3:32b"
+    OLLAMA_BASE_URL: str = "https://ollama.ux.uis.no"
+    LLM_TEMPERATURE: float = 0.0
+    LLM_TOP_P: float = 0.1
+    
+    # ===== VECTOR DATABASE SETTINGS =====
+    VECTOR_DB_MODE: str = "local"
+    VECTOR_DB_PATH: str = str(PROJECT_ROOT / "local_qdrant")
+    VECTOR_DB_COLLECTION: str = "baseline_documents_jina"
+    VECTOR_DB_DISTANCE: str = "COSINE"
+    
+    # ===== RETRIEVAL SETTINGS =====
+    TOP_K: int = 5
+    USE_HYBRID_RETRIEVAL: bool = True
+    
+    # ===== CHUNKING SETTINGS =====
+    USE_PREPROCESSED_CHUNKS: bool = True
+    CHUNKING_STRATEGY: str = "fixed_size"
+    CHUNK_SIZE: int = 1000
+    CHUNK_OVERLAP: int = 200
+        
+    # ===== EVALUATION SETTINGS =====
+    EVAL_SUBSET_SIZE: int = 20
+    RETRIEVAL_WORKERS: int = 4
+    GENERATION_WORKERS: int = 2
+    
+    RANDOM_SEED: int = 42
 
-# Chunking settings (team's fixed-size strategy for baseline)
-CHUNKING_STRATEGY = "fixed_size"  # Options: fixed_size, sliding_window, semantic, hierarchical
-CHUNK_SIZE = 1000  # Characters per chunk (as per team's implementation)
-CHUNK_OVERLAP = 200  # Overlap between chunks (for sliding_window strategy)
+    def __post_init__(self):
+        """Validate paths after initialization."""
+        if isinstance(self.VECTOR_DB_PATH, Path):
+            self.VECTOR_DB_PATH = str(self.VECTOR_DB_PATH)
+        if isinstance(self.PREPROCESSED_CHUNKS_FILE, str):
+            self.PREPROCESSED_CHUNKS_FILE = Path(self.PREPROCESSED_CHUNKS_FILE)
+            
+    @classmethod
+    def load_from_dict(cls, config_dict: Dict[str, Any]):
+        valid_fields = {f.name for f in cls.__dataclass_fields__.values()}
+        filtered_dict = {k: v for k, v in config_dict.items() if k in valid_fields}
+        return cls(**filtered_dict)
 
-# Vector Database settings (Qdrant - as per team decision)
-VECTOR_DB_MODE = "local"  # Options: "local", "memory", "docker"
-VECTOR_DB_PATH = str(SRC_DIR / "local_qdrant")  # Local storage path
-VECTOR_DB_COLLECTION = "baseline_documents_jina"  # Collection name (jina-clip-v2-1024D)
-VECTOR_DB_DISTANCE = "COSINE"  # Distance metric: COSINE, DOT, MANHATTAN, EUCLID
+@dataclass
+class AdvancedConfig(BaselineConfig):
+    """
+    Configuration for the Advanced RAG Pipeline.
+    """
+    
+    # ===== ADVANCED APP OVERRIDES =====
+    EMBEDDING_MODEL: str = "BAAI/bge-large-en-v1.5"
+    """Embedding model name from Hugging Face"""
+    
+    VECTOR_DB_COLLECTION: str = "baseline_documents_v3"
+    """Collection name in Qdrant"""
+    
+    # ===== QUERY TECHNIQUE SETTINGS =====
+    QUERY_TECHNIQUE: str = "standard"
+    QUERY_TECHNIQUE_CONFIG: Dict[str, Any] = field(default_factory=lambda: {
+        'num_variants': 3,
+    })
 
-# LLM settings (using Ollama)
-OLLAMA_BASE_URL = "https://ollama.ux.uis.no"  # UiS Ollama cluster
-# Using lightweight model for baseline (fast response). Switch to qwen3-vl:8b for multimodal system
-LLM_MODEL = "qwen3:32b"  # Strong reasoning model for accurate extraction
 
-# Random seed for reproducibility
-RANDOM_SEED = 42
+
+# Preset configurations for quick switching
+
+
+
+
+class FastEmbeddingConfig(AdvancedConfig):
+    """Fast embedding using smaller model."""
+    EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
+    EMBEDDING_DIMENSION: int = 384
+    EMBEDDING_BATCH_SIZE: int = 128
+
+
+class MultiQueryConfig(AdvancedConfig):
+    """Multi-query technique configuration."""
+    QUERY_TECHNIQUE: str = "multi_query"
+    QUERY_TECHNIQUE_CONFIG: Dict[str, Any] = field(default_factory=lambda: {
+        'num_variants': 3,
+    })
+
+
+class RAGFusionConfig(AdvancedConfig):
+    """RAG-Fusion configuration."""
+    QUERY_TECHNIQUE: str = "rag_fusion"
+    QUERY_TECHNIQUE_CONFIG: Dict[str, Any] = field(default_factory=lambda: {
+        'num_variants': 3,
+    })
+
+
+class HyDEConfig(AdvancedConfig):
+    """HyDE (Hypothetical Documents) configuration."""
+    QUERY_TECHNIQUE: str = "hyde"
+    QUERY_TECHNIQUE_CONFIG: Dict[str, Any] = field(default_factory=lambda: {
+        'num_variants': 3,
+    })

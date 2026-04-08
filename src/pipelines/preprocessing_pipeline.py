@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 from typing import Any, Literal
 
-from config.config import PDFS_DIR, PREPROCESSED_DOCUMENTS_FILE, PREPROCESSED_DATA_DIR
+from config.config import BaselineConfig
 from preprocessing.pdf_loader import (
     process_all_pdfs,
     process_all_pdfs_fast,
@@ -23,6 +23,8 @@ def preprocessing_pipeline(
     """
     Runs the preprocessing pipeline.
     """
+    config = BaselineConfig()
+    
     # 1. pdf_loader.py
     reading_method_map = {
         "standard": process_all_pdfs,
@@ -35,21 +37,21 @@ def preprocessing_pipeline(
         )
 
     logger.info(f"Extracting PDFs using {reading_method}...")
-    all_documents = reading_method_map[reading_method](PDFS_DIR)
+    all_documents = reading_method_map[reading_method](config.PDFS_DIR)
 
     if not all_documents:
         raise ValueError("PDF extraction returned no documents.")
 
-    logger.info(f"Saving extracted JSON to {PREPROCESSED_DOCUMENTS_FILE}...")
-    save_read_pdf_data(all_documents, path=PREPROCESSED_DOCUMENTS_FILE)
+    logger.info(f"Saving extracted JSON to {config.PREPROCESSED_DOCUMENTS_FILE}...")
+    save_read_pdf_data(all_documents, path=config.PREPROCESSED_DOCUMENTS_FILE)
 
     # 2. pdf_chunker.py
     logger.info("Loading documents for chunking...")
-    all_documents = load_read_documents(PREPROCESSED_DOCUMENTS_FILE)
+    all_documents = load_read_documents(config.PREPROCESSED_DOCUMENTS_FILE)
 
     logger.info("Running chunking methods and saving outputs...")
     chunk_result = chunk_and_save_pdf_data(
-        all_documents, output_dir=PREPROCESSED_DATA_DIR
+        all_documents, output_dir=config.PREPROCESSED_DATA_DIR
     )
 
     return {
