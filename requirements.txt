@@ -19,7 +19,7 @@ rank-bm25
 ollama
 
 # PDF processing
-unstructured
+unstructured[pdf]
 pdfplumber
 
 # Data / utils

@@ -31,8 +31,6 @@ class BaselineRAGPipeline:
     Complete baseline RAG pipeline using team's integrated components.
     
     Components:
-    - PDF Processing: unstructured library (structured blocks)
-    - Chunking: Team's fixed_size strategy (1000 chars)
     - Embeddings: Jina CLIP v2 (1024D, text-only for System 1, ready for multimodal in System 2)
     - Vector DB: Qdrant (local mode)
     - Generation: Ollama API
@@ -98,53 +96,49 @@ class BaselineRAGPipeline:
             logger.info(f"Index loaded in {elapsed:.2f} seconds")
             return  # EXIT early - don't rebuild if valid collection exists
         
-        # If we reach here: either force_rebuild=True OR collection is empty/missing
-        # Either way, we need to build the index
-        force_rebuild = True
         
-        if force_rebuild:
-            logger.info("Building new index...")
-            
-            logger.info("=" * 80)
-            logger.info("USING PRE-PROCESSED CHUNKS")
-            logger.info("=" * 80)
-            logger.info(f"Loading chunks from: {self.config.PREPROCESSED_CHUNKS_FILE}")
-            
-            # Load pre-processed chunks directly
-            self.chunks = load_preprocessed_chunks(self.config.PREPROCESSED_CHUNKS_FILE)
-            print_chunk_statistics(self.chunks)
-            
-            logger.info(f"[OK] Loaded {len(self.chunks)} pre-processed chunks")
-            
-            # Step 3: Create embeddings using Jina CLIP v2 (1024D, text-only for System 1)
-            logger.info("Step 3: Creating Jina CLIP v2 embeddings (text-only)...")
-            embeddings = create_chunk_embeddings(self.chunks, self.embedder)
-            logger.info(f"Created {len(embeddings)} embeddings")
-            
-            # Step 4: Create Qdrant collection and index documents
-            logger.info("Step 4: Indexing in Qdrant...")
-            self.vector_db.create_collection(force_recreate=True) 
-            
-            # Prepare documents for Qdrant
-            qdrant_docs = []
-            for i, (chunk, embedding) in enumerate(zip(self.chunks, embeddings)): 
-                qdrant_docs.append({
-                    'id': i,
-                    'embedding': embedding,
-                    'text': chunk['text'],
-                    'metadata': {
-                        'pdf_name': chunk['pdf_name'],
-                        'pdf_path': chunk['pdf_path'],
-                        'chunk_id': chunk['chunk_id'],
-                        'char_len': chunk['char_len'],
-                        'page_numbers': chunk['page_numbers'],
-                    }
-                })
-            
-            self.vector_db.index_documents(qdrant_docs)
+        logger.info("Building new index...")
+        
+        logger.info("=" * 80)
+        logger.info("USING PRE-PROCESSED CHUNKS")
+        logger.info("=" * 80)
+        logger.info(f"Loading chunks from: {self.config.PREPROCESSED_CHUNKS_FILE}")
+        
+        # Load pre-processed chunks directly
+        self.chunks = load_preprocessed_chunks(self.config.PREPROCESSED_CHUNKS_FILE)
+        print_chunk_statistics(self.chunks)
+        
+        logger.info(f"[OK] Loaded {len(self.chunks)} pre-processed chunks")
+        
+        # Step 3: Create embeddings using Jina CLIP v2 (1024D, text-only for System 1)
+        logger.info("Step 3: Creating Jina CLIP v2 embeddings (text-only)...")
+        embeddings = create_chunk_embeddings(self.chunks, self.embedder)
+        logger.info(f"Created {len(embeddings)} embeddings")
+        
+        # Step 4: Create Qdrant collection and index documents
+        logger.info("Step 4: Indexing in Qdrant...")
+        self.vector_db.create_collection(force_recreate=True) 
+        
+        # Prepare documents for Qdrant
+        qdrant_docs = []
+        for i, (chunk, embedding) in enumerate(zip(self.chunks, embeddings)): 
+            qdrant_docs.append({
+                'id': i,
+                'embedding': embedding,
+                'text': chunk['text'],
+                'metadata': {
+                    'pdf_name': chunk['pdf_name'],
+                    'pdf_path': chunk['pdf_path'],
+                    'chunk_id': chunk['chunk_id'],
+                    'char_len': chunk['char_len'],
+                    'page_numbers': chunk['page_numbers'],
+                }
+            })
+        
+        self.vector_db.index_documents(qdrant_docs)
 
-            elapsed = time.time() - start_time
-            logger.info(f"Index built in {elapsed:.2f} seconds")
+        elapsed = time.time() - start_time
+        logger.info(f"Index built in {elapsed:.2f} seconds")
 
         # Build hybrid retriever (BM25 + dense) — always, using loaded chunks
         if self.config.USE_HYBRID_RETRIEVAL:
