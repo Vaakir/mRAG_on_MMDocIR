@@ -6,6 +6,10 @@ Date,Name,Start,End,Tag,WorkingOn
 27.03.2026,vaakir,10:00,11:30,Planning,Reading code on different branches and planning TODOs
 06.04.2026,vaakir,12:00,14:00,System 1,Refactor + Preprocessing pipeline
 06.04.2026,vaakir,14:40,16:00,System 1,Refactor + Preprocessing pipeline
+07.04.2026,vaakir,09:00,10:30,Planning,Refactor + Fixing run errors
+07.04.2026,vaakir,10:30,12:30,System 1,Refactor + Baseline pipeline fix
+07.04.2026,vaakir,12:30,14:00,System 2,Refactor + Advanced pipeline fix
+07.04.2026,vaakir,14:00,16:00,Planning,Mob programming/full code walkthrough + Refactor + Clarifying remaining tasks in group
 
 25.03.2026,BaalCat,12:15,14:00,Planning,Planning filestructure etc
 26.03.2026,BaalCat,07:45,15:30,Reading Theory & Coding,"Theory about RAG, Vector Databases and related, Implementing First Draft of Vector DB with simple test"
@@ -15,10 +19,8 @@ Date,Name,Start,End,Tag,WorkingOn
 26.03.2026,GabIsr,09:30,16:40,System 1,"Reading & Coding, Experimented with an initial skeleton code for the RAG baseline pipeline, to get a feel for the overall architecture and data flow. Tried with an initial choice of PDF-parsing tools (pdfplumber), Embedding tools (CLIP) and FAISS (initial attempt), mostly to check if the skeleton code would suffice when integrating/replacing with the actual tools/libraries"
 
 
-25.03.2026,togun,17:42,20:00, Planning,"understanding project, looking at data structure"
-26.03.2026,togun,9:40,18:00, Implementation,"basic implementation of the baseline system and then just seeing how things work" 
-25.03.2026,togun,17:42,20:00, Planning, "understanding project, looking at data structure"
-26.03.2026,togun,9:40,18:00, Implementation, basic implementation of the baseline system and then just seeing how things work 
-27.03.2026,togun,12:30,15:00, Implementation, Finalizing of chunking strategy with vaakir
-28.03.2026,togun,7:25,15:00, Testing and reimplementing baseline system.
-29.03.2026,togun,15:00,16:00, Updating evaluation strategy to confirm page inclusion works (page_recall)
+25.03.2026,togun,17:42,20:00,Planning,"understanding project, looking at data structure"
+26.03.2026,togun,9:40,18:00,Implementation,"basic implementation of the baseline system and then just seeing how things work"
+27.03.2026,togun,12:30,15:00,Implementation,Finalizing of chunking strategy with vaakir
+28.03.2026,togun,7:25,15:00,System 1,Testing and reimplementing baseline system.
+29.03.2026,togun,15:00,16:00,System 1,Updating evaluation strategy to confirm page inclusion works (page_recall)
