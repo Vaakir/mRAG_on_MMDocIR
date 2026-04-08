@@ -28,3 +28,6 @@ tqdm
 requests
 python-dotenv
 matplotlib
+
+# Detrics
+rouge-score
