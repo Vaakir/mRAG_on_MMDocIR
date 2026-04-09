@@ -3,90 +3,65 @@
 import os
 import sys
 import time
+import logging
+import pandas as pd
 from pathlib import Path
 
 # Fix OpenMP library conflict (common with PyTorch + other libraries)
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
 sys.path.append(str(Path(__file__).parent))
-from config.config import TRAIN_JSONL
+from config.config import BaselineConfig
 from data.data_loader import load_train_data
 from pipelines.baseline_pipeline import BaselineRAGPipeline
 
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 def main():
-    """Main function for baseline RAG pipeline with comprehensive timing instrumentation."""
-    main_start = time.time() # Track total runtime of the main function for reference and monitoring purposes
+    timings = {}
+    main_start = time.time()
     
-    print(f"\n{'='*80}")
-    print("BASELINE RAG SYSTEM (System 1)")
-    print(f"{'='*80}\n")
+    logger.info("Starting BASELINE RAG SYSTEM (System 1)")
     
-    # Initialize pipeline
-    pipeline = BaselineRAGPipeline()
+    config = BaselineConfig()
+    pipeline = BaselineRAGPipeline(config)
     
-    # ===== PHASE 1: Index Building/Loading =====
-    print("===========PHASE 1: Building/Loading Index=============")
-    build_start = time.time() # Track time for index building/loading phase for reference and monitoring purposes
-    
-    pipeline.build_index(force_rebuild=False) # 'True' if you want to rebuild the index from raw PDFs, 'False' to load existing index (must be built at least once)
-    
-    build_time = time.time() - build_start # Time taken for index building/loading phase for reference and monitoring purposes
-    print(f"[OK] Index build/load completed in {build_time:.2f}s\n")
+    # Phase 1: Index Building/Loading
+    build_start = time.time()
+    pipeline.build_index(force_rebuild=False)
+    timings['Index Build/Load'] = time.time() - build_start
 
-    # ===== PHASE 2: Component Initialization =====
-    print("-" * 80)
-    print("===========PHASE 2: Initializing Components=============")
-    init_start = time.time() # Track time for component initialization phase for reference and monitoring purposes
-    
+    # Phase 2: Component Initialization
+    init_start = time.time()
     pipeline.initialize_components()
-    
-    init_time = time.time() - init_start # Time taken for component initialization phase for reference and monitoring purposes
-    print(f"[OK] Components initialized in {init_time:.2f}s\n")
+    timings['Component Initialization'] = time.time() - init_start
 
-    # ===== PHASE 3: Data Loading and Filtering =====
-    print("-" * 80)
-    print("===========PHASE 3: Loading and Filtering Test Data=============")
-    data_start = time.time() # Track time for data loading/filtering phase for reference and monitoring purposes
-    
-    train_data = load_train_data(TRAIN_JSONL) # Load the training data from the specified JSONL file (this includes all questions and their metadata, which we will filter to pure-text questions for testing the BASELINE system)
-    pure_text_data = [r for r in train_data if r.get("types") == ["Pure-text (Plain-text)"]] # Filter to only include pure-text questions (this matches the capabilities of the BASELINE system, which does not handle table or image-based questions, so we focus on the subset of questions that are purely text-based for a fair evaluation of the baseline pipeline's performance on its intended question type)
-    
-    data_time = time.time() - data_start # Time taken for data loading/filtering phase for reference and monitoring purposes
-    print(f"Loaded {len(train_data)} total questions")
-    print(f"Filtered to {len(pure_text_data)} pure-text questions")
-    print(f"[OK] Data loading completed in {data_time:.2f}s\n")
+    # Phase 3: Data Loading and Filtering
+    data_start = time.time()
+    train_data = load_train_data(config.TRAIN_JSONL)
+    pure_text_data = [r for r in train_data if r.get("types") == ["Pure-text (Plain-text)"]]
+    timings['Data Loading/Filtering'] = time.time() - data_start
 
-    # ===== PHASE 4: Single Query Test =====
-    print("-" * 80)
-    print("===========PHASE 4: Testing Single Query=============")
-    sample_query = pure_text_data[0] # Test a single query for a quick sanity check of the pipeline before running the full evaluation (this allows us to verify that the retrieval and generation components are working end-to-end on a sample question before we run the full evaluation on multiple questions, which can save time if there are any issues that need to be addressed in the pipeline)
-    
-    query_start = time.time() # Track time for processing this single query through the entire pipeline for reference and monitoring purposes
-    result = pipeline.run_query(sample_query["question"]) # Run the query through the pipeline (retrieval + generation)
-    query_time = time.time() - query_start # Time taken for processing this single query through the entire pipeline for reference and monitoring purposes
-    
-    print(f"\nQuestion: {sample_query['question']}")
-    print(f"Ground Truth: {sample_query['answer']}")
-    print(f"Generated Answer: {result['answer']}")
-    
-    # Print per-query timing if available
-    if 'timing' in result:
-        print(f"\n  Query Timing:")
-        print(f"    Retrieval:  {result['timing'].get('retrieval', 0):.4f}s")
-        print(f"    Generation: {result['timing'].get('generation', 0):.4f}s")
-        print(f"    Total:      {result['timing'].get('total', 0):.4f}s")
-    
-    print(f"\n[OK] Single query completed in {query_time:.2f}s\n")
+    logger.info(f"Loaded {len(train_data)} total questions, filtered to {len(pure_text_data)} pure-text questions")
 
-    # ===== PHASE 5: Full Evaluation =====
-    print("-" * 80)
-    print("===========PHASE 5: Running Full Evaluation (Pure-Text Questions)=============")
+    # Phase 4: Single Query Test
+    sample_query = pure_text_data[0]
+    query_start = time.time()
+    result = pipeline.run_query(sample_query["question"])
+    timings['Single Query Test'] = time.time() - query_start
     
-    eval_start = time.time() # Track time for evaluation phase for reference and monitoring purposes
+    logger.info(f"Single query completed. Question: {sample_query['question']} | Ground Truth: {sample_query['answer']} | Generated: {result['answer']}")
+
+    # Phase 5: Full Evaluation
+    eval_start = time.time()
+    metrics = pipeline.evaluate(pure_text_data[:20])
+    eval_time = time.time() - eval_start
+    timings['Full Evaluation (20 qs)'] = eval_time
+
+    main_total = time.time() - main_start
+    timings['Total Runtime'] = main_total
     
-    metrics = pipeline.evaluate(pure_text_data[:20]) # Evaluate on the first 20 pure-text questions (this allows us to get a comprehensive evaluation of the baseline pipeline's performance on a representative subset of the pure-text questions, while keeping the evaluation time reasonable for testing purposes. In a full evaluation, we could run this on all pure-text questions or a larger subset depending on time constraints.)
-    
-    eval_time = time.time() - eval_start # Time taken for evaluation phase for reference and monitoring purposes
     print(f"[OK] Evaluation completed in {eval_time:.2f}s\n")
     
     # ===== SUMMARY REPORT =====
@@ -95,15 +70,14 @@ def main():
     print(f"{'='*80}\n")
     
     print(f"Phase Breakdown:")
-    print(f"  1. Index Build/Load:          {build_time:>10.2f}s")
-    print(f"  2. Component Initialization:  {init_time:>10.2f}s")
-    print(f"  3. Data Loading/Filtering:    {data_time:>10.2f}s")
-    print(f"  4. Single Query Test:         {query_time:>10.2f}s")
-    print(f"  5. Full Evaluation (20 qs):   {eval_time:>10.2f}s")
+    print(f"  1. Index Build/Load:               {timings['Index Build/Load']:>10.2f}s")
+    print(f"  2. Component Initialization:       {timings['Component Initialization']:>10.2f}s")
+    print(f"  3. Data Loading/Filtering:         {timings['Data Loading/Filtering']:>10.2f}s")
+    print(f"  4. Single Query Test:              {timings['Single Query Test']:>10.2f}s")
+    print(f"  5. Full Evaluation (20 qs):        {timings['Full Evaluation (20 qs)']:>10.2f}s")
     print(f"  " + "-" * 50)
     
-    main_total = time.time() - main_start
-    print(f"  TOTAL RUNTIME:                {main_total:>10.2f}s\n")
+    print(f"  TOTAL RUNTIME:                     {timings['Total Runtime']:>10.2f}s\n")
     
     # Print metrics if available
     if metrics:
@@ -137,6 +111,6 @@ def main():
     print(f"\n{'='*80}\n")
     
     return metrics
-#-----------------------------------------------------------------
+
 if __name__ == "__main__":
     main()
