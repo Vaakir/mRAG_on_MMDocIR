@@ -127,11 +127,11 @@ class BaseRAGPipeline:
                 'embedding': embedding,
                 'text': chunk['text'],
                 'metadata': {
-                    'pdf_name': chunk['pdf_name'],
-                    'pdf_path': chunk['pdf_path'],
-                    'chunk_id': chunk['chunk_id'],
-                    'char_len': chunk['char_len'],
-                    'page_numbers': chunk['page_numbers'],
+                    'pdf_name': str(chunk.get('pdf_name', 'unknown')),
+                    'pdf_path': str(chunk.get('pdf_path', 'unknown')),
+                    'chunk_id': chunk.get('chunk_id'),
+                    'char_len': int(chunk.get('char_len', 0)),
+                    'page_numbers': chunk.get('page_numbers'),
                 }
             })
         
@@ -168,8 +168,9 @@ class BaseRAGPipeline:
             List of dicts with: id, score, text, payload (metadata)
         """
         top_k = top_k or self.config.TOP_K
+        context_window = getattr(self.config, "CONTEXT_WINDOW", 0)
         if self.config.USE_HYBRID_RETRIEVAL and self.hybrid_retriever is not None:
-            return self.hybrid_retriever.retrieve(question, top_k=top_k)
+            return self.hybrid_retriever.retrieve(question, top_k=top_k, context_window=context_window)
 
         # Fallback: dense-only
         if self.embedder is None or self.vector_db is None:

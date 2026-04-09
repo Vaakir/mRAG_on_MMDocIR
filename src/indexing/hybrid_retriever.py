@@ -45,7 +45,59 @@ class HybridRetriever:
         self.bm25 = BM25Okapi(tokenized)
         logger.info("BM25 index built.")
 
-    def retrieve(self, query: str, top_k: int = None) -> List[Dict[str, Any]]:
+        # Lookup for context expansion: (pdf_name, chunk_id) → flat index
+        self._chunk_lookup: Dict[tuple, int] = {
+            (c["pdf_name"], c["chunk_id"]): i
+            for i, c in enumerate(self.chunks)
+            if "pdf_name" in c and "chunk_id" in c
+        }
+
+    @staticmethod
+    def _strip_doc_prefix(text: str) -> str:
+        """Remove the [Document: X] prefix that chunk_loader prepends."""
+        if text.startswith("[Document:"):
+            newline = text.find("\n")
+            if newline != -1:
+                return text[newline + 1:]
+        return text
+
+    def _expand_context(self, results: List[Dict[str, Any]], window: int) -> List[Dict[str, Any]]:
+        """
+        For each result, prepend/append up to `window` adjacent chunks from the
+        same document. The core retrieved text is preserved under 'core_text'.
+        Neighboring chunks have their [Document:] prefix stripped to avoid
+        repeating it mid-context.
+        """
+        expanded = []
+        for result in results:
+            payload = result.get("payload", {})
+            pdf_name = payload.get("pdf_name")
+            chunk_id = payload.get("chunk_id")
+
+            if pdf_name is None or chunk_id is None:
+                expanded.append(result)
+                continue
+
+            before, after = [], []
+            for offset in range(-window, 0):
+                idx = self._chunk_lookup.get((pdf_name, chunk_id + offset))
+                if idx is not None:
+                    before.append(self._strip_doc_prefix(self.chunks[idx]["text"]))
+
+            for offset in range(1, window + 1):
+                idx = self._chunk_lookup.get((pdf_name, chunk_id + offset))
+                if idx is not None:
+                    after.append(self._strip_doc_prefix(self.chunks[idx]["text"]))
+
+            if before or after:
+                context = " ".join(before + [result["text"]] + after)
+                expanded.append({**result, "text": context, "core_text": result["text"]})
+            else:
+                expanded.append(result)
+
+        return expanded
+
+    def retrieve(self, query: str, top_k: int = None, context_window: int = 0) -> List[Dict[str, Any]]:
         k = top_k or self.top_k
         n_candidates = min(k * 20, len(self.chunks))  # fetch more for RRF
 
@@ -90,6 +142,9 @@ class HybridRetriever:
                     },
                 }
             results.append(entry)
+
+        if context_window > 0:
+            results = self._expand_context(results, context_window)
 
         return results
     

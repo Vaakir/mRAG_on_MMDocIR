@@ -10,7 +10,7 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent
 SRC_DIR = PROJECT_ROOT / "src"
 DATA_DIR = SRC_DIR / "data"
 
-PDFS_DIR = DATA_DIR / "train" / "pdfs_train"
+PDFS_DIR = DATA_DIR / "train" / "pdf_train"
 PREPROCESSED_DATA_DIR = DATA_DIR / "preprocessed"
 PREPROCESSED_DOCUMENTS_FILE = DATA_DIR / "preprocessed" / "all_documents.json"
 
@@ -18,7 +18,7 @@ TRAIN_JSONL = DATA_DIR / "train" / "train.jsonl"
 TEST_JSONL = DATA_DIR / "test" / "test.jsonl"
 
 CACHE_DIR = PROJECT_ROOT / "cache"
-PREPROCESSED_CHUNKS_FILE = SRC_DIR / "data" / "preprocessed" / "chunks_fixed_size.json"
+PREPROCESSED_CHUNKS_FILE = SRC_DIR / "data" / "preprocessed" / "chunks_semantic.json"
 
 
 @dataclass
@@ -64,9 +64,10 @@ class BaselineConfig:
 
     # ===== CHUNKING SETTINGS =====
     USE_PREPROCESSED_CHUNKS: bool = True
-    CHUNKING_STRATEGY: str = "fixed_size"
+    CHUNKING_STRATEGY: str = "semantic"
     CHUNK_SIZE: int = 1000
     CHUNK_OVERLAP: int = 200
+    CONTEXT_WINDOW: int = 0  # adjacent chunks to prepend/append at retrieval time
 
     # ===== EVALUATION SETTINGS =====
     EVAL_SUBSET_SIZE: int = 20

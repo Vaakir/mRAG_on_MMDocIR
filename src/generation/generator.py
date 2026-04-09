@@ -146,7 +146,7 @@ class BaselineGenerator:
             If the API request fails and cannot be recovered.
         """
         # Default options for generation
-        options = {"temperature": 0.0, "top_p": 0.1} # Default to deterministic output for baseline (want these to be low for accurate extraction)
+        options = {"temperature": 0.0, "top_p": 0.1, "num_predict": 200} # Default to deterministic output for baseline (want these to be low for accurate extraction)
         options.update(kwargs.pop("options", {})) # Allow overriding options via kwargs
         #-------------------
         def _call_chat() -> Any:

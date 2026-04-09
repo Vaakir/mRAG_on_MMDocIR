@@ -21,6 +21,7 @@ ollama
 # PDF processing
 unstructured[pdf]
 pdfplumber
+docling
 
 # Data / utils
 numpy
