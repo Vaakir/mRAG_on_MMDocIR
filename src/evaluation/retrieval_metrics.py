@@ -247,7 +247,10 @@ def evaluate_retrieval(
         # retrieved_docs = [r["payload"]["pdf_name"] for r in retrieved]
         
         # Deduplicated: doc-level evaluation, preserves order of first occurrence:
-        retrieved_docs = list(dict.fromkeys([r["payload"]["pdf_name"] for r in retrieved]))
+        retrieved_docs = list(dict.fromkeys([
+            r["payload"].get("pdf_name") or r["payload"].get("doc_name", "unknown")
+            for r in retrieved
+        ]))
 
         # Calculate MAP and MRR for this query
         map_scores.append(mean_average_precision(retrieved_docs, relevant)) # Calculate and store the MAP score for this query

@@ -1,0 +1,262 @@
+(dat540) bebs@MacBookPro DAT560project % python src/main_baseline.py 
+INFO:__main__:Starting BASELINE RAG SYSTEM (System 1)
+INFO:pipelines.base_pipeline:Building index with configuration: BaselineConfig...
+INFO:pipelines.base_pipeline:Initializing embedder: jinaai/jina-clip-v2
+INFO:indexing.embedder:Loading embedding model: jinaai/jina-clip-v2
+INFO:sentence_transformers.SentenceTransformer:Load pretrained SentenceTransformer: jinaai/jina-clip-v2
+`torch_dtype` is deprecated! Use `dtype` instead!
+INFO:transformers_modules.jinaai.jina_hyphen_clip_hyphen_implementation.39e6a55ae971b59bea6e44675d237c99762e7ee2.configuration_clip:`text_config` is `None`. Initializing the `JinaCLIPTextConfig` with default values.
+INFO:transformers_modules.jinaai.jina_hyphen_clip_hyphen_implementation.39e6a55ae971b59bea6e44675d237c99762e7ee2.configuration_clip:`vision_config` is `None`. initializing the `JinaCLIPVisionConfig` with default values.
+`torch_dtype` is deprecated! Use `dtype` instead!
+/Users/bebs/.cache/huggingface/modules/transformers_modules/jinaai/jina_hyphen_clip_hyphen_implementation/39e6a55ae971b59bea6e44675d237c99762e7ee2/modeling_clip.py:137: UserWarning: Flash attention requires CUDA, disabling
+  warnings.warn('Flash attention requires CUDA, disabling')
+/Users/bebs/.cache/huggingface/modules/transformers_modules/jinaai/jina_hyphen_clip_hyphen_implementation/39e6a55ae971b59bea6e44675d237c99762e7ee2/modeling_clip.py:172: UserWarning: xFormers requires CUDA, disabling
+  warnings.warn('xFormers requires CUDA, disabling')
+Using a slow image processor as `use_fast` is unset and a slow processor was saved with this model. `use_fast=True` will be the default behavior in v4.52, even if the model was saved with a slow processor. This will result in minor differences in outputs. You'll still be able to use a slow processor with `use_fast=False`.
+INFO:sentence_transformers.SentenceTransformer:1 prompt is loaded, with the key: retrieval.query
+
+[OK] Embedding model loaded. Dimension: 1024
+INFO:pipelines.base_pipeline:Initializing vector database: local
+Initializing local Qdrant at /Users/bebs/Documents/School/DAT 560/DAT560project/local_qdrant...
+
+[OK] Local Qdrant initialized
+INFO:pipelines.base_pipeline:Collection check: 5311 documents found in Qdrant
+INFO:pipelines.base_pipeline:Loading existing index with 5311 documents...
+INFO:data.chunk_loader:Loading pre-processed chunks from /Users/bebs/Documents/School/DAT 560/DAT560project/src/data/preprocessed/chunks_semantic.json
+INFO:data.chunk_loader:Loaded 127 documents from JSON
+INFO:data.chunk_loader:✓ Extracted 5311 chunks from 127 documents
+INFO:data.chunk_loader:  Average chunks per document: 41.8
+INFO:pipelines.base_pipeline:Index loaded in 39.06 seconds
+INFO:pipelines.base_pipeline:Building hybrid BM25 + dense retriever...
+INFO:indexing.hybrid_retriever:Building BM25 index over 5311 chunks...
+INFO:indexing.hybrid_retriever:BM25 index built.
+INFO:pipelines.base_pipeline:Initializing generator with base URL https://ollama.ux.uis.no and model qwen3:32b
+INFO:generation.generator:Loaded API key: sk-f937f3b...
+INFO:generation.generator:Initialized Ollama client for model: qwen3:32b
+INFO:__main__:Loaded 600 total questions, filtered to 85 pure-text questions
+Batches: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:11<00:00, 11.44s/it]
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:__main__:Single query completed. Question: how many LEARNING OUTCOMES should be ANSWERed in UNIT 8?  | Ground Truth: 10 | Generated: 9
+INFO:pipelines.baseline_pipeline:Evaluating on 20 test queries...
+
+INFO:pipelines.baseline_pipeline:Processing query 1/20
+Batches: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.80s/it]
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:pipelines.baseline_pipeline:Question: how many LEARNING OUTCOMES should be ANSWERed in UNIT 8? 
+INFO:pipelines.baseline_pipeline:Ground Truth: 10
+INFO:pipelines.baseline_pipeline:Generated Answer: 9
+
+INFO:pipelines.baseline_pipeline:Processing query 2/20
+Batches: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:07<00:00,  7.25s/it]
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:pipelines.baseline_pipeline:Question: The author mainly conducted experiments on which two tasks?
+INFO:pipelines.baseline_pipeline:Ground Truth: ['event relation extraction', 'deductive reasoning']
+INFO:pipelines.baseline_pipeline:Generated Answer: MAVEN-ERE and Causal-TimeBank
+
+INFO:pipelines.baseline_pipeline:Processing query 3/20
+Batches: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:06<00:00,  6.91s/it]
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:pipelines.baseline_pipeline:Question: How many square miles does the Hamilton country covers according to the document? Give me an appropriate integer.
+INFO:pipelines.baseline_pipeline:Ground Truth: 538
+INFO:pipelines.baseline_pipeline:Generated Answer: 538
+
+INFO:pipelines.baseline_pipeline:Processing query 4/20
+Batches: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:07<00:00,  7.66s/it]
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:pipelines.baseline_pipeline:Question: Cold is the catalyst for what reaction?
+INFO:pipelines.baseline_pipeline:Ground Truth: the chemical reaction involving CFCs.
+INFO:pipelines.baseline_pipeline:Generated Answer: Ozone thining reaction involving CFCs
+
+INFO:pipelines.baseline_pipeline:Processing query 5/20
+Batches: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.50s/it]
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:pipelines.baseline_pipeline:Question: Where is Office of Residential Life & Housing Services?
+INFO:pipelines.baseline_pipeline:Ground Truth: 726 Broadway, 7th Floor New York, NY 10003
+INFO:pipelines.baseline_pipeline:Generated Answer: 726 Broadway, 7th Floor New York, NY 10003
+
+INFO:pipelines.baseline_pipeline:Processing query 6/20
+Batches: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.38s/it]
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:pipelines.baseline_pipeline:Question: Where was Gestalt psychology concieved?
+INFO:pipelines.baseline_pipeline:Ground Truth: Berlin School of Experimental Psychology
+INFO:pipelines.baseline_pipeline:Generated Answer: The provided context does not mention where Gestalt psychology was conceived.
+
+INFO:pipelines.baseline_pipeline:Processing query 7/20
+Batches: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:06<00:00,  6.01s/it]
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:pipelines.baseline_pipeline:Question: What technology does the car’s Wi-Fi Connect use?
+INFO:pipelines.baseline_pipeline:Ground Truth: 4G
+INFO:pipelines.baseline_pipeline:Generated Answer: 4G
+
+INFO:pipelines.baseline_pipeline:Processing query 8/20
+Batches: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.60s/it]
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:pipelines.baseline_pipeline:Question: What type of court is noted on the cover page?
+INFO:pipelines.baseline_pipeline:Ground Truth: SUPERIOR COURT
+INFO:pipelines.baseline_pipeline:Generated Answer: UNITED STATES DISTRICT COURT EASTERN DISTRICT OF MICHIGAN SOUTHERN DIVISION
+
+INFO:pipelines.baseline_pipeline:Processing query 9/20
+Batches: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:05<00:00,  5.17s/it]
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:pipelines.baseline_pipeline:Question: List the primary questions asked about the services in this report.
+INFO:pipelines.baseline_pipeline:Ground Truth: ['Is the servife safe?', 'Is the service effective', 'Is the serve caring?', 'Is the service responsive?', 'Is the service well-led?']
+INFO:pipelines.baseline_pipeline:Generated Answer: ["Is the service safe?", "Is the service effective?", "Is the service caring?", "Is the service responsive?", "Is the service well-led?"]
+
+INFO:pipelines.baseline_pipeline:Processing query 10/20
+Batches: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.87s/it]
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:pipelines.baseline_pipeline:Question: Which transcript have been included in the translation process in Re-Sense mutation
+INFO:pipelines.baseline_pipeline:Ground Truth: part of the un-translated region of the mRNA transcript
+INFO:pipelines.baseline_pipeline:Generated Answer: The un-translated region of the mRNA transcript has been included in the translation process in Re-Sense mutation.
+
+INFO:pipelines.baseline_pipeline:Processing query 11/20
+Batches: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.81s/it]
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:pipelines.baseline_pipeline:Question: What are the incident and report dates? Save your answer as a list, with each data formatted as 'YYYY-MM-DD'.
+INFO:pipelines.baseline_pipeline:Ground Truth: ['2015-03-24', '2015-03-25']
+INFO:pipelines.baseline_pipeline:Generated Answer: []
+
+INFO:pipelines.baseline_pipeline:Processing query 12/20
+Batches: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:06<00:00,  6.47s/it]
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:pipelines.baseline_pipeline:Question: Does CFCs causes skin burn? Directly answer 'yes' or 'no'.
+INFO:pipelines.baseline_pipeline:Ground Truth: Yes
+INFO:pipelines.baseline_pipeline:Generated Answer: No.
+
+INFO:pipelines.baseline_pipeline:Processing query 13/20
+Batches: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:05<00:00,  5.20s/it]
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:pipelines.baseline_pipeline:Question: Which case is related to the statement that "PIC also never determined if Hanson's qualified immunity defense would overcome her conflicts of interest."?
+INFO:pipelines.baseline_pipeline:Ground Truth: FN54. Wong v. Allison, 208 F.3d 224, 2000 WL 206572
+INFO:pipelines.baseline_pipeline:Generated Answer: Wong v. Allison
+
+INFO:pipelines.baseline_pipeline:Processing query 14/20
+Batches: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:05<00:00,  5.10s/it]
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:pipelines.baseline_pipeline:Question: Where are the two plants of GODFREY PHILLIPS INDIA LIMITED located?
+INFO:pipelines.baseline_pipeline:Ground Truth: ['V.K.K. MENON ROAD (SAHAR ROAD),CHAKALA,ANDHERI (EAST),MUMBAI-400099', 'International Tobacco Company Ltd. Delhi- Meerut Road, Guldhar, Ghaziabad']
+INFO:pipelines.baseline_pipeline:Generated Answer: Andheri (Mumbai) and Guldhar (Ghaziabad).
+
+INFO:pipelines.baseline_pipeline:Processing query 15/20
+Batches: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.58s/it]
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:pipelines.baseline_pipeline:Question: What was the value of absolute percentage shortfall in India's GDP growth from 2002 to 2003 compared to the forecast?
+INFO:pipelines.baseline_pipeline:Ground Truth: 2.4%
+INFO:pipelines.baseline_pipeline:Generated Answer: 2.4%
+
+INFO:pipelines.baseline_pipeline:Processing query 16/20
+Batches: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.30s/it]
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:pipelines.baseline_pipeline:Question: What is the web link to this paper?
+INFO:pipelines.baseline_pipeline:Ground Truth: http://dx.doi.org/10.1016/j.ejmhg.2015.07.002
+INFO:pipelines.baseline_pipeline:Generated Answer: https://arxiv.org/abs/2303.05039v2
+
+INFO:pipelines.baseline_pipeline:Processing query 17/20
+Batches: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:03<00:00,  3.77s/it]
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:pipelines.baseline_pipeline:Question: In the "Who are you talking to" section,  what tips does the author give us?
+INFO:pipelines.baseline_pipeline:Ground Truth: ['line them up', 'observe your clients', 'build a buyer persons']
+INFO:pipelines.baseline_pipeline:Generated Answer: 1. Line them up: List common characteristics of your best clients (e.g., hobbies, age, vacation preferences). 2. Observe your clients: Understand how they make decisions, describe you, and what concerns them. 3. Build a buyer persona: Define an ideal client by understanding their goals, background, and motivations.
+
+INFO:pipelines.baseline_pipeline:Processing query 18/20
+Batches: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.44s/it]
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:pipelines.baseline_pipeline:Question: Which creation has more steps, To remove the drop-in trim piece or to remove the crisper?
+INFO:pipelines.baseline_pipeline:Ground Truth: Crisper
+INFO:pipelines.baseline_pipeline:Generated Answer: To remove the drop-in trim piece: 2 steps. To remove the crisper: 3 steps. Answer: To remove the crisper.
+
+INFO:pipelines.baseline_pipeline:Processing query 19/20
+Batches: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:02<00:00,  2.36s/it]
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:pipelines.baseline_pipeline:Question: Which method integrates knowledge into white-box models via directive fine-tuning?
+INFO:pipelines.baseline_pipeline:Ground Truth: PKG
+INFO:pipelines.baseline_pipeline:Generated Answer: PKG
+
+INFO:pipelines.baseline_pipeline:Processing query 20/20
+Batches: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:01<00:00,  1.55s/it]
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:pipelines.baseline_pipeline:Question: What model is the clustering algorithm of this paper based on, and what presents a challenge to it?
+INFO:pipelines.baseline_pipeline:Ground Truth: ['Gaussian Mixture Models', 'the high dimensionality of vector embeddings']
+INFO:pipelines.baseline_pipeline:Generated Answer: The clustering algorithm is based on Gaussian Mixture Models (GMM). The high dimensionality of vector embeddings presents a challenge to it.
+
+INFO:pipelines.baseline_pipeline:Phase 1 (Retrieval + Generation): 200.67s
+INFO:absl:Using default tokenizer.
+INFO:absl:Using default tokenizer.
+INFO:absl:Using default tokenizer.
+INFO:absl:Using default tokenizer.
+INFO:absl:Using default tokenizer.
+INFO:absl:Using default tokenizer.
+INFO:absl:Using default tokenizer.
+INFO:absl:Using default tokenizer.
+INFO:absl:Using default tokenizer.
+INFO:absl:Using default tokenizer.
+INFO:absl:Using default tokenizer.
+INFO:absl:Using default tokenizer.
+INFO:absl:Using default tokenizer.
+INFO:absl:Using default tokenizer.
+INFO:absl:Using default tokenizer.
+INFO:absl:Using default tokenizer.
+INFO:absl:Using default tokenizer.
+INFO:absl:Using default tokenizer.
+INFO:absl:Using default tokenizer.
+INFO:absl:Using default tokenizer.
+INFO:pipelines.baseline_pipeline:Phase 2 (Metric Computation): 0.03s
+
+ === EVALUATION RESULTS ===
+precision@1: 0.6500
+precision@3: 0.2667
+precision@5: 0.1700
+recall@1: 0.6500
+recall@3: 0.8000
+recall@5: 0.8500
+page_recall@1: 0.4500
+page_recall@3: 0.5500
+page_recall@5: 0.5500
+ndcg@1: 0.6500
+ndcg@3: 0.7446
+ndcg@5: 0.7640
+map: 0.7350
+mrr: 0.7350
+exact_match: 0.2500
+contains_match: 0.3000
+token_f1: 0.4416
+bleu: 0.1173
+rouge1: 0.4663
+rouge2: 0.2475
+rougeL: 0.4663
+semantic_similarity: 0.4416
+
+ === TIMING BREAKDOWN ===
+Phase 1 (Query Processing): 200.67s
+Phase 2 (Metric Computation): 0.03s
+Total Evaluation Time: 200.71s
+[OK] Evaluation completed in 200.71s
+
+
+================================================================================
+BASELINE SYSTEM - TIMING SUMMARY
+================================================================================
+
+Phase Breakdown:
+  1. Index Build/Load:                    41.60s
+  2. Component Initialization:             0.13s
+  3. Data Loading/Filtering:               0.03s
+  4. Single Query Test:                   22.02s
+  5. Full Evaluation (20 qs):            200.71s
+  --------------------------------------------------
+  TOTAL RUNTIME:                         264.50s
+
+
+================================================================================
+EVALUATION METRICS
+================================================================================
+
+
+Phase-Specific Timing (Evaluation):
+  Retrieval Phase:   200.67s
+  Generation Phase:  0.03s
+  Total Evaluation:  200.71s
+
+================================================================================
+
+(dat540) bebs@MacBookPro DAT560project % 

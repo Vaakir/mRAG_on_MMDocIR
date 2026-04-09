@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Dict, Any
 
 # Define paths outside the dataclass for cleaner referencing
-PROJECT_ROOT = Path(__file__).parent.parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 SRC_DIR = PROJECT_ROOT / "src"
 DATA_DIR = SRC_DIR / "data"
 
@@ -16,6 +16,11 @@ PREPROCESSED_DOCUMENTS_FILE = DATA_DIR / "preprocessed" / "all_documents.json"
 
 TRAIN_JSONL = DATA_DIR / "train" / "train.jsonl"
 TEST_JSONL = DATA_DIR / "test" / "test.jsonl"
+
+PAGE_IMAGES_TRAIN_DIR = DATA_DIR / "train" / "page_images_train"
+IMAGES_TRAIN_DIR = DATA_DIR / "train" / "images_train"
+PAGE_IMAGES_TEST_DIR = DATA_DIR / "test" / "page_images_test"
+IMAGES_TEST_DIR = DATA_DIR / "test" / "images_test"
 
 CACHE_DIR = PROJECT_ROOT / "cache"
 PREPROCESSED_CHUNKS_FILE = SRC_DIR / "data" / "preprocessed" / "chunks_semantic.json"
@@ -97,11 +102,28 @@ class AdvancedConfig(BaselineConfig):
     """
 
     # ===== ADVANCED APP OVERRIDES =====
-    EMBEDDING_MODEL: str = "BAAI/bge-large-en-v1.5"
-    """Embedding model name from Hugging Face"""
+    EMBEDDING_MODEL: str = "jinaai/jina-clip-v2"
+    """Embedding model — must be multimodal (CLIP) to support image indexing"""
 
-    VECTOR_DB_COLLECTION: str = "baseline_documents_v3"
-    """Collection name in Qdrant"""
+    VECTOR_DB_COLLECTION: str = "advanced_multimodal"
+    """Separate collection from baseline so the two don't interfere"""
+
+    # Use one model for everything — no server model swapping = no OOM crashes
+    LLM_MODEL: str = "qwen3-vl:8b"
+
+    # ===== MULTIMODAL SETTINGS =====
+    USE_MULTIMODAL: bool = True
+
+    VLM_MODEL: str = "qwen3-vl:8b"
+    """Vision-language model used when image chunks are retrieved"""
+
+    # Sequential generation — one model, avoid concurrent calls on shared GPU
+    GENERATION_WORKERS: int = 1
+
+    PAGE_IMAGES_TRAIN_DIR: Path = PAGE_IMAGES_TRAIN_DIR
+    IMAGES_TRAIN_DIR: Path = IMAGES_TRAIN_DIR
+    PAGE_IMAGES_TEST_DIR: Path = PAGE_IMAGES_TEST_DIR
+    IMAGES_TEST_DIR: Path = IMAGES_TEST_DIR
 
     # ===== QUERY TECHNIQUE SETTINGS =====
     QUERY_TECHNIQUE: str = "standard"

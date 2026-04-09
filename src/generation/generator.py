@@ -6,6 +6,8 @@ with the Ollama server, following the pattern from the generative AI course.
 """
 
 import os
+import re
+import base64
 import logging
 from typing import Dict, Any, Optional, List
 from pathlib import Path
@@ -25,11 +27,17 @@ load_dotenv(dotenv_path=env_path)
 logger = logging.getLogger(__name__)
 
 # -------------------------------------------------------------------
+_THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
+
 def normalize_ws(text: str) -> str:
     """Normalize whitespace in text (collapse multiple spaces/newlines)."""
     if not text:
         return text
     return " ".join(text.split())
+
+def strip_thinking(text: str) -> str:
+    """Remove <think>...</think> reasoning block that qwen3 models emit."""
+    return normalize_ws(_THINK_RE.sub("", text))
 # -------------------------------------------------------------------
 # Baseline prompt template for the system role
 SYSTEM_PROMPT2 = """You are a helpful assistant that answers questions based on the provided context.
@@ -95,7 +103,8 @@ class BaselineGenerator:
         
         self._client = Client( # Initialize the Ollama client with base URL and headers
             host=self.base_url, # Base URL of the Ollama server
-            headers=headers if self.api_key else None  # Include headers only if API key is provided
+            headers=headers if self.api_key else None,  # Include headers only if API key is provided
+            timeout=300,  # 5 min — image calls + model reload can take a long time
         )
         logger.info(f"Initialized Ollama client for model: {self.model}")
     #-------------------
@@ -146,7 +155,7 @@ class BaselineGenerator:
             If the API request fails and cannot be recovered.
         """
         # Default options for generation
-        options = {"temperature": 0.0, "top_p": 0.1, "num_predict": 200} # Default to deterministic output for baseline (want these to be low for accurate extraction)
+        options = {"temperature": 0.0, "top_p": 0.1, "num_predict": 1024} # Default to deterministic output for baseline (want these to be low for accurate extraction)
         options.update(kwargs.pop("options", {})) # Allow overriding options via kwargs
         #-------------------
         def _call_chat() -> Any:
@@ -156,22 +165,34 @@ class BaselineGenerator:
                 messages=messages,
                 options=options,
                 stream=False,
-                think=False,  # Disable reasoning/thinking for faster responses
+                think=True,  # Enable reasoning/thinking for better accuracy
                 **kwargs,
             )
         #-------------------
-        # Try to call chat, with auto-pull if model not found
-        try:
-            resp = _call_chat()
-        except ResponseError as e:
-            # If model not found (404), try to pull it and retry
-            if getattr(e, "status_code", None) == 404:
-                logger.warning(f"Model {self.model} not found on server, attempting to pull...")
-                self._pull_model(self.model)
+        # Try to call chat, with retry on 500 (server swapping models) and auto-pull on 404
+        import time as _time
+        max_retries = 4
+        retry_delay = 30  # seconds — gives server time to unload previous model
+        last_exc = None
+        for attempt in range(max_retries):
+            try:
                 resp = _call_chat()
-            else:
-                logger.error(f"Ollama API error: {e}")
-                raise
+                last_exc = None
+                break
+            except ResponseError as e:
+                status = getattr(e, "status_code", None)
+                if status == 404:
+                    logger.warning(f"Model {self.model} not found, pulling...")
+                    self._pull_model(self.model)
+                elif status == 500:
+                    logger.warning(f"Server 500 (attempt {attempt+1}/{max_retries}), retrying in {retry_delay}s...")
+                    last_exc = e
+                    _time.sleep(retry_delay)
+                else:
+                    logger.error(f"Ollama API error: {e}")
+                    raise
+        if last_exc is not None:
+            raise last_exc
         
         # Extract content from response
         # The response object has a 'message' attribute with content
@@ -179,8 +200,8 @@ class BaselineGenerator:
         
         if not content:
             raise ResponseError("Empty response from Ollama chat API")
-        
-        return normalize_ws(content)
+
+        return strip_thinking(content)
     #-------------------
     def generate(
         self,
@@ -260,3 +281,174 @@ Question: {question}"""
                 logger.error(f"Error generating answer for question {i}: {e}")
                 answers.append(f"Error: {str(e)}")
         return answers
+
+
+# -------------------------------------------------------------------
+def _encode_image(image_path: str, max_side: int = 1120) -> str:
+    """
+    Read an image, resize so the longest side ≤ max_side (preserving aspect
+    ratio), then return base64-encoded JPEG bytes.
+
+    1120 px is the native tile size qwen3-vl uses internally; sending larger
+    images just bloats the payload without helping quality.
+    """
+    from PIL import Image as _Image
+    import io as _io
+
+    img = _Image.open(image_path).convert("RGB")
+    w, h = img.size
+    if max(w, h) > max_side:
+        scale = max_side / max(w, h)
+        img = img.resize((int(w * scale), int(h * scale)), _Image.LANCZOS)
+
+    buf = _io.BytesIO()
+    img.save(buf, format="JPEG", quality=85)
+    return base64.b64encode(buf.getvalue()).decode("utf-8")
+
+
+class VisionGenerator(BaselineGenerator):
+    """
+    Extends BaselineGenerator with image support for vision-language models
+    (e.g. qwen3-vl:8b).  Images are base64-encoded and passed in the
+    ollama messages 'images' field.
+
+    qwen3-vl:8b does not support think=True reliably (returns empty responses),
+    so this class overrides chat() to always disable thinking.
+    """
+
+    @staticmethod
+    def _inject_no_think(messages: list) -> list:
+        """
+        Prepend /no_think to the last user message content.
+        This is qwen3's documented soft switch to suppress the <think> block.
+        The Ollama think=False parameter is unreliable on some server builds.
+        """
+        messages = [m.copy() for m in messages]
+        for msg in reversed(messages):
+            if msg.get("role") == "user":
+                msg["content"] = "/no_think\n" + msg.get("content", "")
+                break
+        return messages
+
+    def chat(self, messages, think=False, **kwargs):
+        """
+        think=False  → image call: injects /no_think, num_predict=2048
+        think=True   → text call:  thinking enabled,  num_predict=4096
+        """
+        import time as _time
+        from ollama import ResponseError
+        kwargs.pop("think", None)  # discard if caller passed it via kwargs
+
+        if not think:
+            messages = self._inject_no_think(messages)
+
+        # Image calls: /no_think suppresses the think block, 2048 is enough for the answer.
+        # Text calls: thinking is ON — complex questions can use 1000+ think tokens,
+        #             so give 4096 to leave room for the actual answer.
+        num_predict = 2048 if not think else 4096
+        options = {"temperature": 0.0, "top_p": 0.1, "num_predict": num_predict}
+        options.update(kwargs.pop("options", {}))
+
+        max_retries = 3
+        retry_delay = 10
+        last_exc = None
+        resp = None
+        for attempt in range(max_retries):
+            try:
+                resp = self._client.chat(
+                    model=self.model,
+                    messages=messages,
+                    options=options,
+                    stream=False,
+                    think=think,
+                    **kwargs,
+                )
+                last_exc = None
+                break
+            except ResponseError as e:
+                status = getattr(e, "status_code", None)
+                if status == 404:
+                    self._pull_model(self.model)
+                elif status == 500:
+                    logger.warning(f"VLM server 500 (attempt {attempt+1}/{max_retries}), retrying in {retry_delay}s...")
+                    last_exc = e
+                    _time.sleep(retry_delay)
+                else:
+                    raise
+            except Exception as e:
+                raise
+
+        if last_exc is not None:
+            raise last_exc
+
+        content = getattr(getattr(resp, "message", None), "content", "")
+        if not content:
+            raise Exception("Empty response from Ollama chat API")
+        return normalize_ws(content)
+
+    def generate(self, question, context, system_prompt=SYSTEM_PROMPT):
+        """Text-only generation — enable thinking for better accuracy."""
+        user_message = f"Context:\n{context}\n\nQuestion: {question}"
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_message},
+        ]
+        try:
+            return self.chat(messages, think=True)
+        except Exception as e:
+            logger.error(f"Error generating response: {e}")
+            return f"Error generating response: {str(e)}"
+
+    def generate_with_images(
+        self,
+        question: str,
+        image_paths: List[str],
+        text_context: str = "",
+        system_prompt: str = SYSTEM_PROMPT,
+    ) -> str:
+        """
+        Generate an answer given a question, one or more image paths, and
+        optional supporting text context.
+
+        Parameters
+        ----------
+        question : str
+        image_paths : list of absolute file paths to images
+        text_context : str
+            Any text chunks retrieved alongside the images (may be empty).
+        system_prompt : str
+        """
+        # Build user message content
+        user_parts = []
+        if text_context:
+            user_parts.append(f"Context:\n{text_context}\n")
+        user_parts.append(f"Question: {question}")
+        user_content = "\n".join(user_parts)
+
+        # Encode images
+        encoded_images = []
+        for path in image_paths:
+            try:
+                encoded_images.append(_encode_image(path))
+            except Exception as e:
+                logger.warning(f"Could not load image {path}: {e}")
+
+        if not encoded_images:
+            # Fall back to text-only generation
+            logger.warning("No images could be loaded; falling back to text generation")
+            return self.generate(question, text_context, system_prompt)
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {
+                "role": "user",
+                "content": user_content,
+                "images": encoded_images,
+            },
+        ]
+
+        try:
+            return self.chat(messages)
+        except Exception as e:
+            logger.error(f"Vision generation error: {e}")
+            return f"Error generating response: {str(e)}"

@@ -14,7 +14,6 @@ sys.path.append(str(Path(__file__).parent))
 from config.config import AdvancedConfig, MultiQueryConfig, RAGFusionConfig, HyDEConfig
 from data.data_loader import load_train_data
 from pipelines.advanced_pipeline import AdvancedRAGPipeline
-from generation.generator import BaselineGenerator
 
 
 def get_config(technique: str = 'standard') -> AdvancedConfig:
@@ -128,23 +127,22 @@ def main(technique: str = 'standard', eval_subset: int = 20, force_rebuild: bool
     # Load test data
     print(f"\nLoading test data...")
     train_data = load_train_data(config.TRAIN_JSONL)
-    pure_text_data = [r for r in train_data if r.get("types") == ["Pure-text (Plain-text)"]]
-    print(f"Filtered to {len(pure_text_data)} pure-text questions (out of {len(train_data)} total)")
-    
+    print(f"Loaded {len(train_data)} questions (all types)")
+
     # Test single query
-    if pure_text_data:
-        sample = pure_text_data[0]
+    if train_data:
+        sample = train_data[0]
         run_single_query_test(
-            pipeline, 
-            sample['question'], 
+            pipeline,
+            sample['question'],
             sample.get('answer')
         )
-    
+
     # Run evaluation
     print(f"\n{'='*80}")
-    print(f"RUNNING EVALUATION (Pure-Text Questions)")
+    print(f"RUNNING EVALUATION (All Question Types)")
     print(f"{'='*80}")
-    metrics = pipeline.evaluate(pure_text_data[:eval_subset], use_technique=True)
+    metrics = pipeline.evaluate(train_data[:eval_subset], use_technique=True)
     
     print(f"\n{'='*80}")
     print("EVALUATION RESULTS")
@@ -215,17 +213,16 @@ def compare_techniques(techniques: list = None, eval_subset: int = 20):
     build_time = time.time() - build_start
     print(f"  [OK] Index built in {build_time:.2f}s")
     
-    print(f"\nInitializing generator...")
+    print(f"\nInitializing components (generator + VLM + query technique)...")
     gen_start = time.time()
-    pipeline.generator = BaselineGenerator(config.OLLAMA_BASE_URL, config.LLM_MODEL)
+    pipeline.initialize_components()
     gen_time = time.time() - gen_start
-    print(f"  [OK] Generator initialized in {gen_time:.2f}s")
-    
+    print(f"  [OK] Components initialized in {gen_time:.2f}s")
+
     # Load test data once
     print(f"\nLoading test data...")
     train_data = load_train_data(config.TRAIN_JSONL)
-    pure_text_data = [r for r in train_data if r.get("types") == ["Pure-text (Plain-text)"]]
-    print(f"  [OK] Loaded {len(pure_text_data)} pure-text questions")
+    print(f"  [OK] Loaded {len(train_data)} questions (all types)")
     
     setup_time = time.time() - setup_start
     print(f"\nShared setup completed in {setup_time:.2f}s\n")
@@ -248,7 +245,7 @@ def compare_techniques(techniques: list = None, eval_subset: int = 20):
             pipeline.initialize_components()
             
             # Run evaluation
-            metrics = pipeline.evaluate(pure_text_data, use_technique=True)
+            metrics = pipeline.evaluate(train_data, use_technique=True)
             results[technique] = metrics
             
             # Print quick results for this technique

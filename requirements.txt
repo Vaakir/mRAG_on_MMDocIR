@@ -19,9 +19,11 @@ rank-bm25
 ollama
 
 # PDF processing
-unstructured[pdf]
 pdfplumber
 docling
+
+# Image processing
+Pillow
 
 # Data / utils
 numpy
@@ -30,5 +32,5 @@ requests
 python-dotenv
 matplotlib
 
-# Detrics
+# Metrics
 rouge-score

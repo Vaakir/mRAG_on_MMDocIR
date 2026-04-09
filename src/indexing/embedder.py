@@ -1,10 +1,13 @@
 # src/indexing/embedder.py
+import threading
 import torch
 from typing import List, Dict, Any
 import numpy as np
 import logging
+from pathlib import Path
 from tqdm import tqdm
 from sentence_transformers import SentenceTransformer
+from PIL import Image
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +20,7 @@ class TextEmbedder:
 
         self.model = SentenceTransformer(model_name, trust_remote_code=True, device="cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
         self.dimension = 1024  # Jina CLIP v2 outputs 1024 dimensions
+        self._lock = threading.Lock()  # jina-clip rotary embedding is not thread-safe
 
         # logger.info(f"Embedding model loaded. Dimension: {self.dimension}")
         print(f"\n[OK] Embedding model loaded. Dimension: {self.dimension}")
@@ -51,7 +55,35 @@ class TextEmbedder:
 
     def embed_query(self, query: str) -> np.ndarray:
         """Embed a single query text."""
-        return self.model.encode([query], normalize_embeddings=True)[0]
+        with self._lock:
+            return self.model.encode([query], normalize_embeddings=True)[0]
+
+    def embed_images(
+        self,
+        image_paths: List[str],
+        batch_size: int = 16,
+    ) -> np.ndarray:
+        """
+        Embed a list of image paths using the CLIP image encoder.
+        Returns numpy array of shape (n_images, embedding_dim).
+        """
+        logger.info(f"Embedding {len(image_paths)} images...")
+        all_embeddings = []
+
+        for i in tqdm(range(0, len(image_paths), batch_size), desc="Encoding images"):
+            batch_paths = image_paths[i:i + batch_size]
+            images = [Image.open(p).convert("RGB") for p in batch_paths]
+            embeddings = self.model.encode(
+                images,
+                normalize_embeddings=True,
+                batch_size=batch_size,
+            )
+            all_embeddings.append(embeddings)
+
+            if torch.backends.mps.is_available():
+                torch.mps.empty_cache()
+
+        return np.vstack(all_embeddings)
 
 # -------------------------------------------------------------------
 def create_chunk_embeddings(
