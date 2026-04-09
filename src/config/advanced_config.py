@@ -16,12 +16,13 @@ class AdvancedConfig:
     - Vector database configuration
     - Retrieval method (hybrid vs dense-only)
     - Query technique selection
+    - Prompting strategy for answer generation
     - Chunking and indexing settings
     - Evaluation settings
     """
     
     # ===== EMBEDDING SETTINGS =====
-    EMBEDDING_MODEL: str = "BAAI/bge-large-en-v1.5"
+    EMBEDDING_MODEL: str = "jinaai/jina-clip-v2"
     """Embedding model name from Hugging Face"""
     
     EMBEDDING_DIMENSION: int = 1024
@@ -67,7 +68,7 @@ class AdvancedConfig:
     USE_PREPROCESSED_CHUNKS: bool = True
     """Use pre-processed chunks or process from scratch"""
     
-    PREPROCESSED_CHUNKS_FILE: str = "./src/data/chunks_fixed_size.json"
+    PREPROCESSED_CHUNKS_FILE: str = "./src/data/preprocessed/chunks_fixed_size.json"
     """Path to pre-processed chunks file (relative to project root)"""
     
     CHUNKING_STRATEGY: str = "fixed_size"
@@ -94,6 +95,40 @@ class AdvancedConfig:
         'num_variants': 3,  # Used by multi_query, hyde, query_decomposition, query_expansion
     })
     """Configuration dict for the selected query technique"""
+    
+    # ===== PROMPTING STRATEGY SETTINGS =====
+    PROMPTING_STRATEGY: str = "standard"
+    """
+    Prompting strategy for answer generation:
+    - 'standard': Direct extraction without special prompting
+    - 'few_shot': Provide multiple examples (2-5), then ask question
+    - 'role': Assign expert role to LLM (financial_analyst, researcher, etc.)
+    - 'cot': Chain-of-Thought - explicit step-by-step reasoning
+    - 'ensemble': Multiple strategies with voting/consensus
+    """
+    
+    PROMPTING_STRATEGY_CONFIG: Dict[str, Any] = field(default_factory=lambda: {
+        # Role strategy
+        'role_type': 'financial_analyst',  # Used by 'role' strategy
+        
+        # CoT strategy
+        'show_reasoning': False,  # Used by 'cot' to show thinking - set to False to hide reasoning
+        
+        # Ensemble strategy
+        'mode': 'multi_prompt',  # 'multi_prompt' or 'self_consistency'
+        'ensemble_size': 3,  # Number of strategies to use
+        'aggregation_method': 'judge',  # 'judge', 'combine', 'embedding_similarity'
+        'strategies': ['standard', 'cot', 'few_shot', 'financial_analyst_role'],  # Strategies to combine
+        'include_strategy_metadata': False,  # Show which strategy generated answer
+        'verbose_logging': False,  # Enable detailed ensemble logging
+        'temperatures': {  # Per-strategy temperature control
+            'standard': 0.5,
+            'cot': 0.6,
+            'few_shot': 0.5,
+            'financial_analyst_role': 0.6,
+        }
+    })
+    """Configuration dict for the selected prompting strategy"""
     
     # ===== EVALUATION SETTINGS =====
     EVAL_SUBSET_SIZE: int = 20

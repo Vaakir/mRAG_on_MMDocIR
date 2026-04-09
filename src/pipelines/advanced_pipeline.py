@@ -16,6 +16,7 @@ from indexing.embedder import TextEmbedder, create_chunk_embeddings
 from indexing.vector_store import QdrantConfig, QdrantVectorDB
 from indexing.hybrid_retriever import HybridRetriever
 from generation.generator import BaselineGenerator
+from generation.prompts import get_prompt_strategy
 from evaluation.retrieval_metrics import evaluate_retrieval
 from evaluation.generation_metrics import evaluate_generation
 from query_techniques import get_query_technique
@@ -50,6 +51,7 @@ class AdvancedRAGPipeline:
         self.hybrid_retriever: Optional[HybridRetriever] = None
         self.generator: Optional[BaselineGenerator] = None
         self.query_technique = None
+        self.prompt_strategy = None
         self.chunks: Optional[List[Dict]] = None
     
     def build_index(self, force_rebuild: bool = True):
@@ -176,15 +178,30 @@ class AdvancedRAGPipeline:
             )
     
     def initialize_components(self):
-        """Initialize generator and query technique."""
+        """Initialize generator, prompting strategy, and query technique."""
         logger.info(f"Initializing generator: {self.config.LLM_MODEL}")
         self.generator = BaselineGenerator(self.config.OLLAMA_BASE_URL, self.config.LLM_MODEL)
+        
+        logger.info(f"Initializing prompting strategy: {self.config.PROMPTING_STRATEGY}")
+        strategy_config = self.config.PROMPTING_STRATEGY_CONFIG.copy()
+        
+        # Pass embedder to ensemble if using embedding_similarity aggregation
+        if (self.config.PROMPTING_STRATEGY == 'ensemble' and 
+            strategy_config.get('aggregation_method') == 'embedding_similarity'):
+            logger.info("Ensemble using embedding_similarity - providing embedder to strategy")
+            strategy_config['embedder'] = self.embedder
+        
+        self.prompt_strategy = get_prompt_strategy(
+            self.config.PROMPTING_STRATEGY,
+            self.generator,
+            strategy_config
+        )
         
         logger.info(f"Initializing query technique: {self.config.QUERY_TECHNIQUE}")
         self.query_technique = get_query_technique(
             self.config.QUERY_TECHNIQUE,
             self.embedder,
-            self.hybrid_retriever or self.retriever,
+            self.hybrid_retriever,
             self.generator,
             self.config.QUERY_TECHNIQUE_CONFIG
         )
@@ -256,8 +273,8 @@ class AdvancedRAGPipeline:
             for i, result in enumerate(retrieved)
         ])
         
-        # Generate answer
-        answer = self.generator.generate(question, context)
+        # Generate answer using the configured prompting strategy
+        answer = self.prompt_strategy.generate(question, context)
         
         return {
             "question": question,
@@ -334,7 +351,7 @@ class AdvancedRAGPipeline:
                     f"[Document {j+1}]:\n{result['text']}"
                     for j, result in enumerate(retrieved)
                 ])
-                future = executor.submit(self.generator.generate, test_q['question'], context)
+                future = executor.submit(self.prompt_strategy.generate, test_q['question'], context)
                 futures.append((i, test_q, future))
             
             # Collect results in order as they complete

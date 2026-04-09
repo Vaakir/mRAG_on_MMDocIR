@@ -194,7 +194,7 @@ class BaselineRAGPipeline:
                         'pdf_path': chunk['pdf_path'],
                         'chunk_id': chunk['chunk_id'],
                         'char_len': chunk['char_len'],
-                        'page_numbers': chunk['page_numbers'],
+                        'page_numbers': chunk.get('page_numbers', []),
                     }
                 })
             
