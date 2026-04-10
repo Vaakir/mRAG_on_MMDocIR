@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from generation.prompts import get_prompt_strategy
 from config.config import AdvancedConfig
 from pipelines.base_pipeline import BaseRAGPipeline
 from query_techniques import get_query_technique
@@ -29,10 +30,26 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
     def __init__(self, config: 'AdvancedConfig'):
         super().__init__(config)
         self.query_technique = None
+        self.prompt_strategy = None
         
     def initialize_components(self):
-        """Initialize generator and query technique."""
+        """Initialize generator, prompting strategy, and query technique."""
         super().initialize_components()
+        
+        logger.info(f"Initializing prompting strategy: {self.config.PROMPTING_STRATEGY}")
+        strategy_config = self.config.PROMPTING_STRATEGY_CONFIG.copy()
+        
+        # Pass embedder to ensemble if using embedding_similarity aggregation
+        if (self.config.PROMPTING_STRATEGY == 'ensemble' and 
+            strategy_config.get('aggregation_method') == 'embedding_similarity'):
+            logger.info("Ensemble using embedding_similarity - providing embedder to strategy")
+            strategy_config['embedder'] = self.embedder
+        
+        self.prompt_strategy = get_prompt_strategy(
+            self.config.PROMPTING_STRATEGY,
+            self.generator,
+            strategy_config
+        )
         
         logger.info(f"Initializing query technique: {self.config.QUERY_TECHNIQUE}")
         self.query_technique = get_query_technique(
@@ -89,8 +106,8 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
             for i, result in enumerate(retrieved)
         ])
         
-        # Generate answer
-        answer = self.generator.generate(question, context)
+        # Generate answer using the configured prompting strategy
+        answer = self.prompt_strategy.generate(question, context)
         
         return {
             "question": question,
@@ -167,7 +184,7 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
                     f"[Document {j+1}]:\n{result['text']}"
                     for j, result in enumerate(retrieved)
                 ])
-                future = executor.submit(self.generator.generate, test_q['question'], context)
+                future = executor.submit(self.prompt_strategy.generate, test_q['question'], context)
                 futures.append((i, test_q, future))
             
             # Collect results in order as they complete
