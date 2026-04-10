@@ -110,6 +110,40 @@ class AdvancedConfig(BaselineConfig):
         }
     )
 
+    # ===== PROMPTING STRATEGY SETTINGS =====
+    PROMPTING_STRATEGY: str = "standard"
+    """
+    Prompting strategy for answer generation:
+    - 'standard': Direct extraction without special prompting
+    - 'few_shot': Provide multiple examples (2-5), then ask question
+    - 'role': Assign expert role to LLM (financial_analyst, researcher, etc.)
+    - 'cot': Chain-of-Thought - explicit step-by-step reasoning
+    - 'ensemble': Multiple strategies with voting/consensus
+    """
+    
+    PROMPTING_STRATEGY_CONFIG: Dict[str, Any] = field(default_factory=lambda: {
+        # Role strategy
+        'role_type': 'financial_analyst',
+        
+        # CoT strategy
+        'show_reasoning': False,  # set to False to hide reasoning
+        
+        # Ensemble strategy
+        'mode': 'multi_prompt',  # 'multi_prompt' or 'self_consistency'
+        'ensemble_size': 3,
+        'aggregation_method': 'embedding_similarity',  # 'judge', 'combine', 'embedding_similarity'
+        'strategies': ['standard', 'cot', 'few_shot', 'financial_analyst_role'],
+        'include_strategy_metadata': False,
+        'verbose_logging': False,  # Enable detailed ensemble logging
+        'temperatures': {
+            'standard': 0.5,
+            'cot': 0.6,
+            'few_shot': 0.5,
+            'financial_analyst_role': 0.6,
+        }
+    })
+    """Configuration dict for the selected prompting strategy"""
+
 
 # Preset configurations for quick switching
 @dataclass
