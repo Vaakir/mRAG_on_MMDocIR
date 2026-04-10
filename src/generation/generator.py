@@ -63,6 +63,16 @@ Strict Instructions (NON-NEGOTIABLE):
 - Do not rely only on explicit statements. If the answer can be derived from the context through calculation (e.g., growth rate, difference, ratio, count), compute it before answering.
 
 Be direct. No padding. No explanations unless specifically asked."""
+
+VISION_PROMPT = """You are a vision model extracting answers from images.
+
+Rules:
+- Use the image as the primary source.
+- Do NOT include reasoning.
+- Do NOT include explanations.
+- For counting questions, return ONLY a number.
+- Output ONLY the final answer.
+"""
 # -------------------------------------------------------------------
 class BaselineGenerator:
     """LLM-based answer generator using Ollama via the ollama Python library."""
@@ -342,11 +352,10 @@ class VisionGenerator(BaselineGenerator):
         if not think:
             messages = self._inject_no_think(messages)
 
-        # Image calls: /no_think suppresses the think block, 2048 is enough for the answer.
-        # Text calls: thinking is ON — complex questions can use 1000+ think tokens,
-        #             so give 4096 to leave room for the actual answer.
-        num_predict = 2048 if not think else 4096
-        options = {"temperature": 0.0, "top_p": 0.1, "num_predict": num_predict}
+        options = {"temperature": 0.0, "top_p": 0.1}
+        if not think:
+            # Image parsing: highly prone to looping, needs penalty
+            options["repeat_penalty"] = 1.1
         options.update(kwargs.pop("options", {}))
 
         max_retries = 3
@@ -380,13 +389,13 @@ class VisionGenerator(BaselineGenerator):
 
         if last_exc is not None:
             raise last_exc
-
+        logger.info(f"resp: {resp}")
         content = getattr(getattr(resp, "message", None), "content", "")
         if not content:
             raise Exception("Empty response from Ollama chat API")
         return normalize_ws(content)
 
-    def generate(self, question, context, system_prompt=SYSTEM_PROMPT):
+    def generate(self, question, context, system_prompt=SYSTEM_PROMPT, think=True):
         """Text-only generation — enable thinking for better accuracy."""
         user_message = f"Context:\n{context}\n\nQuestion: {question}"
         messages = [
@@ -394,7 +403,7 @@ class VisionGenerator(BaselineGenerator):
             {"role": "user", "content": user_message},
         ]
         try:
-            return self.chat(messages, think=True)
+            return self.chat(messages, think=think)
         except Exception as e:
             logger.error(f"Error generating response: {e}")
             return f"Error generating response: {str(e)}"
@@ -404,7 +413,7 @@ class VisionGenerator(BaselineGenerator):
         question: str,
         image_paths: List[str],
         text_context: str = "",
-        system_prompt: str = SYSTEM_PROMPT,
+        system_prompt: str = VISION_PROMPT,
     ) -> str:
         """
         Generate an answer given a question, one or more image paths, and
