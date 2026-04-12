@@ -1,0 +1,872 @@
+{
+  "num_questions": 5,
+  "time_elapsed": 360.4258632659912,
+  "time_per_question": 72.08517265319824,
+  "retrieval_metrics": {
+    "precision@1": 0.2,
+    "precision@3": 0.2,
+    "precision@5": 0.12000000000000002,
+    "recall@1": 0.2,
+    "recall@3": 0.6,
+    "recall@5": 0.6,
+    "page_recall@1": 0.0,
+    "page_recall@3": 0.0,
+    "page_recall@5": 0.0,
+    "ndcg@1": 0.2,
+    "ndcg@3": 0.452371901428583,
+    "ndcg@5": 0.452371901428583,
+    "map": 0.4,
+    "mrr": 0.4
+  },
+  "generation_metrics": {
+    "exact_match": 0.4,
+    "contains_match": 0.4,
+    "token_f1": 0.4,
+    "bleu": 0.0,
+    "rouge1": 0.4,
+    "rouge2": 0.4,
+    "rougeL": 0.4,
+    "semantic_similarity": 0.4
+  },
+  "results": [
+    {
+      "question": "Among all 12 references in this report, how many are from its own research center?",
+      "answer": "<REASONING> 1. The question asks how many of the 12 references in the report are from the report's own research center. 2. The context provided includes five documents, but only one of them (Document 2) explicitly mentions the Pew Research Center as the organization conducting the research. 3. Document 2 states that the Pew Research Center conducted surveys in the U.S. and collaborated with K\u00f6rber-Stiftung in Germany. It also mentions that the results have been published in both countries and includes links to previous reports from Pew Research Center. 4. No other document in the context explicitly mentions the research center conducting the report or its own publications. 5. Since the question refers to \"12 references\" and the context only provides information about five documents, there is insufficient information to determine how many of the 12 references are from the report's own research center. </REASONING> <ANSWER> I cannot find the answer in the provided context.",
+      "agent_decisions": {
+        "query_rewriter": {
+          "technique": "query_expansion",
+          "reasoning": "The question requires identifying references specifically from the report's own research center, which is a narrow and precise search. Query expansion can add relevant terms (e.g., the research center's name or identifiers) to the query, improving retrieval of exact matches. This technique is well-suited for narrowing down results to a specific subset.",
+          "rewritten_queries": [
+            "Among all 12 references in this report, how many are from its own research center?"
+          ]
+        },
+        "grader": {
+          "relevant": "yes",
+          "confidence": 0.6,
+          "num_relevant": 2,
+          "reasoning": "Two documents (Doc 2 and Doc 5) explicitly mention 'Pew Research Center,' which could indicate the report's own research center if the report is also from Pew. However, the question hinges on confirming whether the report's own center is Pew, which is not explicitly stated in the provided snippets. The 'List of Contributors' in Doc 1 might also provide clues but is not detailed enough. The other documents (3,4) discuss technical metrics unrelated to the research center. While these two documents are relevant, the lack of explicit confirmation about the report's origin reduces confidence."
+        },
+        "generator": {
+          "strategy": "cot",
+          "reasoning": "The question requires evaluating each of the 12 references to determine if they originate from the report's own research center. This involves step-by-step reasoning to cross-check affiliations/institutions against the research center mentioned in the report's context. While the context is available, direct extraction (standard) might miss nuanced criteria for determining 'own research center' status, necessitating logical analysis.",
+          "confidence": 0.85
+        }
+      },
+      "retrieved_documents": [
+        {
+          "id": 611,
+          "score": 0.02291666666666667,
+          "payload": {
+            "text": "[Document: efd88e41c5f2606c57929cac6c1c0605.pdf]\niv TABLE OF CONTENTS About this Report ...............................................................................................................................vi Guide to the Report ...........................................................................................................................ix List of Contributors ..........................................................................................................................xii CHAPTERS Executive Summary .....................................................................................................1 1. Introduction: Climate Change and Human Health ....................................................25 2. Temperature-Related Death and Illness ...................................................................43 3. Air Quality Impacts ...................................................................................................69 4. Impacts of Extreme Events on Human Health ...........................................................99",
+            "pdf_name": "efd88e41c5f2606c57929cac6c1c0605.pdf",
+            "pdf_path": "../data/train/pdfs_train/efd88e41c5f2606c57929cac6c1c0605.pdf",
+            "chunk_id": 4,
+            "char_len": 1087,
+            "page_numbers": [
+              6,
+              7
+            ]
+          },
+          "text": "[Document: efd88e41c5f2606c57929cac6c1c0605.pdf]\niv TABLE OF CONTENTS About this Report ...............................................................................................................................vi Guide to the Report ...........................................................................................................................ix List of Contributors ..........................................................................................................................xii CHAPTERS Executive Summary .....................................................................................................1 1. Introduction: Climate Change and Human Health ....................................................25 2. Temperature-Related Death and Illness ...................................................................43 3. Air Quality Impacts ...................................................................................................69 4. Impacts of Extreme Events on Human Health ...........................................................99"
+        },
+        {
+          "id": 3778,
+          "score": 0.02291666666666667,
+          "text": "[Document: PG_2020.03.09_US-Germany_FINAL.pdf]\n\u00a9 Pew Research Center 2020 www.pewresearch.org 3 PEW RESEARCH CENTER How we did this In 2017, Pew Research Center and K\u00f6rber-Stiftung began collaborating on joint public opinion surveys to gauge the state of relations between the United States and Germany. The questions were developed together, and each organization fielded a survey within their own country starting that year and continuing in 2018 and 2019. Many of the questions have been repeated each year to allow both organizations to track attitudes over time. Topics include relations with other countries, defense spending and military deployments, and general foreign policy attitudes. The results have been published in both countries, and the previous years\u2019 reports from Pew Research Center are here and here. The K\u00f6rber-Stiftung findings are contained within the larger \u201cBerlin Pulse\u201d report and can be found here, here and here. The 2019 findings come from a Pew Research Center survey conducted by SSRS in the U.S. from Sept. 17-22 among 1,004 respondents and a K\u00f6rber-Stiftung survey conducted by Kantar in Germany from Sept. 9-28 among 1,000 respondents. This analysis also includes results from the 2019 Pew Research Center Global Attitudes survey in each country, conducted among 1,503 people in the U.S. from May 13-June 18 and 2,015 people in Germany from May 31-July 25.",
+          "payload": {
+            "pdf_name": "PG_2020.03.09_US-Germany_FINAL.pdf",
+            "pdf_path": "C:\\Users\\kiran\\Documents\\_UIS\\sem8\\DAT560_GenerativAI_10\\DAT560project\\src\\data\\train\\pdfs_train\\PG_2020.03.09_US-Germany_FINAL.pdf",
+            "chunk_id": 1,
+            "char_len": 1393
+          }
+        },
+        {
+          "id": 170,
+          "score": 0.02291666666666667,
+          "payload": {
+            "text": "[Document: 2310.05634v2.pdf]\n4.3 Text-Citation Alignment Other than the text quality and citation quality, we measure whether the generated citations provide support for the corresponding sentences. A piece of useful knowledge is not an ideal citation if it is irrelevant to the sentence it links to. Therefore, we propose the metric \u201cAlignment\u201d which deter- mines whether the generated citations are aligned to the sentences to which they belong. We use a state-of-the-art natural language inference (NLI) model TRUE (Honovich et al., 2022), which is a fine-tuned T5-11B (Raffel et al., 2020) model, to check whether the generated sentence entails the generated citation. Since one sentence could have multiple citations, we run NLI on all sentence- citation pairs and report the percentage of entail- ment. Additionally, we conduct human evaluation in \u00a7 5.4 to showcase if the automatic evaluation is correlated with human judgments. 4.4 Conscious Incompetence Evaluation Theoretically, each [NA] mark should map to a piece of knowledge absent from the retrieved",
+            "pdf_name": "2310.05634v2.pdf",
+            "pdf_path": "../data/train/pdfs_train/2310.05634v2.pdf",
+            "chunk_id": 15,
+            "char_len": 1064,
+            "page_numbers": [
+              5
+            ]
+          },
+          "text": "[Document: 2310.05634v2.pdf]\n4.3 Text-Citation Alignment Other than the text quality and citation quality, we measure whether the generated citations provide support for the corresponding sentences. A piece of useful knowledge is not an ideal citation if it is irrelevant to the sentence it links to. Therefore, we propose the metric \u201cAlignment\u201d which deter- mines whether the generated citations are aligned to the sentences to which they belong. We use a state-of-the-art natural language inference (NLI) model TRUE (Honovich et al., 2022), which is a fine-tuned T5-11B (Raffel et al., 2020) model, to check whether the generated sentence entails the generated citation. Since one sentence could have multiple citations, we run NLI on all sentence- citation pairs and report the percentage of entail- ment. Additionally, we conduct human evaluation in \u00a7 5.4 to showcase if the automatic evaluation is correlated with human judgments. 4.4 Conscious Incompetence Evaluation Theoretically, each [NA] mark should map to a piece of knowledge absent from the retrieved"
+        },
+        {
+          "id": 175,
+          "score": 0.022643442622950823,
+          "payload": {
+            "text": "[Document: 2310.05634v2.pdf]\nPrec. 36.0(0.6) 29.0(0.0) 29.9(0.2) 28.7(0.2) 14.9(1.4) 7.7(2.4) 10.5(3.3) 14.9(0.2) Rec. 43.6(1.0) 50.8(0.3) 49.0(0.8) 49.0(0.3) 19.4(0.2) 41.1(0.7) 43.7(1.0) 16.8(0.0) F1. 39.4 36.9 37.2 36.2 16.8 13.0 16.9 15.8 Prec. 40.7(1.1) 32.7(0.4) 34.1(0.5) 32.5(0.2) 19.8(0.4) 11.0(1.9) 13.8(2.2) 15.1(0.0) Macro Rec. 43.9(1.0) 51.2(0.3) 49.4(0.9) 49.4(0.3) 19.9(0.3) 41.4(0.7) 43.5(1.0) 17.0(0.0) F1. 42.3 39.9 40.4 39.2 19.8 17.4 20.9 16.0 Table 3: Citation Quality OpenAI models and LLaMA family models. The first five metrics are reported in Micro, and the last three metrics are reported in Macro. We also report text citation alignment. The experimental results are the mean of three runs, and the standard deviation is reported in brackets. In general, there is a room of improvement for all models since no model can achieve a micro F1 Score of higher than 40. The OpenAI models out- perform the LLaMA family models in almost all metrics. The correctness is above 94 for OpenAI models, but around 70 for LLaMA based models. For ChatGPT, temperature does not play a signifi- cant role since it effect on F1 Score is at most 1.2. The GPT-4 model achieves the best performance across almost all metrics, except for recall, since GPT-4 models tend to generate shorter answers with fewer citations, resulting in higher precision. While LLaMA is better at Recall by generating long answers with many citations. The F1-Score of models from the same family are close to one an- other, showing that our automatic evaluation metric designed is reliable.",
+            "pdf_name": "2310.05634v2.pdf",
+            "pdf_path": "../data/train/pdfs_train/2310.05634v2.pdf",
+            "chunk_id": 20,
+            "char_len": 1573,
+            "page_numbers": [
+              7
+            ]
+          },
+          "text": "[Document: 2310.05634v2.pdf]\nPrec. 36.0(0.6) 29.0(0.0) 29.9(0.2) 28.7(0.2) 14.9(1.4) 7.7(2.4) 10.5(3.3) 14.9(0.2) Rec. 43.6(1.0) 50.8(0.3) 49.0(0.8) 49.0(0.3) 19.4(0.2) 41.1(0.7) 43.7(1.0) 16.8(0.0) F1. 39.4 36.9 37.2 36.2 16.8 13.0 16.9 15.8 Prec. 40.7(1.1) 32.7(0.4) 34.1(0.5) 32.5(0.2) 19.8(0.4) 11.0(1.9) 13.8(2.2) 15.1(0.0) Macro Rec. 43.9(1.0) 51.2(0.3) 49.4(0.9) 49.4(0.3) 19.9(0.3) 41.4(0.7) 43.5(1.0) 17.0(0.0) F1. 42.3 39.9 40.4 39.2 19.8 17.4 20.9 16.0 Table 3: Citation Quality OpenAI models and LLaMA family models. The first five metrics are reported in Micro, and the last three metrics are reported in Macro. We also report text citation alignment. The experimental results are the mean of three runs, and the standard deviation is reported in brackets. In general, there is a room of improvement for all models since no model can achieve a micro F1 Score of higher than 40. The OpenAI models out- perform the LLaMA family models in almost all metrics. The correctness is above 94 for OpenAI models, but around 70 for LLaMA based models. For ChatGPT, temperature does not play a signifi- cant role since it effect on F1 Score is at most 1.2. The GPT-4 model achieves the best performance across almost all metrics, except for recall, since GPT-4 models tend to generate shorter answers with fewer citations, resulting in higher precision. While LLaMA is better at Recall by generating long answers with many citations. The F1-Score of models from the same family are close to one an- other, showing that our automatic evaluation metric designed is reliable."
+        },
+        {
+          "id": 5601,
+          "score": 0.022643442622950823,
+          "text": "[Document: PS_2018.01.09_STEM_FINAL.pdf]\nPEW RESEARCH CENTER Previous Pew Research Center surveys have found more women than men report experiencing gender discrimination. The share reporting these experiences tends to vary depending on whether or not the questions are focused on the workplace, per se, and whether they rely on a summary judgment of experienced discrimination or ask separately about specific types of discriminatory behaviors. www.pewresearch.org 60 PEW RESEARCH CENTER When it comes to the issue of sexual harassment in the workplace, workers are more likely to judge harassment as a problem in their industry than in their own workplace. More women than men in STEM jobs see sexual harassment as a problem in their workplace % of those in science, technology, engineering and math jobs who say sexual harassment is a big problem or a small problem \u2026 In their workplace Among all those working in a STEM job, 53% consider sexual harassment at least a small problem in their industry sector, compared with 32% who say the same about their own workplace.",
+          "payload": {
+            "pdf_name": "PS_2018.01.09_STEM_FINAL.pdf",
+            "pdf_path": "C:\\Users\\kiran\\Documents\\_UIS\\sem8\\DAT560_GenerativAI_10\\DAT560project\\src\\data\\train\\pdfs_train\\PS_2018.01.09_STEM_FINAL.pdf",
+            "chunk_id": 105,
+            "char_len": 1072
+          }
+        }
+      ],
+      "retrieved_documents_raw": [
+        {
+          "id": 611,
+          "score": 0.02291666666666667,
+          "payload": {
+            "text": "[Document: efd88e41c5f2606c57929cac6c1c0605.pdf]\niv TABLE OF CONTENTS About this Report ...............................................................................................................................vi Guide to the Report ...........................................................................................................................ix List of Contributors ..........................................................................................................................xii CHAPTERS Executive Summary .....................................................................................................1 1. Introduction: Climate Change and Human Health ....................................................25 2. Temperature-Related Death and Illness ...................................................................43 3. Air Quality Impacts ...................................................................................................69 4. Impacts of Extreme Events on Human Health ...........................................................99",
+            "pdf_name": "efd88e41c5f2606c57929cac6c1c0605.pdf",
+            "pdf_path": "../data/train/pdfs_train/efd88e41c5f2606c57929cac6c1c0605.pdf",
+            "chunk_id": 4,
+            "char_len": 1087,
+            "page_numbers": [
+              6,
+              7
+            ]
+          },
+          "text": "[Document: efd88e41c5f2606c57929cac6c1c0605.pdf]\niv TABLE OF CONTENTS About this Report ...............................................................................................................................vi Guide to the Report ...........................................................................................................................ix List of Contributors ..........................................................................................................................xii CHAPTERS Executive Summary .....................................................................................................1 1. Introduction: Climate Change and Human Health ....................................................25 2. Temperature-Related Death and Illness ...................................................................43 3. Air Quality Impacts ...................................................................................................69 4. Impacts of Extreme Events on Human Health ...........................................................99"
+        },
+        {
+          "id": 3778,
+          "score": 0.02291666666666667,
+          "text": "[Document: PG_2020.03.09_US-Germany_FINAL.pdf]\n\u00a9 Pew Research Center 2020 www.pewresearch.org 3 PEW RESEARCH CENTER How we did this In 2017, Pew Research Center and K\u00f6rber-Stiftung began collaborating on joint public opinion surveys to gauge the state of relations between the United States and Germany. The questions were developed together, and each organization fielded a survey within their own country starting that year and continuing in 2018 and 2019. Many of the questions have been repeated each year to allow both organizations to track attitudes over time. Topics include relations with other countries, defense spending and military deployments, and general foreign policy attitudes. The results have been published in both countries, and the previous years\u2019 reports from Pew Research Center are here and here. The K\u00f6rber-Stiftung findings are contained within the larger \u201cBerlin Pulse\u201d report and can be found here, here and here. The 2019 findings come from a Pew Research Center survey conducted by SSRS in the U.S. from Sept. 17-22 among 1,004 respondents and a K\u00f6rber-Stiftung survey conducted by Kantar in Germany from Sept. 9-28 among 1,000 respondents. This analysis also includes results from the 2019 Pew Research Center Global Attitudes survey in each country, conducted among 1,503 people in the U.S. from May 13-June 18 and 2,015 people in Germany from May 31-July 25.",
+          "payload": {
+            "pdf_name": "PG_2020.03.09_US-Germany_FINAL.pdf",
+            "pdf_path": "C:\\Users\\kiran\\Documents\\_UIS\\sem8\\DAT560_GenerativAI_10\\DAT560project\\src\\data\\train\\pdfs_train\\PG_2020.03.09_US-Germany_FINAL.pdf",
+            "chunk_id": 1,
+            "char_len": 1393
+          }
+        },
+        {
+          "id": 170,
+          "score": 0.02291666666666667,
+          "payload": {
+            "text": "[Document: 2310.05634v2.pdf]\n4.3 Text-Citation Alignment Other than the text quality and citation quality, we measure whether the generated citations provide support for the corresponding sentences. A piece of useful knowledge is not an ideal citation if it is irrelevant to the sentence it links to. Therefore, we propose the metric \u201cAlignment\u201d which deter- mines whether the generated citations are aligned to the sentences to which they belong. We use a state-of-the-art natural language inference (NLI) model TRUE (Honovich et al., 2022), which is a fine-tuned T5-11B (Raffel et al., 2020) model, to check whether the generated sentence entails the generated citation. Since one sentence could have multiple citations, we run NLI on all sentence- citation pairs and report the percentage of entail- ment. Additionally, we conduct human evaluation in \u00a7 5.4 to showcase if the automatic evaluation is correlated with human judgments. 4.4 Conscious Incompetence Evaluation Theoretically, each [NA] mark should map to a piece of knowledge absent from the retrieved",
+            "pdf_name": "2310.05634v2.pdf",
+            "pdf_path": "../data/train/pdfs_train/2310.05634v2.pdf",
+            "chunk_id": 15,
+            "char_len": 1064,
+            "page_numbers": [
+              5
+            ]
+          },
+          "text": "[Document: 2310.05634v2.pdf]\n4.3 Text-Citation Alignment Other than the text quality and citation quality, we measure whether the generated citations provide support for the corresponding sentences. A piece of useful knowledge is not an ideal citation if it is irrelevant to the sentence it links to. Therefore, we propose the metric \u201cAlignment\u201d which deter- mines whether the generated citations are aligned to the sentences to which they belong. We use a state-of-the-art natural language inference (NLI) model TRUE (Honovich et al., 2022), which is a fine-tuned T5-11B (Raffel et al., 2020) model, to check whether the generated sentence entails the generated citation. Since one sentence could have multiple citations, we run NLI on all sentence- citation pairs and report the percentage of entail- ment. Additionally, we conduct human evaluation in \u00a7 5.4 to showcase if the automatic evaluation is correlated with human judgments. 4.4 Conscious Incompetence Evaluation Theoretically, each [NA] mark should map to a piece of knowledge absent from the retrieved"
+        },
+        {
+          "id": 175,
+          "score": 0.022643442622950823,
+          "payload": {
+            "text": "[Document: 2310.05634v2.pdf]\nPrec. 36.0(0.6) 29.0(0.0) 29.9(0.2) 28.7(0.2) 14.9(1.4) 7.7(2.4) 10.5(3.3) 14.9(0.2) Rec. 43.6(1.0) 50.8(0.3) 49.0(0.8) 49.0(0.3) 19.4(0.2) 41.1(0.7) 43.7(1.0) 16.8(0.0) F1. 39.4 36.9 37.2 36.2 16.8 13.0 16.9 15.8 Prec. 40.7(1.1) 32.7(0.4) 34.1(0.5) 32.5(0.2) 19.8(0.4) 11.0(1.9) 13.8(2.2) 15.1(0.0) Macro Rec. 43.9(1.0) 51.2(0.3) 49.4(0.9) 49.4(0.3) 19.9(0.3) 41.4(0.7) 43.5(1.0) 17.0(0.0) F1. 42.3 39.9 40.4 39.2 19.8 17.4 20.9 16.0 Table 3: Citation Quality OpenAI models and LLaMA family models. The first five metrics are reported in Micro, and the last three metrics are reported in Macro. We also report text citation alignment. The experimental results are the mean of three runs, and the standard deviation is reported in brackets. In general, there is a room of improvement for all models since no model can achieve a micro F1 Score of higher than 40. The OpenAI models out- perform the LLaMA family models in almost all metrics. The correctness is above 94 for OpenAI models, but around 70 for LLaMA based models. For ChatGPT, temperature does not play a signifi- cant role since it effect on F1 Score is at most 1.2. The GPT-4 model achieves the best performance across almost all metrics, except for recall, since GPT-4 models tend to generate shorter answers with fewer citations, resulting in higher precision. While LLaMA is better at Recall by generating long answers with many citations. The F1-Score of models from the same family are close to one an- other, showing that our automatic evaluation metric designed is reliable.",
+            "pdf_name": "2310.05634v2.pdf",
+            "pdf_path": "../data/train/pdfs_train/2310.05634v2.pdf",
+            "chunk_id": 20,
+            "char_len": 1573,
+            "page_numbers": [
+              7
+            ]
+          },
+          "text": "[Document: 2310.05634v2.pdf]\nPrec. 36.0(0.6) 29.0(0.0) 29.9(0.2) 28.7(0.2) 14.9(1.4) 7.7(2.4) 10.5(3.3) 14.9(0.2) Rec. 43.6(1.0) 50.8(0.3) 49.0(0.8) 49.0(0.3) 19.4(0.2) 41.1(0.7) 43.7(1.0) 16.8(0.0) F1. 39.4 36.9 37.2 36.2 16.8 13.0 16.9 15.8 Prec. 40.7(1.1) 32.7(0.4) 34.1(0.5) 32.5(0.2) 19.8(0.4) 11.0(1.9) 13.8(2.2) 15.1(0.0) Macro Rec. 43.9(1.0) 51.2(0.3) 49.4(0.9) 49.4(0.3) 19.9(0.3) 41.4(0.7) 43.5(1.0) 17.0(0.0) F1. 42.3 39.9 40.4 39.2 19.8 17.4 20.9 16.0 Table 3: Citation Quality OpenAI models and LLaMA family models. The first five metrics are reported in Micro, and the last three metrics are reported in Macro. We also report text citation alignment. The experimental results are the mean of three runs, and the standard deviation is reported in brackets. In general, there is a room of improvement for all models since no model can achieve a micro F1 Score of higher than 40. The OpenAI models out- perform the LLaMA family models in almost all metrics. The correctness is above 94 for OpenAI models, but around 70 for LLaMA based models. For ChatGPT, temperature does not play a signifi- cant role since it effect on F1 Score is at most 1.2. The GPT-4 model achieves the best performance across almost all metrics, except for recall, since GPT-4 models tend to generate shorter answers with fewer citations, resulting in higher precision. While LLaMA is better at Recall by generating long answers with many citations. The F1-Score of models from the same family are close to one an- other, showing that our automatic evaluation metric designed is reliable."
+        },
+        {
+          "id": 5601,
+          "score": 0.022643442622950823,
+          "text": "[Document: PS_2018.01.09_STEM_FINAL.pdf]\nPEW RESEARCH CENTER Previous Pew Research Center surveys have found more women than men report experiencing gender discrimination. The share reporting these experiences tends to vary depending on whether or not the questions are focused on the workplace, per se, and whether they rely on a summary judgment of experienced discrimination or ask separately about specific types of discriminatory behaviors. www.pewresearch.org 60 PEW RESEARCH CENTER When it comes to the issue of sexual harassment in the workplace, workers are more likely to judge harassment as a problem in their industry than in their own workplace. More women than men in STEM jobs see sexual harassment as a problem in their workplace % of those in science, technology, engineering and math jobs who say sexual harassment is a big problem or a small problem \u2026 In their workplace Among all those working in a STEM job, 53% consider sexual harassment at least a small problem in their industry sector, compared with 32% who say the same about their own workplace.",
+          "payload": {
+            "pdf_name": "PS_2018.01.09_STEM_FINAL.pdf",
+            "pdf_path": "C:\\Users\\kiran\\Documents\\_UIS\\sem8\\DAT560_GenerativAI_10\\DAT560project\\src\\data\\train\\pdfs_train\\PS_2018.01.09_STEM_FINAL.pdf",
+            "chunk_id": 105,
+            "char_len": 1072
+          }
+        }
+      ],
+      "confidence": 0.85,
+      "num_docs_retrieved": 5,
+      "ground_truth": 8
+    },
+    {
+      "question": "How many times does \"Barclays\" appear on page 4?",
+      "answer": "0",
+      "agent_decisions": {
+        "query_rewriter": {
+          "technique": "query_expansion",
+          "reasoning": "The query requires counting exact mentions of 'Barclays' on a specific page. The standard retrieval might miss variations or context. Query expansion adds related terms/synonyms (e.g., 'Barclays Bank', 'Barclays PLC') to ensure all possible references are captured, improving precision for narrow searches.",
+          "rewritten_queries": [
+            "How many times does \"Barclays\" appear on page 4?"
+          ]
+        },
+        "grader": {
+          "relevant": "no",
+          "confidence": 0.1,
+          "num_relevant": 0,
+          "reasoning": "None of the provided document excerpts mention 'Barclays' or contain content related to the term. The snippets focus on technical manuals, financial reports, academic citations, and writing guidelines, none of which suggest relevance to the question about 'Barclays' on page 4."
+        },
+        "generator": {
+          "strategy": "standard",
+          "reasoning": "The question is a simple direct extraction task requiring no reasoning or domain expertise. The context is available, and the answer can be found by counting occurrences in the provided text.",
+          "confidence": 0.95
+        }
+      },
+      "retrieved_documents": [
+        {
+          "id": 1547,
+          "score": 0.02291666666666667,
+          "text": "[Document: 91521110100M_4K_UHD_Display_User_Manual_V1.1.pdf]\nHDMI 1.4 HDMI 2.0 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 28 29 4K UHD Display User Manual 3.9 Troubleshooting Problem There is a black dot or dead pixel dot on the screen Cannot turn power on It takes time for image to appear There are spots on the screen Bad color Image appears and disappears When changing the scan size, the top and bottom part of the screen does not show images Image contour flickers Color is extremely bad The POWER indicator is flashing orange Check the following A missing pixel does not constitute an out of spec. defective product Turn off the power supply, and check that the AC cord or DC cord are securely inserted. After checking, turn on the power supply again. Since the monitor processes various signals digitally to reproduce beautiful images, it may take time before images appear when it is turned on, input is switched, or when the mode is switched to \u201cMulti Window\u201d.",
+          "payload": {
+            "pdf_name": "91521110100M_4K_UHD_Display_User_Manual_V1.1.pdf",
+            "pdf_path": "C:\\Users\\kiran\\Documents\\_UIS\\sem8\\DAT560_GenerativAI_10\\DAT560project\\src\\data\\train\\pdfs_train\\91521110100M_4K_UHD_Display_User_Manual_V1.1.pdf",
+            "chunk_id": 39,
+            "char_len": 1097
+          }
+        },
+        {
+          "id": 2160,
+          "score": 0.02291666666666667,
+          "payload": {
+            "text": "[Document: BRO-GL-MMONEY.pdf]\nCopyright 2024 JPMorgan Chase & Co. All rights reserved. JPM54609 | 05/24 | 0903c02a826df8f8",
+            "pdf_name": "BRO-GL-MMONEY.pdf",
+            "pdf_path": "../data/train/pdfs_train/BRO-GL-MMONEY.pdf",
+            "chunk_id": 16,
+            "char_len": 122,
+            "page_numbers": [
+              16
+            ]
+          },
+          "text": "[Document: BRO-GL-MMONEY.pdf]\nCopyright 2024 JPMorgan Chase & Co. All rights reserved. JPM54609 | 05/24 | 0903c02a826df8f8"
+        },
+        {
+          "id": 6144,
+          "score": 0.02291666666666667,
+          "text": "[Document: t480_ug_en.pdf]\nBefore you dispose of the data on the internal storage drive, ensure that you read \u201cDeleting data from your storage drive\u201d on page 58. How do I attach an external display? Refer to \u201cUsing an external display\u201d on page 36. With the Extend desktop function, you can display output on both the computer display and an external display. How do I attach or replace a device? Refer to the appropriate topic in Chapter 9 \u201cReplacing devices\u201d on page 99. I have been using the computer for some time already, and is getting slower. What should I do? Follow the \u201cGeneral tips for preventing problems\u201d on page 79. Diagnose problems yourself by using the preinstalled diagnostic software. See \u201cDiagnosing problems\u201d on page 79. Check for recovery solutions in Chapter 8 \u201cRecovery information\u201d on page 97. Print the following topics and keep them with your computer in case you are unable to access this electronic user guide when necessary. \u201cInstalling the Windows 10 operating system\u201d on page 61 \u201cComputer stops responding\u201d on page 80",
+          "payload": {
+            "pdf_name": "t480_ug_en.pdf",
+            "pdf_path": "C:\\Users\\kiran\\Documents\\_UIS\\sem8\\DAT560_GenerativAI_10\\DAT560project\\src\\data\\train\\pdfs_train\\t480_ug_en.pdf",
+            "chunk_id": 49,
+            "char_len": 1048
+          }
+        },
+        {
+          "id": 4125,
+          "score": 0.02291666666666667,
+          "payload": {
+            "text": "[Document: f8d3a162ab9507e021d83dd109118b60.pdf]\n\u25a1 Works Cited Page \u2022 Make sure you note your citations and remember to mention them in your report. \u2022 Cite your references correctly (Go to the Writing Center for citation samples). Some points to remember: \u2022 Be sure to label your Writer-ER Kackery/Cajon/SBCUSD charts, graphs and tables. Remember to refer to them and explain them in your report. \u2022 Proofread your paper carefully for spelling and grammatical errors. WRITTEN REPORT (MS Word or PDF only Please) & PPT printout due the day of presentation, prior to your presentation. UNIT 16: Understanding Financial Management and Securities Market SWBAT TO ANSWER THESE LEARNING OUTCOMES: How do finance and the financial manager affect a firm\u2019s overall strategy? \u2022 What types of short-term and long-term expenditures does a firm make? \u2022 What are the main sources and costs of unsecured and secured short-term financing? \u2022 What are the key differences between debt and equity, and what are the major types and features of long-term debt? When and how do firms issue equity, and what are the costs? \u2022 How do securities markets help firms raise funding, and what securities trade in the capital markets? \u2022 Where can investors buy and sell securities, and how are securities markets regulated? \u2022 What are the current developments in financial management and the securities markets?",
+            "pdf_name": "f8d3a162ab9507e021d83dd109118b60.pdf",
+            "pdf_path": "../data/train/pdfs_train/f8d3a162ab9507e021d83dd109118b60.pdf",
+            "chunk_id": 32,
+            "char_len": 1379,
+            "page_numbers": [
+              11,
+              12
+            ]
+          },
+          "text": "[Document: f8d3a162ab9507e021d83dd109118b60.pdf]\n\u25a1 Works Cited Page \u2022 Make sure you note your citations and remember to mention them in your report. \u2022 Cite your references correctly (Go to the Writing Center for citation samples). Some points to remember: \u2022 Be sure to label your Writer-ER Kackery/Cajon/SBCUSD charts, graphs and tables. Remember to refer to them and explain them in your report. \u2022 Proofread your paper carefully for spelling and grammatical errors. WRITTEN REPORT (MS Word or PDF only Please) & PPT printout due the day of presentation, prior to your presentation. UNIT 16: Understanding Financial Management and Securities Market SWBAT TO ANSWER THESE LEARNING OUTCOMES: How do finance and the financial manager affect a firm\u2019s overall strategy? \u2022 What types of short-term and long-term expenditures does a firm make? \u2022 What are the main sources and costs of unsecured and secured short-term financing? \u2022 What are the key differences between debt and equity, and what are the major types and features of long-term debt? When and how do firms issue equity, and what are the costs? \u2022 How do securities markets help firms raise funding, and what securities trade in the capital markets? \u2022 Where can investors buy and sell securities, and how are securities markets regulated? \u2022 What are the current developments in financial management and the securities markets?"
+        },
+        {
+          "id": 1205,
+          "score": 0.022643442622950823,
+          "text": "[Document: 2312.04350v3.pdf]\n[10] David Card. 1999. The causal effect of education on earnings. Handbook of labor economics, 3:1801\u20131863. [Cited on pages 1 and 10.] [11] Raj Chetty, John N Friedman, Nathaniel Hilger, Emmanuel Saez, Diane Whitmore Schanzen- bach, and Danny Yagan. 2011. How does your kindergarten classroom affect your earnings? Evidence from project star. The Quarterly journal of economics, 126(4):1593\u20131660. [Cited on page 1.] [12] Robert G Cowell, Philip Dawid, Steffen L Lauritzen, and David J Spiegelhalter. 2007. Proba- bilistic networks and expert systems: Exact computational methods for Bayesian networks. Springer Science & Business Media. [Cited on page 3.] [13] Ernest Davis and Scott Aaronson. 2023. Testing GPT-4 with Wolfram Alpha and Code Interpreter plug-ins on math and science problems. arXiv preprint arXiv:2308.05713. [Cited on page 10.] [14] Gaston De Serres, France Markowski, Eveline Toth, Monique Landry, Danielle Auger, Marl\u00e8ne Mercier, Philippe B\u00e9langer, Bruno Turmel, Horacio Arruda, Nicole Boulianne, et al. 2013. Largest measles epidemic in North America in a decade\u2014Quebec, Canada, 2011: Contribution of susceptibility, serendipity, and superspreading events. The Journal of infectious diseases, 207(6):990\u2013998. [Cited on page 1.]",
+          "payload": {
+            "pdf_name": "2312.04350v3.pdf",
+            "pdf_path": "C:\\Users\\kiran\\Documents\\_UIS\\sem8\\DAT560_GenerativAI_10\\DAT560project\\src\\data\\train\\pdfs_train\\2312.04350v3.pdf",
+            "chunk_id": 37,
+            "char_len": 1278
+          }
+        }
+      ],
+      "retrieved_documents_raw": [
+        {
+          "id": 1547,
+          "score": 0.02291666666666667,
+          "text": "[Document: 91521110100M_4K_UHD_Display_User_Manual_V1.1.pdf]\nHDMI 1.4 HDMI 2.0 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 \u2714 28 29 4K UHD Display User Manual 3.9 Troubleshooting Problem There is a black dot or dead pixel dot on the screen Cannot turn power on It takes time for image to appear There are spots on the screen Bad color Image appears and disappears When changing the scan size, the top and bottom part of the screen does not show images Image contour flickers Color is extremely bad The POWER indicator is flashing orange Check the following A missing pixel does not constitute an out of spec. defective product Turn off the power supply, and check that the AC cord or DC cord are securely inserted. After checking, turn on the power supply again. Since the monitor processes various signals digitally to reproduce beautiful images, it may take time before images appear when it is turned on, input is switched, or when the mode is switched to \u201cMulti Window\u201d.",
+          "payload": {
+            "pdf_name": "91521110100M_4K_UHD_Display_User_Manual_V1.1.pdf",
+            "pdf_path": "C:\\Users\\kiran\\Documents\\_UIS\\sem8\\DAT560_GenerativAI_10\\DAT560project\\src\\data\\train\\pdfs_train\\91521110100M_4K_UHD_Display_User_Manual_V1.1.pdf",
+            "chunk_id": 39,
+            "char_len": 1097
+          }
+        },
+        {
+          "id": 2160,
+          "score": 0.02291666666666667,
+          "payload": {
+            "text": "[Document: BRO-GL-MMONEY.pdf]\nCopyright 2024 JPMorgan Chase & Co. All rights reserved. JPM54609 | 05/24 | 0903c02a826df8f8",
+            "pdf_name": "BRO-GL-MMONEY.pdf",
+            "pdf_path": "../data/train/pdfs_train/BRO-GL-MMONEY.pdf",
+            "chunk_id": 16,
+            "char_len": 122,
+            "page_numbers": [
+              16
+            ]
+          },
+          "text": "[Document: BRO-GL-MMONEY.pdf]\nCopyright 2024 JPMorgan Chase & Co. All rights reserved. JPM54609 | 05/24 | 0903c02a826df8f8"
+        },
+        {
+          "id": 6144,
+          "score": 0.02291666666666667,
+          "text": "[Document: t480_ug_en.pdf]\nBefore you dispose of the data on the internal storage drive, ensure that you read \u201cDeleting data from your storage drive\u201d on page 58. How do I attach an external display? Refer to \u201cUsing an external display\u201d on page 36. With the Extend desktop function, you can display output on both the computer display and an external display. How do I attach or replace a device? Refer to the appropriate topic in Chapter 9 \u201cReplacing devices\u201d on page 99. I have been using the computer for some time already, and is getting slower. What should I do? Follow the \u201cGeneral tips for preventing problems\u201d on page 79. Diagnose problems yourself by using the preinstalled diagnostic software. See \u201cDiagnosing problems\u201d on page 79. Check for recovery solutions in Chapter 8 \u201cRecovery information\u201d on page 97. Print the following topics and keep them with your computer in case you are unable to access this electronic user guide when necessary. \u201cInstalling the Windows 10 operating system\u201d on page 61 \u201cComputer stops responding\u201d on page 80",
+          "payload": {
+            "pdf_name": "t480_ug_en.pdf",
+            "pdf_path": "C:\\Users\\kiran\\Documents\\_UIS\\sem8\\DAT560_GenerativAI_10\\DAT560project\\src\\data\\train\\pdfs_train\\t480_ug_en.pdf",
+            "chunk_id": 49,
+            "char_len": 1048
+          }
+        },
+        {
+          "id": 4125,
+          "score": 0.02291666666666667,
+          "payload": {
+            "text": "[Document: f8d3a162ab9507e021d83dd109118b60.pdf]\n\u25a1 Works Cited Page \u2022 Make sure you note your citations and remember to mention them in your report. \u2022 Cite your references correctly (Go to the Writing Center for citation samples). Some points to remember: \u2022 Be sure to label your Writer-ER Kackery/Cajon/SBCUSD charts, graphs and tables. Remember to refer to them and explain them in your report. \u2022 Proofread your paper carefully for spelling and grammatical errors. WRITTEN REPORT (MS Word or PDF only Please) & PPT printout due the day of presentation, prior to your presentation. UNIT 16: Understanding Financial Management and Securities Market SWBAT TO ANSWER THESE LEARNING OUTCOMES: How do finance and the financial manager affect a firm\u2019s overall strategy? \u2022 What types of short-term and long-term expenditures does a firm make? \u2022 What are the main sources and costs of unsecured and secured short-term financing? \u2022 What are the key differences between debt and equity, and what are the major types and features of long-term debt? When and how do firms issue equity, and what are the costs? \u2022 How do securities markets help firms raise funding, and what securities trade in the capital markets? \u2022 Where can investors buy and sell securities, and how are securities markets regulated? \u2022 What are the current developments in financial management and the securities markets?",
+            "pdf_name": "f8d3a162ab9507e021d83dd109118b60.pdf",
+            "pdf_path": "../data/train/pdfs_train/f8d3a162ab9507e021d83dd109118b60.pdf",
+            "chunk_id": 32,
+            "char_len": 1379,
+            "page_numbers": [
+              11,
+              12
+            ]
+          },
+          "text": "[Document: f8d3a162ab9507e021d83dd109118b60.pdf]\n\u25a1 Works Cited Page \u2022 Make sure you note your citations and remember to mention them in your report. \u2022 Cite your references correctly (Go to the Writing Center for citation samples). Some points to remember: \u2022 Be sure to label your Writer-ER Kackery/Cajon/SBCUSD charts, graphs and tables. Remember to refer to them and explain them in your report. \u2022 Proofread your paper carefully for spelling and grammatical errors. WRITTEN REPORT (MS Word or PDF only Please) & PPT printout due the day of presentation, prior to your presentation. UNIT 16: Understanding Financial Management and Securities Market SWBAT TO ANSWER THESE LEARNING OUTCOMES: How do finance and the financial manager affect a firm\u2019s overall strategy? \u2022 What types of short-term and long-term expenditures does a firm make? \u2022 What are the main sources and costs of unsecured and secured short-term financing? \u2022 What are the key differences between debt and equity, and what are the major types and features of long-term debt? When and how do firms issue equity, and what are the costs? \u2022 How do securities markets help firms raise funding, and what securities trade in the capital markets? \u2022 Where can investors buy and sell securities, and how are securities markets regulated? \u2022 What are the current developments in financial management and the securities markets?"
+        },
+        {
+          "id": 1205,
+          "score": 0.022643442622950823,
+          "text": "[Document: 2312.04350v3.pdf]\n[10] David Card. 1999. The causal effect of education on earnings. Handbook of labor economics, 3:1801\u20131863. [Cited on pages 1 and 10.] [11] Raj Chetty, John N Friedman, Nathaniel Hilger, Emmanuel Saez, Diane Whitmore Schanzen- bach, and Danny Yagan. 2011. How does your kindergarten classroom affect your earnings? Evidence from project star. The Quarterly journal of economics, 126(4):1593\u20131660. [Cited on page 1.] [12] Robert G Cowell, Philip Dawid, Steffen L Lauritzen, and David J Spiegelhalter. 2007. Proba- bilistic networks and expert systems: Exact computational methods for Bayesian networks. Springer Science & Business Media. [Cited on page 3.] [13] Ernest Davis and Scott Aaronson. 2023. Testing GPT-4 with Wolfram Alpha and Code Interpreter plug-ins on math and science problems. arXiv preprint arXiv:2308.05713. [Cited on page 10.] [14] Gaston De Serres, France Markowski, Eveline Toth, Monique Landry, Danielle Auger, Marl\u00e8ne Mercier, Philippe B\u00e9langer, Bruno Turmel, Horacio Arruda, Nicole Boulianne, et al. 2013. Largest measles epidemic in North America in a decade\u2014Quebec, Canada, 2011: Contribution of susceptibility, serendipity, and superspreading events. The Journal of infectious diseases, 207(6):990\u2013998. [Cited on page 1.]",
+          "payload": {
+            "pdf_name": "2312.04350v3.pdf",
+            "pdf_path": "C:\\Users\\kiran\\Documents\\_UIS\\sem8\\DAT560_GenerativAI_10\\DAT560project\\src\\data\\train\\pdfs_train\\2312.04350v3.pdf",
+            "chunk_id": 37,
+            "char_len": 1278
+          }
+        }
+      ],
+      "confidence": 0.95,
+      "num_docs_retrieved": 5,
+      "ground_truth": 5
+    },
+    {
+      "question": "How many Demoncratic people in the survey of U.S. adults conducted April 25- May 1, 2019 said neither the Republican Party nor the Democratic Party  has \u2018high ethical standards'?",
+      "answer": "0",
+      "agent_decisions": {
+        "query_rewriter": {
+          "technique": "step_back",
+          "reasoning": "The original query is highly specific (dates, demographic, and ethical standards claim), which might limit retrieval effectiveness if the exact phrasing isn't in the source. 'Step_back' abstracts to broader concepts (e.g., 'public opinion on party ethics in 2019') to first locate the survey context, then narrows to extract the specific statistic. This addresses potential issues with overly narrow phrasing or missing exact terminology.",
+          "rewritten_queries": [
+            "How many Demoncratic people in the survey of U.S. adults conducted April 25- May 1, 2019 said neither the Republican Party nor the Democratic Party  has \u2018high ethical standards'?"
+          ]
+        },
+        "grader": {
+          "relevant": "no",
+          "confidence": 0.2,
+          "num_relevant": 1,
+          "reasoning": "The documents reference a May 2018 survey, not the April 25-May 1, 2019 survey specified in the question. While Doc 1/3 mention 31% of college graduates saying neither party has 'high ethical standards,' they do not isolate this statistic for Democrats specifically or for the 2019 timeframe. The question asks for Democratic respondents in a 2019 survey, but the retrieved documents are from a different year and lack party-specific breakdowns for the ethical standards question."
+        },
+        "generator": {
+          "strategy": "standard",
+          "reasoning": "The question requires direct extraction of a factual statistic from the provided context (survey data). No reasoning, examples, or domain expertise is needed since the answer exists explicitly in the context. The query is straightforward with no ambiguity.",
+          "confidence": 0.95
+        }
+      },
+      "retrieved_documents": [
+        {
+          "id": 155,
+          "score": 0.02291666666666667,
+          "text": "[Document: 05-03-18-political-release.pdf]\nNearly a third of college graduates say neither party has \u2018high ethical standards\u2019 % who say \u2018high ethical standards\u2019 ... Describes both parties 17 Total Describes one party, not the other 47 Describes neither party 25 College grad+ Some coll HS or less 17 15 17 43 49 47 31 26 20 Among those with at least a college degree, 31% say \u201chigh ethical standards\u201d does not describe the GOP or the Democratic Party; 43% say it describes one and not the other, and 17% think it describes both. Republican Democrat Independent Lean Rep Lean Dem 14 18 18 18 17 34 41 37 59 55 19 18 Note: Independents include all those who do not identify as Republican or Democrat. Source: Survey of U.S. adults conducted April 25-May 1, 2018. PEW RESEARCH CENTER 34 33 33 By comparison, fewer of those with some college experience (26%) or a high school degree or less education (20%) think neither party has high ethical standards. And independents are significantly more likely than partisans to say neither party has \u201chigh ethical standards.\u201d About a third of independents (34%), including equal shares of Republican leaners and Democratic leaners (33% each) say neither party has high ethical standards. By comparison, only about two-in-ten Republicans (19%) or Democrats (18%) say this.",
+          "payload": {
+            "pdf_name": "05-03-18-political-release.pdf",
+            "pdf_path": "C:\\Users\\kiran\\Documents\\_UIS\\sem8\\DAT560_GenerativAI_10\\DAT560project\\src\\data\\train\\pdfs_train\\05-03-18-political-release.pdf",
+            "chunk_id": 15,
+            "char_len": 1309
+          }
+        },
+        {
+          "id": 6588,
+          "score": 0.02291666666666667,
+          "payload": {
+            "text": "[Document: 05-03-18-political-release.pdf]\nDon't like May 2018 19 26 54 The latest national survey by Pew Research Center, conducted April 25-May 1 among 1,503 adults, finds that 80% of Republicans and Republican-leaning independents now say they agree with Trump on many or all issues, up from 69% in August. And while just 12% of Democrats and Democratic leaners say the same today, the share of Democrats who say there are \u201cno or almost no\u201d issues where they align with Trump has dropped from 77% to 58%. Aug 2017 16 25 58 Note: Don\u2019t know responses not shown. Source: Survey of U.S. adults conducted April 25-May 1, 2018. PEW RESEARCH CENTER Democrats remain deeply critical of Trump\u2019s conduct, with 85% saying they don\u2019t like the way Trump conducts himself in office. But there is also criticism from within Trump\u2019s own party: Just 38% of Republicans say they like the way he conducts himself, while 45% say they have \u201cmixed feelings about the way he conducts himself as president.\u201d The Trump administration also gets low marks from the public for its ethical standards: 39% say the administration\u2019s ethical standards are excellent or good, while 58% rate them as not good or",
+            "pdf_name": "05-03-18-political-release.pdf",
+            "pdf_path": "../data/train/pdfs_train/05-03-18-political-release.pdf",
+            "chunk_id": 2,
+            "char_len": 1180,
+            "page_numbers": [
+              3
+            ]
+          },
+          "text": "[Document: 05-03-18-political-release.pdf]\nDon't like May 2018 19 26 54 The latest national survey by Pew Research Center, conducted April 25-May 1 among 1,503 adults, finds that 80% of Republicans and Republican-leaning independents now say they agree with Trump on many or all issues, up from 69% in August. And while just 12% of Democrats and Democratic leaners say the same today, the share of Democrats who say there are \u201cno or almost no\u201d issues where they align with Trump has dropped from 77% to 58%. Aug 2017 16 25 58 Note: Don\u2019t know responses not shown. Source: Survey of U.S. adults conducted April 25-May 1, 2018. PEW RESEARCH CENTER Democrats remain deeply critical of Trump\u2019s conduct, with 85% saying they don\u2019t like the way Trump conducts himself in office. But there is also criticism from within Trump\u2019s own party: Just 38% of Republicans say they like the way he conducts himself, while 45% say they have \u201cmixed feelings about the way he conducts himself as president.\u201d The Trump administration also gets low marks from the public for its ethical standards: 39% say the administration\u2019s ethical standards are excellent or good, while 58% rate them as not good or"
+        },
+        {
+          "id": 6601,
+          "score": 0.02291666666666667,
+          "payload": {
+            "text": "[Document: 05-03-18-political-release.pdf]\nNearly a third of college graduates say neither party has \u2018high ethical standards\u2019 % who say \u2018high ethical standards\u2019 ... Describes both parties 17 Total Describes one party, not the other 47 Describes neither party 25 College grad+ Some coll HS or less 17 15 17 43 49 47 31 26 20 Among those with at least a college degree, 31% say \u201chigh ethical standards\u201d does not describe the GOP or the Democratic Party; 43% say it describes one and not the other, and 17% think it describes both. Republican Democrat Independent Lean Rep Lean Dem 14 18 18 18 17 34 41 37 59 55 19 18 Note: Independents include all those who do not identify as Republican or Democrat. Source: Survey of U.S. adults conducted April 25-May 1, 2018. PEW RESEARCH CENTER 34 33 33 By comparison, fewer of those with some college experience (26%) or a high school degree or less education (20%) think neither party has high ethical standards. And independents are significantly more likely than partisans to say neither party has \u201chigh ethical standards.\u201d About a third of independents (34%), including equal shares of Republican leaners and Democratic leaners (33% each) say neither party has high ethical standards. By comparison, only about two-in-ten Republicans (19%) or Democrats (18%) say this.",
+            "pdf_name": "05-03-18-political-release.pdf",
+            "pdf_path": "../data/train/pdfs_train/05-03-18-political-release.pdf",
+            "chunk_id": 15,
+            "char_len": 1309,
+            "page_numbers": [
+              12
+            ]
+          },
+          "text": "[Document: 05-03-18-political-release.pdf]\nNearly a third of college graduates say neither party has \u2018high ethical standards\u2019 % who say \u2018high ethical standards\u2019 ... Describes both parties 17 Total Describes one party, not the other 47 Describes neither party 25 College grad+ Some coll HS or less 17 15 17 43 49 47 31 26 20 Among those with at least a college degree, 31% say \u201chigh ethical standards\u201d does not describe the GOP or the Democratic Party; 43% say it describes one and not the other, and 17% think it describes both. Republican Democrat Independent Lean Rep Lean Dem 14 18 18 18 17 34 41 37 59 55 19 18 Note: Independents include all those who do not identify as Republican or Democrat. Source: Survey of U.S. adults conducted April 25-May 1, 2018. PEW RESEARCH CENTER 34 33 33 By comparison, fewer of those with some college experience (26%) or a high school degree or less education (20%) think neither party has high ethical standards. And independents are significantly more likely than partisans to say neither party has \u201chigh ethical standards.\u201d About a third of independents (34%), including equal shares of Republican leaners and Democratic leaners (33% each) say neither party has high ethical standards. By comparison, only about two-in-ten Republicans (19%) or Democrats (18%) say this."
+        },
+        {
+          "id": 153,
+          "score": 0.022643442622950823,
+          "text": "[Document: 05-03-18-political-release.pdf]\nMore view GOP as \u2018too extreme\u2019 than say this about Democratic Party Overall, half the public says the Republican Party has good policy ideas, while 42% say it does not; opinions about the Democratic Party are identical (50% say it has good ideas, 42% say it does not). % who say each describes Republican/Democratic parties Republican Party Democratic Party Has good policy ideas 50 50 Opinions about whether the GOP has good policy ideas are little changed from about a year ago, but the share saying the Democratic Party has good ideas has declined, from 58% last April to 50% today. Has high ethical standards Is too extreme 41 42 42 48 About four-in-ten say each party has high ethical standards (42% say that about the Democratic Party, 41% about the GOP). These views are about the same as they were in April 2017. Source: Survey of U.S. adults conducted April 25-May 1, 2018. PEW RESEARCH CENTER More continue to view the Republican Party as \u201ctoo extreme\u201d (48%) than say this about the Democratic Party (42%). While the GOP performs worse on this trait than the Democratic Party, the share of Americans who view the Republican Party as too extreme has declined since last June (from 54%); views of the Democratic Party are little changed (45% then, 42% now).",
+          "payload": {
+            "pdf_name": "05-03-18-political-release.pdf",
+            "pdf_path": "C:\\Users\\kiran\\Documents\\_UIS\\sem8\\DAT560_GenerativAI_10\\DAT560project\\src\\data\\train\\pdfs_train\\05-03-18-political-release.pdf",
+            "chunk_id": 13,
+            "char_len": 1308
+          }
+        },
+        {
+          "id": 6589,
+          "score": 0.022643442622950823,
+          "payload": {
+            "text": "[Document: 05-03-18-political-release.pdf]\nwww.pewresearch.org 2 PEW RESEARCH CENTER poor. On these views partisans are deeply divided, with three-quarters of Republicans (75%) giving the administration high marks and 86% of Democrats rating its ethical standards negatively. Most rate top Trump administration officials\u2019 ethics as \u2018not good\u2019 or \u2018poor\u2019 % who say that the ethical standards of top Trump administration officials are \u2026 Poor Not good Good Excellent Critiques about ethical standards also extend to the two parties: Just 41% of Americans say the GOP has high ethical standards, while a nearly identical share (42%) say this about the Democratic Party. Total Rep/Lean Rep 58 36 22 7 9 39 19 Dem/Lean Dem 86 61 2 12 The Republican and Democratic parties are now seen by half of the public (50% each) as having good policy ideas, a trait the public rated Democrats higher on in 2017. And more continue to view the GOP as \u201ctoo extreme\u201d (48%) than say this of the Democratic Party (42%). Note: Don\u2019t know responses not shown. Source: Survey of U.S. adults conducted April 25-May 1, 2018.",
+            "pdf_name": "05-03-18-political-release.pdf",
+            "pdf_path": "../data/train/pdfs_train/05-03-18-political-release.pdf",
+            "chunk_id": 3,
+            "char_len": 1095,
+            "page_numbers": [
+              3,
+              4
+            ]
+          },
+          "text": "[Document: 05-03-18-political-release.pdf]\nwww.pewresearch.org 2 PEW RESEARCH CENTER poor. On these views partisans are deeply divided, with three-quarters of Republicans (75%) giving the administration high marks and 86% of Democrats rating its ethical standards negatively. Most rate top Trump administration officials\u2019 ethics as \u2018not good\u2019 or \u2018poor\u2019 % who say that the ethical standards of top Trump administration officials are \u2026 Poor Not good Good Excellent Critiques about ethical standards also extend to the two parties: Just 41% of Americans say the GOP has high ethical standards, while a nearly identical share (42%) say this about the Democratic Party. Total Rep/Lean Rep 58 36 22 7 9 39 19 Dem/Lean Dem 86 61 2 12 The Republican and Democratic parties are now seen by half of the public (50% each) as having good policy ideas, a trait the public rated Democrats higher on in 2017. And more continue to view the GOP as \u201ctoo extreme\u201d (48%) than say this of the Democratic Party (42%). Note: Don\u2019t know responses not shown. Source: Survey of U.S. adults conducted April 25-May 1, 2018."
+        }
+      ],
+      "retrieved_documents_raw": [
+        {
+          "id": 155,
+          "score": 0.02291666666666667,
+          "text": "[Document: 05-03-18-political-release.pdf]\nNearly a third of college graduates say neither party has \u2018high ethical standards\u2019 % who say \u2018high ethical standards\u2019 ... Describes both parties 17 Total Describes one party, not the other 47 Describes neither party 25 College grad+ Some coll HS or less 17 15 17 43 49 47 31 26 20 Among those with at least a college degree, 31% say \u201chigh ethical standards\u201d does not describe the GOP or the Democratic Party; 43% say it describes one and not the other, and 17% think it describes both. Republican Democrat Independent Lean Rep Lean Dem 14 18 18 18 17 34 41 37 59 55 19 18 Note: Independents include all those who do not identify as Republican or Democrat. Source: Survey of U.S. adults conducted April 25-May 1, 2018. PEW RESEARCH CENTER 34 33 33 By comparison, fewer of those with some college experience (26%) or a high school degree or less education (20%) think neither party has high ethical standards. And independents are significantly more likely than partisans to say neither party has \u201chigh ethical standards.\u201d About a third of independents (34%), including equal shares of Republican leaners and Democratic leaners (33% each) say neither party has high ethical standards. By comparison, only about two-in-ten Republicans (19%) or Democrats (18%) say this.",
+          "payload": {
+            "pdf_name": "05-03-18-political-release.pdf",
+            "pdf_path": "C:\\Users\\kiran\\Documents\\_UIS\\sem8\\DAT560_GenerativAI_10\\DAT560project\\src\\data\\train\\pdfs_train\\05-03-18-political-release.pdf",
+            "chunk_id": 15,
+            "char_len": 1309
+          }
+        },
+        {
+          "id": 6588,
+          "score": 0.02291666666666667,
+          "payload": {
+            "text": "[Document: 05-03-18-political-release.pdf]\nDon't like May 2018 19 26 54 The latest national survey by Pew Research Center, conducted April 25-May 1 among 1,503 adults, finds that 80% of Republicans and Republican-leaning independents now say they agree with Trump on many or all issues, up from 69% in August. And while just 12% of Democrats and Democratic leaners say the same today, the share of Democrats who say there are \u201cno or almost no\u201d issues where they align with Trump has dropped from 77% to 58%. Aug 2017 16 25 58 Note: Don\u2019t know responses not shown. Source: Survey of U.S. adults conducted April 25-May 1, 2018. PEW RESEARCH CENTER Democrats remain deeply critical of Trump\u2019s conduct, with 85% saying they don\u2019t like the way Trump conducts himself in office. But there is also criticism from within Trump\u2019s own party: Just 38% of Republicans say they like the way he conducts himself, while 45% say they have \u201cmixed feelings about the way he conducts himself as president.\u201d The Trump administration also gets low marks from the public for its ethical standards: 39% say the administration\u2019s ethical standards are excellent or good, while 58% rate them as not good or",
+            "pdf_name": "05-03-18-political-release.pdf",
+            "pdf_path": "../data/train/pdfs_train/05-03-18-political-release.pdf",
+            "chunk_id": 2,
+            "char_len": 1180,
+            "page_numbers": [
+              3
+            ]
+          },
+          "text": "[Document: 05-03-18-political-release.pdf]\nDon't like May 2018 19 26 54 The latest national survey by Pew Research Center, conducted April 25-May 1 among 1,503 adults, finds that 80% of Republicans and Republican-leaning independents now say they agree with Trump on many or all issues, up from 69% in August. And while just 12% of Democrats and Democratic leaners say the same today, the share of Democrats who say there are \u201cno or almost no\u201d issues where they align with Trump has dropped from 77% to 58%. Aug 2017 16 25 58 Note: Don\u2019t know responses not shown. Source: Survey of U.S. adults conducted April 25-May 1, 2018. PEW RESEARCH CENTER Democrats remain deeply critical of Trump\u2019s conduct, with 85% saying they don\u2019t like the way Trump conducts himself in office. But there is also criticism from within Trump\u2019s own party: Just 38% of Republicans say they like the way he conducts himself, while 45% say they have \u201cmixed feelings about the way he conducts himself as president.\u201d The Trump administration also gets low marks from the public for its ethical standards: 39% say the administration\u2019s ethical standards are excellent or good, while 58% rate them as not good or"
+        },
+        {
+          "id": 6601,
+          "score": 0.02291666666666667,
+          "payload": {
+            "text": "[Document: 05-03-18-political-release.pdf]\nNearly a third of college graduates say neither party has \u2018high ethical standards\u2019 % who say \u2018high ethical standards\u2019 ... Describes both parties 17 Total Describes one party, not the other 47 Describes neither party 25 College grad+ Some coll HS or less 17 15 17 43 49 47 31 26 20 Among those with at least a college degree, 31% say \u201chigh ethical standards\u201d does not describe the GOP or the Democratic Party; 43% say it describes one and not the other, and 17% think it describes both. Republican Democrat Independent Lean Rep Lean Dem 14 18 18 18 17 34 41 37 59 55 19 18 Note: Independents include all those who do not identify as Republican or Democrat. Source: Survey of U.S. adults conducted April 25-May 1, 2018. PEW RESEARCH CENTER 34 33 33 By comparison, fewer of those with some college experience (26%) or a high school degree or less education (20%) think neither party has high ethical standards. And independents are significantly more likely than partisans to say neither party has \u201chigh ethical standards.\u201d About a third of independents (34%), including equal shares of Republican leaners and Democratic leaners (33% each) say neither party has high ethical standards. By comparison, only about two-in-ten Republicans (19%) or Democrats (18%) say this.",
+            "pdf_name": "05-03-18-political-release.pdf",
+            "pdf_path": "../data/train/pdfs_train/05-03-18-political-release.pdf",
+            "chunk_id": 15,
+            "char_len": 1309,
+            "page_numbers": [
+              12
+            ]
+          },
+          "text": "[Document: 05-03-18-political-release.pdf]\nNearly a third of college graduates say neither party has \u2018high ethical standards\u2019 % who say \u2018high ethical standards\u2019 ... Describes both parties 17 Total Describes one party, not the other 47 Describes neither party 25 College grad+ Some coll HS or less 17 15 17 43 49 47 31 26 20 Among those with at least a college degree, 31% say \u201chigh ethical standards\u201d does not describe the GOP or the Democratic Party; 43% say it describes one and not the other, and 17% think it describes both. Republican Democrat Independent Lean Rep Lean Dem 14 18 18 18 17 34 41 37 59 55 19 18 Note: Independents include all those who do not identify as Republican or Democrat. Source: Survey of U.S. adults conducted April 25-May 1, 2018. PEW RESEARCH CENTER 34 33 33 By comparison, fewer of those with some college experience (26%) or a high school degree or less education (20%) think neither party has high ethical standards. And independents are significantly more likely than partisans to say neither party has \u201chigh ethical standards.\u201d About a third of independents (34%), including equal shares of Republican leaners and Democratic leaners (33% each) say neither party has high ethical standards. By comparison, only about two-in-ten Republicans (19%) or Democrats (18%) say this."
+        },
+        {
+          "id": 153,
+          "score": 0.022643442622950823,
+          "text": "[Document: 05-03-18-political-release.pdf]\nMore view GOP as \u2018too extreme\u2019 than say this about Democratic Party Overall, half the public says the Republican Party has good policy ideas, while 42% say it does not; opinions about the Democratic Party are identical (50% say it has good ideas, 42% say it does not). % who say each describes Republican/Democratic parties Republican Party Democratic Party Has good policy ideas 50 50 Opinions about whether the GOP has good policy ideas are little changed from about a year ago, but the share saying the Democratic Party has good ideas has declined, from 58% last April to 50% today. Has high ethical standards Is too extreme 41 42 42 48 About four-in-ten say each party has high ethical standards (42% say that about the Democratic Party, 41% about the GOP). These views are about the same as they were in April 2017. Source: Survey of U.S. adults conducted April 25-May 1, 2018. PEW RESEARCH CENTER More continue to view the Republican Party as \u201ctoo extreme\u201d (48%) than say this about the Democratic Party (42%). While the GOP performs worse on this trait than the Democratic Party, the share of Americans who view the Republican Party as too extreme has declined since last June (from 54%); views of the Democratic Party are little changed (45% then, 42% now).",
+          "payload": {
+            "pdf_name": "05-03-18-political-release.pdf",
+            "pdf_path": "C:\\Users\\kiran\\Documents\\_UIS\\sem8\\DAT560_GenerativAI_10\\DAT560project\\src\\data\\train\\pdfs_train\\05-03-18-political-release.pdf",
+            "chunk_id": 13,
+            "char_len": 1308
+          }
+        },
+        {
+          "id": 6589,
+          "score": 0.022643442622950823,
+          "payload": {
+            "text": "[Document: 05-03-18-political-release.pdf]\nwww.pewresearch.org 2 PEW RESEARCH CENTER poor. On these views partisans are deeply divided, with three-quarters of Republicans (75%) giving the administration high marks and 86% of Democrats rating its ethical standards negatively. Most rate top Trump administration officials\u2019 ethics as \u2018not good\u2019 or \u2018poor\u2019 % who say that the ethical standards of top Trump administration officials are \u2026 Poor Not good Good Excellent Critiques about ethical standards also extend to the two parties: Just 41% of Americans say the GOP has high ethical standards, while a nearly identical share (42%) say this about the Democratic Party. Total Rep/Lean Rep 58 36 22 7 9 39 19 Dem/Lean Dem 86 61 2 12 The Republican and Democratic parties are now seen by half of the public (50% each) as having good policy ideas, a trait the public rated Democrats higher on in 2017. And more continue to view the GOP as \u201ctoo extreme\u201d (48%) than say this of the Democratic Party (42%). Note: Don\u2019t know responses not shown. Source: Survey of U.S. adults conducted April 25-May 1, 2018.",
+            "pdf_name": "05-03-18-political-release.pdf",
+            "pdf_path": "../data/train/pdfs_train/05-03-18-political-release.pdf",
+            "chunk_id": 3,
+            "char_len": 1095,
+            "page_numbers": [
+              3,
+              4
+            ]
+          },
+          "text": "[Document: 05-03-18-political-release.pdf]\nwww.pewresearch.org 2 PEW RESEARCH CENTER poor. On these views partisans are deeply divided, with three-quarters of Republicans (75%) giving the administration high marks and 86% of Democrats rating its ethical standards negatively. Most rate top Trump administration officials\u2019 ethics as \u2018not good\u2019 or \u2018poor\u2019 % who say that the ethical standards of top Trump administration officials are \u2026 Poor Not good Good Excellent Critiques about ethical standards also extend to the two parties: Just 41% of Americans say the GOP has high ethical standards, while a nearly identical share (42%) say this about the Democratic Party. Total Rep/Lean Rep 58 36 22 7 9 39 19 Dem/Lean Dem 86 61 2 12 The Republican and Democratic parties are now seen by half of the public (50% each) as having good policy ideas, a trait the public rated Democrats higher on in 2017. And more continue to view the GOP as \u201ctoo extreme\u201d (48%) than say this of the Democratic Party (42%). Note: Don\u2019t know responses not shown. Source: Survey of U.S. adults conducted April 25-May 1, 2018."
+        }
+      ],
+      "confidence": 0.95,
+      "num_docs_retrieved": 5,
+      "ground_truth": 128
+    },
+    {
+      "question": "What part of the esophagus is just3 above the cardioesophageal junction as seen in the figure?",
+      "answer": "Lower thoracic esophagus",
+      "agent_decisions": {
+        "query_rewriter": {
+          "technique": "step_back",
+          "reasoning": "The question is highly specific about a particular anatomical location (just above the cardioesophageal junction). Step_back abstracts to broader concepts first, which can provide necessary contextual understanding of the esophagus structure before narrowing down to the exact region mentioned. This helps ensure retrieval of foundational anatomical information that can clarify the specific part referenced in the figure.",
+          "rewritten_queries": [
+            "What part of the esophagus is just3 above the cardioesophageal junction as seen in the figure?"
+          ]
+        },
+        "grader": {
+          "relevant": "yes",
+          "confidence": 0.9,
+          "num_relevant": 1,
+          "reasoning": "Doc 2 explicitly mentions the 'Cardioesophageal Junction' and describes anatomical divisions of the esophagus (e.g., 'Upperthorace esophagus'), which directly address the question. The other documents are unrelated to esophageal anatomy or the cardioesophageal junction."
+        },
+        "generator": {
+          "strategy": "standard",
+          "reasoning": "The question is straightforward and domain-specific but likely requires direct extraction from provided context/documents. Since the cardioesophageal junction's anatomical regions are well-defined in medical literature, and the context is available, the answer is likely explicitly stated in the text/figure caption.",
+          "confidence": 0.85
+        }
+      },
+      "retrieved_documents": [
+        {
+          "id": 2993,
+          "score": 0.026984126984126985,
+          "payload": {
+            "text": "[Document: 2309.17421v2.pdf]\n99 GPT-4V Prompt:Write a radiology report for this image as an expert radiologist.. GPT-4V:Radiology ReportDate: 03/23/2021Exam: Abdominal x-rayHistory: Patient presents with abdominal pain and distentionFindings: The abdominal x-ray demonstrates a dilated stomach and small bowel loops, suggestive of a partial small bowel obstruction. There is also a small amount of air in the rectum. No free intraperitoneal air or pneumoperitoneum is noted. The liver, spleen, and kidneys appear unremarkable.Impression: Findings are suggestive of a partial small bowel obstruction. Further imaging studies and clinical correlation are recommended. Radiology Report Generation Evaluation from Professionals: Correct study identification, correct diagnosis Sec. 9.3 Medical Prompt:Write a radiology report as an expert radiologist for the following case. GPT-4V:Report:MRI of the right knee demonstrates a large joint effusion, which is most pronounced in the suprapatellar region. There is also evidence of a tear in the medial meniscus, as well as mild degenerative changes in the articular cartilage. The anterior cruciate ligament and posterior cruciate ligament are intact. The extensor mechanism is also intact. No other significant abnormalities are seen.Impression: Large joint effusion and medial meniscal tear in the right knee, with mild degenerative changes in the articular cartilage.",
+            "pdf_name": "2309.17421v2.pdf",
+            "pdf_path": "../data/train/pdfs_train/2309.17421v2.pdf",
+            "chunk_id": 167,
+            "char_len": 1413,
+            "page_numbers": [
+              99,
+              100
+            ]
+          },
+          "text": "[Document: 2309.17421v2.pdf]\n99 GPT-4V Prompt:Write a radiology report for this image as an expert radiologist.. GPT-4V:Radiology ReportDate: 03/23/2021Exam: Abdominal x-rayHistory: Patient presents with abdominal pain and distentionFindings: The abdominal x-ray demonstrates a dilated stomach and small bowel loops, suggestive of a partial small bowel obstruction. There is also a small amount of air in the rectum. No free intraperitoneal air or pneumoperitoneum is noted. The liver, spleen, and kidneys appear unremarkable.Impression: Findings are suggestive of a partial small bowel obstruction. Further imaging studies and clinical correlation are recommended. Radiology Report Generation Evaluation from Professionals: Correct study identification, correct diagnosis Sec. 9.3 Medical Prompt:Write a radiology report as an expert radiologist for the following case. GPT-4V:Report:MRI of the right knee demonstrates a large joint effusion, which is most pronounced in the suprapatellar region. There is also evidence of a tear in the medial meniscus, as well as mild degenerative changes in the articular cartilage. The anterior cruciate ligament and posterior cruciate ligament are intact. The extensor mechanism is also intact. No other significant abnormalities are seen.Impression: Large joint effusion and medial meniscal tear in the right knee, with mild degenerative changes in the articular cartilage."
+        },
+        {
+          "id": 6239,
+          "score": 0.02291666666666667,
+          "payload": {
+            "text": "[Document: bariumswallowpresentation-090810084400-phpapp01_95.pdf]\n(7B Upper 1 (Proximal) Ve er fi al Fy lt Pit yap | La | ty i Wee A a \u2018J Middle 173 Lone 12 T10 tie (Distal Cardicesophageal Junction Incisors u Subsite Description 1 Cemical esophagus 16 Upperthorace esophagus 24 hid thoracic esophagus ae Lower thoracic esophagus 40 ESOPHAGEAL CONSTRICTION \u00a2 Superiorly: level of Cricoid cartilage, juncture with pharynx fat inion phan y e Middle: crossed by aorta and left main bronchi e Inferiorly: diaphragmatic sphincter Two high pressure zones prevent the backflow of food: Upper Esophageal sphincter. Lower Esophageal sphincter. located at upper and lower end of esophagus. LAYERS OF ESOPHAGUS Structurally, esophagus wall composed of 4 layers: Innermost mucosa, Submucosa, Muscularis propria Adventitia. No serosa. SUPPLY Arterial supply Branches of inf thyroid artery - UES & cervical esophagus. Paired aortic esophageal arteries or terminal br.of bronchial artery \u2014 thoracic esophagus Left gastric & br.of left phrenic art- LES & distal esophagus scapaet sa>ene REE inforiar thyroid Caamia on Cano oor Seite laeyd ar",
+            "pdf_name": "bariumswallowpresentation-090810084400-phpapp01_95.pdf",
+            "pdf_path": "../data/train/pdfs_train/bariumswallowpresentation-090810084400-phpapp01_95.pdf",
+            "chunk_id": 4,
+            "char_len": 1126,
+            "page_numbers": [
+              19,
+              20,
+              21,
+              22,
+              23,
+              24
+            ]
+          },
+          "text": "[Document: bariumswallowpresentation-090810084400-phpapp01_95.pdf]\n(7B Upper 1 (Proximal) Ve er fi al Fy lt Pit yap | La | ty i Wee A a \u2018J Middle 173 Lone 12 T10 tie (Distal Cardicesophageal Junction Incisors u Subsite Description 1 Cemical esophagus 16 Upperthorace esophagus 24 hid thoracic esophagus ae Lower thoracic esophagus 40 ESOPHAGEAL CONSTRICTION \u00a2 Superiorly: level of Cricoid cartilage, juncture with pharynx fat inion phan y e Middle: crossed by aorta and left main bronchi e Inferiorly: diaphragmatic sphincter Two high pressure zones prevent the backflow of food: Upper Esophageal sphincter. Lower Esophageal sphincter. located at upper and lower end of esophagus. LAYERS OF ESOPHAGUS Structurally, esophagus wall composed of 4 layers: Innermost mucosa, Submucosa, Muscularis propria Adventitia. No serosa. SUPPLY Arterial supply Branches of inf thyroid artery - UES & cervical esophagus. Paired aortic esophageal arteries or terminal br.of bronchial artery \u2014 thoracic esophagus Left gastric & br.of left phrenic art- LES & distal esophagus scapaet sa>ene REE inforiar thyroid Caamia on Cano oor Seite laeyd ar"
+        },
+        {
+          "id": 1312,
+          "score": 0.02291666666666667,
+          "text": "[Document: 2405.09818v1.pdf]\nResponse: def find_duplicate(my_list): seen = set() for num in my_list: if num in seen: return num seen.add(num) return None (a) Text (b) Code (c) Image Generation Gyumri is an urban municipal community and the second-largest city in Armenia, serving as the ad- ministrative center of Shirak Province in the north- western part of the country. Prompt: Which elements contribute to this flower arrangement\u2019s distinctiveness, and what sets its sur- roundings apart? Response: The image features an autumnal-themed floral arrangement in a classically designed vase. The arrangement stands out with its striking com- bination of red maple leaves, purple flowers, and pink-red roses. The vase\u2019s rosettes give it an antique design. In the background, blurry green vegetation is visible, creating a contrast to the autumnal theme of the bouquet. The red maple leaves, both in the arrangement and scattered around the vase, evoke autumn, while the green vegetation suggests a more summer-like setting. The outdoor setting is bright and sunny, adding to the contrast between the ar- rangement and its settings.",
+          "payload": {
+            "pdf_name": "2405.09818v1.pdf",
+            "pdf_path": "C:\\Users\\kiran\\Documents\\_UIS\\sem8\\DAT560_GenerativAI_10\\DAT560project\\src\\data\\train\\pdfs_train\\2405.09818v1.pdf",
+            "chunk_id": 23,
+            "char_len": 1130
+          }
+        },
+        {
+          "id": 5985,
+          "score": 0.02291666666666667,
+          "text": "[Document: Sinopolis-Chengdu.pdf]\nHehuachi Lotus Pond Market, to give it its English name, sits at the SINOPOLIS: CHENGDU opposite end of the spectrum from the luxury retailers listed above. Appropriately enough, it is also at the opposite end of the city, near the North Train Station. This market is not nearly as serene as its name suggests. Arguably Southwest China\u2019s largest wholesale market, this bustling junction is a parade of stalls divided into sections based on product: menswear, womenswear, babywear, accessories, and so forth. Finding the section you want can be an adventure and then finding an item you desire at the right price is another. There are a few different precincts within this market (such as the stationery section) and the boundaries between them are blurred by the throngs of porters on the streets. But a short stroll from this beehive is a Wanda Plaza, for your more conventional shopping needs. n SINOPOLIS: CHENGDU Hehuachi Stationery market RETAIL 83 RETAIL The New Century Global Centre welcomed 20 million visitors last year",
+          "payload": {
+            "pdf_name": "Sinopolis-Chengdu.pdf",
+            "pdf_path": "C:\\Users\\kiran\\Documents\\_UIS\\sem8\\DAT560_GenerativAI_10\\DAT560project\\src\\data\\train\\pdfs_train\\Sinopolis-Chengdu.pdf",
+            "chunk_id": 93,
+            "char_len": 1063
+          }
+        },
+        {
+          "id": 6243,
+          "score": 0.022643442622950823,
+          "payload": {
+            "text": "[Document: bariumswallowpresentation-090810084400-phpapp01_95.pdf]\nSS \u2014 Branch te esophagus and recument nema from stellate ganglion Gemicothoracia stellate) ganglion Lett recument lanngeal nenme Thoracic Gragal and sympathetic) cardiac Granches Cardiac plexus Fulmonan plexuses Esophageal plexus Lanterior portions Branehes to esophageal Plexus Tram svmpathetic trunk, greater splanchnie hermes and thoracic aonic plexus Lett greatersplanchni\u00a2 nenre Anterior vagal trunk Wagal branch to hepatic plexus wia lester omentum Wagal branch te fundus and body ofstemach LYMPHATIC DRAINAGE Originate from 2 plexus-submucosal layer & other within the muscle layer. Upper 2/3 flow in cranial direction. Lower 1/3 flow in caudal direction. Lymph Vessels and Nodes of Esophagus = = =] ) \u2014Inficnor deep cervical i \u2019 fgnterrval jumular) mocdles : a Thoracic chuct Paratracneca nodes \u2014_ \u2014 Piesterrnar mech astirvadl Peg Eero panetal mocdes noes SUP ericar ceed tewherico trrachoenhbronchial notes \u2014-[niercest al neces SUP eErior wel enic narces Lett 2aStric mest s eardiae Medes al starmmach) juxtacsophogeal a ahOEGl SLILPGs Par ral",
+            "pdf_name": "bariumswallowpresentation-090810084400-phpapp01_95.pdf",
+            "pdf_path": "../data/train/pdfs_train/bariumswallowpresentation-090810084400-phpapp01_95.pdf",
+            "chunk_id": 8,
+            "char_len": 1119,
+            "page_numbers": [
+              28,
+              29,
+              30
+            ]
+          },
+          "text": "[Document: bariumswallowpresentation-090810084400-phpapp01_95.pdf]\nSS \u2014 Branch te esophagus and recument nema from stellate ganglion Gemicothoracia stellate) ganglion Lett recument lanngeal nenme Thoracic Gragal and sympathetic) cardiac Granches Cardiac plexus Fulmonan plexuses Esophageal plexus Lanterior portions Branehes to esophageal Plexus Tram svmpathetic trunk, greater splanchnie hermes and thoracic aonic plexus Lett greatersplanchni\u00a2 nenre Anterior vagal trunk Wagal branch to hepatic plexus wia lester omentum Wagal branch te fundus and body ofstemach LYMPHATIC DRAINAGE Originate from 2 plexus-submucosal layer & other within the muscle layer. Upper 2/3 flow in cranial direction. Lower 1/3 flow in caudal direction. Lymph Vessels and Nodes of Esophagus = = =] ) \u2014Inficnor deep cervical i \u2019 fgnterrval jumular) mocdles : a Thoracic chuct Paratracneca nodes \u2014_ \u2014 Piesterrnar mech astirvadl Peg Eero panetal mocdes noes SUP ericar ceed tewherico trrachoenhbronchial notes \u2014-[niercest al neces SUP eErior wel enic narces Lett 2aStric mest s eardiae Medes al starmmach) juxtacsophogeal a ahOEGl SLILPGs Par ral"
+        }
+      ],
+      "retrieved_documents_raw": [
+        {
+          "id": 2993,
+          "score": 0.026984126984126985,
+          "payload": {
+            "text": "[Document: 2309.17421v2.pdf]\n99 GPT-4V Prompt:Write a radiology report for this image as an expert radiologist.. GPT-4V:Radiology ReportDate: 03/23/2021Exam: Abdominal x-rayHistory: Patient presents with abdominal pain and distentionFindings: The abdominal x-ray demonstrates a dilated stomach and small bowel loops, suggestive of a partial small bowel obstruction. There is also a small amount of air in the rectum. No free intraperitoneal air or pneumoperitoneum is noted. The liver, spleen, and kidneys appear unremarkable.Impression: Findings are suggestive of a partial small bowel obstruction. Further imaging studies and clinical correlation are recommended. Radiology Report Generation Evaluation from Professionals: Correct study identification, correct diagnosis Sec. 9.3 Medical Prompt:Write a radiology report as an expert radiologist for the following case. GPT-4V:Report:MRI of the right knee demonstrates a large joint effusion, which is most pronounced in the suprapatellar region. There is also evidence of a tear in the medial meniscus, as well as mild degenerative changes in the articular cartilage. The anterior cruciate ligament and posterior cruciate ligament are intact. The extensor mechanism is also intact. No other significant abnormalities are seen.Impression: Large joint effusion and medial meniscal tear in the right knee, with mild degenerative changes in the articular cartilage.",
+            "pdf_name": "2309.17421v2.pdf",
+            "pdf_path": "../data/train/pdfs_train/2309.17421v2.pdf",
+            "chunk_id": 167,
+            "char_len": 1413,
+            "page_numbers": [
+              99,
+              100
+            ]
+          },
+          "text": "[Document: 2309.17421v2.pdf]\n99 GPT-4V Prompt:Write a radiology report for this image as an expert radiologist.. GPT-4V:Radiology ReportDate: 03/23/2021Exam: Abdominal x-rayHistory: Patient presents with abdominal pain and distentionFindings: The abdominal x-ray demonstrates a dilated stomach and small bowel loops, suggestive of a partial small bowel obstruction. There is also a small amount of air in the rectum. No free intraperitoneal air or pneumoperitoneum is noted. The liver, spleen, and kidneys appear unremarkable.Impression: Findings are suggestive of a partial small bowel obstruction. Further imaging studies and clinical correlation are recommended. Radiology Report Generation Evaluation from Professionals: Correct study identification, correct diagnosis Sec. 9.3 Medical Prompt:Write a radiology report as an expert radiologist for the following case. GPT-4V:Report:MRI of the right knee demonstrates a large joint effusion, which is most pronounced in the suprapatellar region. There is also evidence of a tear in the medial meniscus, as well as mild degenerative changes in the articular cartilage. The anterior cruciate ligament and posterior cruciate ligament are intact. The extensor mechanism is also intact. No other significant abnormalities are seen.Impression: Large joint effusion and medial meniscal tear in the right knee, with mild degenerative changes in the articular cartilage."
+        },
+        {
+          "id": 6239,
+          "score": 0.02291666666666667,
+          "payload": {
+            "text": "[Document: bariumswallowpresentation-090810084400-phpapp01_95.pdf]\n(7B Upper 1 (Proximal) Ve er fi al Fy lt Pit yap | La | ty i Wee A a \u2018J Middle 173 Lone 12 T10 tie (Distal Cardicesophageal Junction Incisors u Subsite Description 1 Cemical esophagus 16 Upperthorace esophagus 24 hid thoracic esophagus ae Lower thoracic esophagus 40 ESOPHAGEAL CONSTRICTION \u00a2 Superiorly: level of Cricoid cartilage, juncture with pharynx fat inion phan y e Middle: crossed by aorta and left main bronchi e Inferiorly: diaphragmatic sphincter Two high pressure zones prevent the backflow of food: Upper Esophageal sphincter. Lower Esophageal sphincter. located at upper and lower end of esophagus. LAYERS OF ESOPHAGUS Structurally, esophagus wall composed of 4 layers: Innermost mucosa, Submucosa, Muscularis propria Adventitia. No serosa. SUPPLY Arterial supply Branches of inf thyroid artery - UES & cervical esophagus. Paired aortic esophageal arteries or terminal br.of bronchial artery \u2014 thoracic esophagus Left gastric & br.of left phrenic art- LES & distal esophagus scapaet sa>ene REE inforiar thyroid Caamia on Cano oor Seite laeyd ar",
+            "pdf_name": "bariumswallowpresentation-090810084400-phpapp01_95.pdf",
+            "pdf_path": "../data/train/pdfs_train/bariumswallowpresentation-090810084400-phpapp01_95.pdf",
+            "chunk_id": 4,
+            "char_len": 1126,
+            "page_numbers": [
+              19,
+              20,
+              21,
+              22,
+              23,
+              24
+            ]
+          },
+          "text": "[Document: bariumswallowpresentation-090810084400-phpapp01_95.pdf]\n(7B Upper 1 (Proximal) Ve er fi al Fy lt Pit yap | La | ty i Wee A a \u2018J Middle 173 Lone 12 T10 tie (Distal Cardicesophageal Junction Incisors u Subsite Description 1 Cemical esophagus 16 Upperthorace esophagus 24 hid thoracic esophagus ae Lower thoracic esophagus 40 ESOPHAGEAL CONSTRICTION \u00a2 Superiorly: level of Cricoid cartilage, juncture with pharynx fat inion phan y e Middle: crossed by aorta and left main bronchi e Inferiorly: diaphragmatic sphincter Two high pressure zones prevent the backflow of food: Upper Esophageal sphincter. Lower Esophageal sphincter. located at upper and lower end of esophagus. LAYERS OF ESOPHAGUS Structurally, esophagus wall composed of 4 layers: Innermost mucosa, Submucosa, Muscularis propria Adventitia. No serosa. SUPPLY Arterial supply Branches of inf thyroid artery - UES & cervical esophagus. Paired aortic esophageal arteries or terminal br.of bronchial artery \u2014 thoracic esophagus Left gastric & br.of left phrenic art- LES & distal esophagus scapaet sa>ene REE inforiar thyroid Caamia on Cano oor Seite laeyd ar"
+        },
+        {
+          "id": 1312,
+          "score": 0.02291666666666667,
+          "text": "[Document: 2405.09818v1.pdf]\nResponse: def find_duplicate(my_list): seen = set() for num in my_list: if num in seen: return num seen.add(num) return None (a) Text (b) Code (c) Image Generation Gyumri is an urban municipal community and the second-largest city in Armenia, serving as the ad- ministrative center of Shirak Province in the north- western part of the country. Prompt: Which elements contribute to this flower arrangement\u2019s distinctiveness, and what sets its sur- roundings apart? Response: The image features an autumnal-themed floral arrangement in a classically designed vase. The arrangement stands out with its striking com- bination of red maple leaves, purple flowers, and pink-red roses. The vase\u2019s rosettes give it an antique design. In the background, blurry green vegetation is visible, creating a contrast to the autumnal theme of the bouquet. The red maple leaves, both in the arrangement and scattered around the vase, evoke autumn, while the green vegetation suggests a more summer-like setting. The outdoor setting is bright and sunny, adding to the contrast between the ar- rangement and its settings.",
+          "payload": {
+            "pdf_name": "2405.09818v1.pdf",
+            "pdf_path": "C:\\Users\\kiran\\Documents\\_UIS\\sem8\\DAT560_GenerativAI_10\\DAT560project\\src\\data\\train\\pdfs_train\\2405.09818v1.pdf",
+            "chunk_id": 23,
+            "char_len": 1130
+          }
+        },
+        {
+          "id": 5985,
+          "score": 0.02291666666666667,
+          "text": "[Document: Sinopolis-Chengdu.pdf]\nHehuachi Lotus Pond Market, to give it its English name, sits at the SINOPOLIS: CHENGDU opposite end of the spectrum from the luxury retailers listed above. Appropriately enough, it is also at the opposite end of the city, near the North Train Station. This market is not nearly as serene as its name suggests. Arguably Southwest China\u2019s largest wholesale market, this bustling junction is a parade of stalls divided into sections based on product: menswear, womenswear, babywear, accessories, and so forth. Finding the section you want can be an adventure and then finding an item you desire at the right price is another. There are a few different precincts within this market (such as the stationery section) and the boundaries between them are blurred by the throngs of porters on the streets. But a short stroll from this beehive is a Wanda Plaza, for your more conventional shopping needs. n SINOPOLIS: CHENGDU Hehuachi Stationery market RETAIL 83 RETAIL The New Century Global Centre welcomed 20 million visitors last year",
+          "payload": {
+            "pdf_name": "Sinopolis-Chengdu.pdf",
+            "pdf_path": "C:\\Users\\kiran\\Documents\\_UIS\\sem8\\DAT560_GenerativAI_10\\DAT560project\\src\\data\\train\\pdfs_train\\Sinopolis-Chengdu.pdf",
+            "chunk_id": 93,
+            "char_len": 1063
+          }
+        },
+        {
+          "id": 6243,
+          "score": 0.022643442622950823,
+          "payload": {
+            "text": "[Document: bariumswallowpresentation-090810084400-phpapp01_95.pdf]\nSS \u2014 Branch te esophagus and recument nema from stellate ganglion Gemicothoracia stellate) ganglion Lett recument lanngeal nenme Thoracic Gragal and sympathetic) cardiac Granches Cardiac plexus Fulmonan plexuses Esophageal plexus Lanterior portions Branehes to esophageal Plexus Tram svmpathetic trunk, greater splanchnie hermes and thoracic aonic plexus Lett greatersplanchni\u00a2 nenre Anterior vagal trunk Wagal branch to hepatic plexus wia lester omentum Wagal branch te fundus and body ofstemach LYMPHATIC DRAINAGE Originate from 2 plexus-submucosal layer & other within the muscle layer. Upper 2/3 flow in cranial direction. Lower 1/3 flow in caudal direction. Lymph Vessels and Nodes of Esophagus = = =] ) \u2014Inficnor deep cervical i \u2019 fgnterrval jumular) mocdles : a Thoracic chuct Paratracneca nodes \u2014_ \u2014 Piesterrnar mech astirvadl Peg Eero panetal mocdes noes SUP ericar ceed tewherico trrachoenhbronchial notes \u2014-[niercest al neces SUP eErior wel enic narces Lett 2aStric mest s eardiae Medes al starmmach) juxtacsophogeal a ahOEGl SLILPGs Par ral",
+            "pdf_name": "bariumswallowpresentation-090810084400-phpapp01_95.pdf",
+            "pdf_path": "../data/train/pdfs_train/bariumswallowpresentation-090810084400-phpapp01_95.pdf",
+            "chunk_id": 8,
+            "char_len": 1119,
+            "page_numbers": [
+              28,
+              29,
+              30
+            ]
+          },
+          "text": "[Document: bariumswallowpresentation-090810084400-phpapp01_95.pdf]\nSS \u2014 Branch te esophagus and recument nema from stellate ganglion Gemicothoracia stellate) ganglion Lett recument lanngeal nenme Thoracic Gragal and sympathetic) cardiac Granches Cardiac plexus Fulmonan plexuses Esophageal plexus Lanterior portions Branehes to esophageal Plexus Tram svmpathetic trunk, greater splanchnie hermes and thoracic aonic plexus Lett greatersplanchni\u00a2 nenre Anterior vagal trunk Wagal branch to hepatic plexus wia lester omentum Wagal branch te fundus and body ofstemach LYMPHATIC DRAINAGE Originate from 2 plexus-submucosal layer & other within the muscle layer. Upper 2/3 flow in cranial direction. Lower 1/3 flow in caudal direction. Lymph Vessels and Nodes of Esophagus = = =] ) \u2014Inficnor deep cervical i \u2019 fgnterrval jumular) mocdles : a Thoracic chuct Paratracneca nodes \u2014_ \u2014 Piesterrnar mech astirvadl Peg Eero panetal mocdes noes SUP ericar ceed tewherico trrachoenhbronchial notes \u2014-[niercest al neces SUP eErior wel enic narces Lett 2aStric mest s eardiae Medes al starmmach) juxtacsophogeal a ahOEGl SLILPGs Par ral"
+        }
+      ],
+      "confidence": 0.85,
+      "num_docs_retrieved": 5,
+      "ground_truth": "Lower thoracic esophagus"
+    },
+    {
+      "question": "Which email should an exchange student contact for housing matters?",
+      "answer": "has-exch@ntu.edu.sg",
+      "agent_decisions": {
+        "query_rewriter": {
+          "technique": "step_back",
+          "reasoning": "The query is specific ('which email') but requires contextual understanding of institutional structures (e.g., housing departments). Abstracting to a broader concept like 'housing contact information for exchange students' can retrieve more relevant results by capturing necessary contextual details.",
+          "rewritten_queries": [
+            "Which email should an exchange student contact for housing matters?"
+          ]
+        },
+        "grader": {
+          "relevant": "yes",
+          "confidence": 0.95,
+          "num_relevant": 4,
+          "reasoning": "Documents 1, 2, 4, and 5 explicitly list the email 'has-exch@ntu.edu.sg' for Exchange Students under housing matters. The information is directly relevant and consistently repeated across multiple documents. Document 3 is unrelated to housing."
+        },
+        "generator": {
+          "strategy": "standard",
+          "reasoning": "The question is straightforward and requires direct extraction of a specific contact email from the provided context. No complex reasoning or domain expertise is needed, and the answer is likely explicitly stated in the relevant documents.",
+          "confidence": 0.95
+        }
+      },
+      "retrieved_documents": [
+        {
+          "id": 5210,
+          "score": 0.02291666666666667,
+          "text": "[Document: StudentSupport_Guidebook.pdf]\nFor further enquiries on housing matters, please contact the Office of Housing and Auxiliary Services (HAS), the office administrating on-campus and off-campus housing, via email. You can also visit www.ntu.edu.sg/has for more information on campus and off-campus housing. Category Undergraduate Students Graduate Students Exchange Students Contact has-ug@ntu.edu.sg has-pg@ntu.edu.sg has-exch@ntu.edu.sg Register with SAO-Student Support Matriculation Please settle into your housing before registering with SAO-Student Support during office hours to complete the registration procedures and be briefed on the procedures to complete the Student\u2019s Pass formalities. Do bring along your passport, embarkation card, Letter of Admission/Enrolment, receipts for any NTU\u2019s Miscellaneous Fee payment. Matriculation refers to the process of registering as a student of the university. After you have completed all matriculation procedures, NTU will issue you with a matriculation card identifying you as its student.",
+          "payload": {
+            "pdf_name": "StudentSupport_Guidebook.pdf",
+            "pdf_path": "C:\\Users\\kiran\\Documents\\_UIS\\sem8\\DAT560_GenerativAI_10\\DAT560project\\src\\data\\train\\pdfs_train\\StudentSupport_Guidebook.pdf",
+            "chunk_id": 15,
+            "char_len": 1050
+          }
+        },
+        {
+          "id": 418,
+          "score": 0.02291666666666667,
+          "payload": {
+            "text": "[Document: SAO-StudentSupport_Guidebook-Content.pdf]\nFor further enquiries on housing matters, please contact the Office of Housing and Auxiliary Services (HAS), the office administrating on-campus and off-campus housing, via email. You can also visit www.ntu.edu.sg/has for more information on campus and off-campus housing. Category Undergraduate Students Graduate Students Exchange Students Contact has-ug@ntu.edu.sg has-pg@ntu.edu.sg has-exch@ntu.edu.sg Register with SAO-Student Support Matriculation Please settle into your housing before registering with SAO-Student Support during office hours to complete the registration procedures and be briefed on the procedures to complete the Student\u2019s Pass formalities. Do bring along your passport, embarkation card, Letter of Admission/Enrolment, receipts for any NTU\u2019s Miscellaneous Fee payment. Matriculation refers to the process of registering as a student of the university. After you have completed all matriculation procedures, NTU will issue you with a matriculation card identifying you as its student.",
+            "pdf_name": "SAO-StudentSupport_Guidebook-Content.pdf",
+            "pdf_path": "../data/train/pdfs_train/SAO-StudentSupport_Guidebook-Content.pdf",
+            "chunk_id": 15,
+            "char_len": 1062,
+            "page_numbers": [
+              13
+            ]
+          },
+          "text": "[Document: SAO-StudentSupport_Guidebook-Content.pdf]\nFor further enquiries on housing matters, please contact the Office of Housing and Auxiliary Services (HAS), the office administrating on-campus and off-campus housing, via email. You can also visit www.ntu.edu.sg/has for more information on campus and off-campus housing. Category Undergraduate Students Graduate Students Exchange Students Contact has-ug@ntu.edu.sg has-pg@ntu.edu.sg has-exch@ntu.edu.sg Register with SAO-Student Support Matriculation Please settle into your housing before registering with SAO-Student Support during office hours to complete the registration procedures and be briefed on the procedures to complete the Student\u2019s Pass formalities. Do bring along your passport, embarkation card, Letter of Admission/Enrolment, receipts for any NTU\u2019s Miscellaneous Fee payment. Matriculation refers to the process of registering as a student of the university. After you have completed all matriculation procedures, NTU will issue you with a matriculation card identifying you as its student."
+        },
+        {
+          "id": 8077,
+          "score": 0.02291666666666667,
+          "payload": {
+            "text": "[Document: StudentSupport_Guidebook.pdf]\nPastoral Care Being away from home can be an especially lonely experience when you fall ill or are hospitalised. Do contact SAO-Student Support should you need any assistance. Professional Counselling Locate SAO-Student Support Visit us at our office located on level 4 of the Student Services Centre Telephone Number The Student Wellbeing Centre is available to all students for professional counselling. A team of registered counsellors are experienced in helping students from various backgrounds and with a wide range of issues. (65) 6790 6823 (during office hours) (65) 6790 5200 (24-hour Campus Security Hotline) Email SAO-Studentsupport@ntu.edu.sg If you are facing challenges which affect your health, relationships, daily activities, academic performance or eating and sleeping patterns, please seek professional counselling. You may also approach the Centre if you are interested in personal development or self- improvement. If you have troubled thoughts or behaviour such as self-harm or harming others, please seek professional counselling or medical help.",
+            "pdf_name": "StudentSupport_Guidebook.pdf",
+            "pdf_path": "../data/train/pdfs_train/StudentSupport_Guidebook.pdf",
+            "chunk_id": 26,
+            "char_len": 1110,
+            "page_numbers": [
+              21
+            ]
+          },
+          "text": "[Document: StudentSupport_Guidebook.pdf]\nPastoral Care Being away from home can be an especially lonely experience when you fall ill or are hospitalised. Do contact SAO-Student Support should you need any assistance. Professional Counselling Locate SAO-Student Support Visit us at our office located on level 4 of the Student Services Centre Telephone Number The Student Wellbeing Centre is available to all students for professional counselling. A team of registered counsellors are experienced in helping students from various backgrounds and with a wide range of issues. (65) 6790 6823 (during office hours) (65) 6790 5200 (24-hour Campus Security Hotline) Email SAO-Studentsupport@ntu.edu.sg If you are facing challenges which affect your health, relationships, daily activities, academic performance or eating and sleeping patterns, please seek professional counselling. You may also approach the Centre if you are interested in personal development or self- improvement. If you have troubled thoughts or behaviour such as self-harm or harming others, please seek professional counselling or medical help."
+        },
+        {
+          "id": 4973,
+          "score": 0.022643442622950823,
+          "text": "[Document: SAO-StudentSupport_Guidebook-Content.pdf]\nFor further enquiries on housing matters, please contact the Office of Housing and Auxiliary Services (HAS), the office administrating on-campus and off-campus housing, via email. You can also visit www.ntu.edu.sg/has for more information on campus and off-campus housing. Category Undergraduate Students Graduate Students Exchange Students Contact has-ug@ntu.edu.sg has-pg@ntu.edu.sg has-exch@ntu.edu.sg Register with SAO-Student Support Matriculation Please settle into your housing before registering with SAO-Student Support during office hours to complete the registration procedures and be briefed on the procedures to complete the Student\u2019s Pass formalities. Do bring along your passport, embarkation card, Letter of Admission/Enrolment, receipts for any NTU\u2019s Miscellaneous Fee payment. Matriculation refers to the process of registering as a student of the university. After you have completed all matriculation procedures, NTU will issue you with a matriculation card identifying you as its student.",
+          "payload": {
+            "pdf_name": "SAO-StudentSupport_Guidebook-Content.pdf",
+            "pdf_path": "C:\\Users\\kiran\\Documents\\_UIS\\sem8\\DAT560_GenerativAI_10\\DAT560project\\src\\data\\train\\pdfs_train\\SAO-StudentSupport_Guidebook-Content.pdf",
+            "chunk_id": 15,
+            "char_len": 1062
+          }
+        },
+        {
+          "id": 8066,
+          "score": 0.022643442622950823,
+          "payload": {
+            "text": "[Document: StudentSupport_Guidebook.pdf]\nFor further enquiries on housing matters, please contact the Office of Housing and Auxiliary Services (HAS), the office administrating on-campus and off-campus housing, via email. You can also visit www.ntu.edu.sg/has for more information on campus and off-campus housing. Category Undergraduate Students Graduate Students Exchange Students Contact has-ug@ntu.edu.sg has-pg@ntu.edu.sg has-exch@ntu.edu.sg Register with SAO-Student Support Matriculation Please settle into your housing before registering with SAO-Student Support during office hours to complete the registration procedures and be briefed on the procedures to complete the Student\u2019s Pass formalities. Do bring along your passport, embarkation card, Letter of Admission/Enrolment, receipts for any NTU\u2019s Miscellaneous Fee payment. Matriculation refers to the process of registering as a student of the university. After you have completed all matriculation procedures, NTU will issue you with a matriculation card identifying you as its student.",
+            "pdf_name": "StudentSupport_Guidebook.pdf",
+            "pdf_path": "../data/train/pdfs_train/StudentSupport_Guidebook.pdf",
+            "chunk_id": 15,
+            "char_len": 1050,
+            "page_numbers": [
+              13
+            ]
+          },
+          "text": "[Document: StudentSupport_Guidebook.pdf]\nFor further enquiries on housing matters, please contact the Office of Housing and Auxiliary Services (HAS), the office administrating on-campus and off-campus housing, via email. You can also visit www.ntu.edu.sg/has for more information on campus and off-campus housing. Category Undergraduate Students Graduate Students Exchange Students Contact has-ug@ntu.edu.sg has-pg@ntu.edu.sg has-exch@ntu.edu.sg Register with SAO-Student Support Matriculation Please settle into your housing before registering with SAO-Student Support during office hours to complete the registration procedures and be briefed on the procedures to complete the Student\u2019s Pass formalities. Do bring along your passport, embarkation card, Letter of Admission/Enrolment, receipts for any NTU\u2019s Miscellaneous Fee payment. Matriculation refers to the process of registering as a student of the university. After you have completed all matriculation procedures, NTU will issue you with a matriculation card identifying you as its student."
+        }
+      ],
+      "retrieved_documents_raw": [
+        {
+          "id": 5210,
+          "score": 0.02291666666666667,
+          "text": "[Document: StudentSupport_Guidebook.pdf]\nFor further enquiries on housing matters, please contact the Office of Housing and Auxiliary Services (HAS), the office administrating on-campus and off-campus housing, via email. You can also visit www.ntu.edu.sg/has for more information on campus and off-campus housing. Category Undergraduate Students Graduate Students Exchange Students Contact has-ug@ntu.edu.sg has-pg@ntu.edu.sg has-exch@ntu.edu.sg Register with SAO-Student Support Matriculation Please settle into your housing before registering with SAO-Student Support during office hours to complete the registration procedures and be briefed on the procedures to complete the Student\u2019s Pass formalities. Do bring along your passport, embarkation card, Letter of Admission/Enrolment, receipts for any NTU\u2019s Miscellaneous Fee payment. Matriculation refers to the process of registering as a student of the university. After you have completed all matriculation procedures, NTU will issue you with a matriculation card identifying you as its student.",
+          "payload": {
+            "pdf_name": "StudentSupport_Guidebook.pdf",
+            "pdf_path": "C:\\Users\\kiran\\Documents\\_UIS\\sem8\\DAT560_GenerativAI_10\\DAT560project\\src\\data\\train\\pdfs_train\\StudentSupport_Guidebook.pdf",
+            "chunk_id": 15,
+            "char_len": 1050
+          }
+        },
+        {
+          "id": 418,
+          "score": 0.02291666666666667,
+          "payload": {
+            "text": "[Document: SAO-StudentSupport_Guidebook-Content.pdf]\nFor further enquiries on housing matters, please contact the Office of Housing and Auxiliary Services (HAS), the office administrating on-campus and off-campus housing, via email. You can also visit www.ntu.edu.sg/has for more information on campus and off-campus housing. Category Undergraduate Students Graduate Students Exchange Students Contact has-ug@ntu.edu.sg has-pg@ntu.edu.sg has-exch@ntu.edu.sg Register with SAO-Student Support Matriculation Please settle into your housing before registering with SAO-Student Support during office hours to complete the registration procedures and be briefed on the procedures to complete the Student\u2019s Pass formalities. Do bring along your passport, embarkation card, Letter of Admission/Enrolment, receipts for any NTU\u2019s Miscellaneous Fee payment. Matriculation refers to the process of registering as a student of the university. After you have completed all matriculation procedures, NTU will issue you with a matriculation card identifying you as its student.",
+            "pdf_name": "SAO-StudentSupport_Guidebook-Content.pdf",
+            "pdf_path": "../data/train/pdfs_train/SAO-StudentSupport_Guidebook-Content.pdf",
+            "chunk_id": 15,
+            "char_len": 1062,
+            "page_numbers": [
+              13
+            ]
+          },
+          "text": "[Document: SAO-StudentSupport_Guidebook-Content.pdf]\nFor further enquiries on housing matters, please contact the Office of Housing and Auxiliary Services (HAS), the office administrating on-campus and off-campus housing, via email. You can also visit www.ntu.edu.sg/has for more information on campus and off-campus housing. Category Undergraduate Students Graduate Students Exchange Students Contact has-ug@ntu.edu.sg has-pg@ntu.edu.sg has-exch@ntu.edu.sg Register with SAO-Student Support Matriculation Please settle into your housing before registering with SAO-Student Support during office hours to complete the registration procedures and be briefed on the procedures to complete the Student\u2019s Pass formalities. Do bring along your passport, embarkation card, Letter of Admission/Enrolment, receipts for any NTU\u2019s Miscellaneous Fee payment. Matriculation refers to the process of registering as a student of the university. After you have completed all matriculation procedures, NTU will issue you with a matriculation card identifying you as its student."
+        },
+        {
+          "id": 8077,
+          "score": 0.02291666666666667,
+          "payload": {
+            "text": "[Document: StudentSupport_Guidebook.pdf]\nPastoral Care Being away from home can be an especially lonely experience when you fall ill or are hospitalised. Do contact SAO-Student Support should you need any assistance. Professional Counselling Locate SAO-Student Support Visit us at our office located on level 4 of the Student Services Centre Telephone Number The Student Wellbeing Centre is available to all students for professional counselling. A team of registered counsellors are experienced in helping students from various backgrounds and with a wide range of issues. (65) 6790 6823 (during office hours) (65) 6790 5200 (24-hour Campus Security Hotline) Email SAO-Studentsupport@ntu.edu.sg If you are facing challenges which affect your health, relationships, daily activities, academic performance or eating and sleeping patterns, please seek professional counselling. You may also approach the Centre if you are interested in personal development or self- improvement. If you have troubled thoughts or behaviour such as self-harm or harming others, please seek professional counselling or medical help.",
+            "pdf_name": "StudentSupport_Guidebook.pdf",
+            "pdf_path": "../data/train/pdfs_train/StudentSupport_Guidebook.pdf",
+            "chunk_id": 26,
+            "char_len": 1110,
+            "page_numbers": [
+              21
+            ]
+          },
+          "text": "[Document: StudentSupport_Guidebook.pdf]\nPastoral Care Being away from home can be an especially lonely experience when you fall ill or are hospitalised. Do contact SAO-Student Support should you need any assistance. Professional Counselling Locate SAO-Student Support Visit us at our office located on level 4 of the Student Services Centre Telephone Number The Student Wellbeing Centre is available to all students for professional counselling. A team of registered counsellors are experienced in helping students from various backgrounds and with a wide range of issues. (65) 6790 6823 (during office hours) (65) 6790 5200 (24-hour Campus Security Hotline) Email SAO-Studentsupport@ntu.edu.sg If you are facing challenges which affect your health, relationships, daily activities, academic performance or eating and sleeping patterns, please seek professional counselling. You may also approach the Centre if you are interested in personal development or self- improvement. If you have troubled thoughts or behaviour such as self-harm or harming others, please seek professional counselling or medical help."
+        },
+        {
+          "id": 4973,
+          "score": 0.022643442622950823,
+          "text": "[Document: SAO-StudentSupport_Guidebook-Content.pdf]\nFor further enquiries on housing matters, please contact the Office of Housing and Auxiliary Services (HAS), the office administrating on-campus and off-campus housing, via email. You can also visit www.ntu.edu.sg/has for more information on campus and off-campus housing. Category Undergraduate Students Graduate Students Exchange Students Contact has-ug@ntu.edu.sg has-pg@ntu.edu.sg has-exch@ntu.edu.sg Register with SAO-Student Support Matriculation Please settle into your housing before registering with SAO-Student Support during office hours to complete the registration procedures and be briefed on the procedures to complete the Student\u2019s Pass formalities. Do bring along your passport, embarkation card, Letter of Admission/Enrolment, receipts for any NTU\u2019s Miscellaneous Fee payment. Matriculation refers to the process of registering as a student of the university. After you have completed all matriculation procedures, NTU will issue you with a matriculation card identifying you as its student.",
+          "payload": {
+            "pdf_name": "SAO-StudentSupport_Guidebook-Content.pdf",
+            "pdf_path": "C:\\Users\\kiran\\Documents\\_UIS\\sem8\\DAT560_GenerativAI_10\\DAT560project\\src\\data\\train\\pdfs_train\\SAO-StudentSupport_Guidebook-Content.pdf",
+            "chunk_id": 15,
+            "char_len": 1062
+          }
+        },
+        {
+          "id": 8066,
+          "score": 0.022643442622950823,
+          "payload": {
+            "text": "[Document: StudentSupport_Guidebook.pdf]\nFor further enquiries on housing matters, please contact the Office of Housing and Auxiliary Services (HAS), the office administrating on-campus and off-campus housing, via email. You can also visit www.ntu.edu.sg/has for more information on campus and off-campus housing. Category Undergraduate Students Graduate Students Exchange Students Contact has-ug@ntu.edu.sg has-pg@ntu.edu.sg has-exch@ntu.edu.sg Register with SAO-Student Support Matriculation Please settle into your housing before registering with SAO-Student Support during office hours to complete the registration procedures and be briefed on the procedures to complete the Student\u2019s Pass formalities. Do bring along your passport, embarkation card, Letter of Admission/Enrolment, receipts for any NTU\u2019s Miscellaneous Fee payment. Matriculation refers to the process of registering as a student of the university. After you have completed all matriculation procedures, NTU will issue you with a matriculation card identifying you as its student.",
+            "pdf_name": "StudentSupport_Guidebook.pdf",
+            "pdf_path": "../data/train/pdfs_train/StudentSupport_Guidebook.pdf",
+            "chunk_id": 15,
+            "char_len": 1050,
+            "page_numbers": [
+              13
+            ]
+          },
+          "text": "[Document: StudentSupport_Guidebook.pdf]\nFor further enquiries on housing matters, please contact the Office of Housing and Auxiliary Services (HAS), the office administrating on-campus and off-campus housing, via email. You can also visit www.ntu.edu.sg/has for more information on campus and off-campus housing. Category Undergraduate Students Graduate Students Exchange Students Contact has-ug@ntu.edu.sg has-pg@ntu.edu.sg has-exch@ntu.edu.sg Register with SAO-Student Support Matriculation Please settle into your housing before registering with SAO-Student Support during office hours to complete the registration procedures and be briefed on the procedures to complete the Student\u2019s Pass formalities. Do bring along your passport, embarkation card, Letter of Admission/Enrolment, receipts for any NTU\u2019s Miscellaneous Fee payment. Matriculation refers to the process of registering as a student of the university. After you have completed all matriculation procedures, NTU will issue you with a matriculation card identifying you as its student."
+        }
+      ],
+      "confidence": 0.95,
+      "num_docs_retrieved": 5,
+      "ground_truth": "has-exch@ntu.edu.sg"
+    }
+  ]
+}

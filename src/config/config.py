@@ -14,8 +14,9 @@ PDFS_DIR = DATA_DIR / "train" / "pdfs_train"
 PREPROCESSED_DATA_DIR = DATA_DIR / "preprocessed"
 PREPROCESSED_DOCUMENTS_FILE = DATA_DIR / "preprocessed" / "all_documents.json"
 
-TRAIN_JSONL = DATA_DIR / "train" / "train.jsonl"
-TEST_JSONL = DATA_DIR / "test" / "test.jsonl"
+COLLECTION_DIR = SRC_DIR / "project_collection"
+TRAIN_JSONL = COLLECTION_DIR / "train" / "train.jsonl"
+TEST_JSONL = COLLECTION_DIR / "test" / "test.jsonl"
 
 CACHE_DIR = PROJECT_ROOT / "cache"
 PREPROCESSED_CHUNKS_FILE = SRC_DIR / "data" / "preprocessed" / "chunks_fixed_size.json"
