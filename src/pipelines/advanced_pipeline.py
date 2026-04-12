@@ -3,7 +3,9 @@
 # Baseline pipeline = text only.
 # Advanced pipeline = text + image in one Qdrant collection, routes to VLM when images retrieved.
 
+import json
 import logging
+import re
 import time
 from pathlib import Path
 from typing import Dict, Any, List, Optional
@@ -19,6 +21,32 @@ from evaluation.retrieval_metrics import evaluate_retrieval
 from evaluation.generation_metrics import evaluate_generation
 
 logger = logging.getLogger(__name__)
+
+# Prompt for visual question classification
+_VISUAL_CLASSIFY_PROMPT = """\
+You classify questions for a document retrieval system.
+Determine if the question requires VISUAL content (figures, charts, tables, photographs, maps, diagrams) to answer, or if TEXT content alone is sufficient.
+
+Respond with a JSON object only, no other text:
+{"visual": true/false}"""
+
+_VISUAL_CLASSIFY_EXAMPLES = """\
+Question: "What DNA repair mechanisms does Figure 11 demonstrate?"
+{"visual": true}
+
+Question: "What is the total revenue for FY 2021?"
+{"visual": false}
+
+Question: "How many emojis does the right subfig have compared to the left?"
+{"visual": true}
+
+Question: "What year is printed on the t-shirt the man is wearing?"
+{"visual": true}"""
+
+
+def _trace(msg: str):
+    """Print a trace line for notebook readability."""
+    print(f"  [retrieval] {msg}")
 
 
 class AdvancedRAGPipeline(BaseRAGPipeline):
@@ -162,13 +190,12 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
 
     def initialize_components(self):
         """Init single VisionGenerator for both text and image, and query technique."""
-        # Use VisionGenerator for everything — one model on server, no swapping
         logger.info(f"Initialising generator (VisionGenerator): {self.config.LLM_MODEL}")
         self.generator = VisionGenerator(
             base_url=self.config.OLLAMA_BASE_URL,
             model=self.config.LLM_MODEL,
         )
-        self.vlm = self.generator  # same instance — text uses think=True, images think=False
+        self.vlm = self.generator
 
         logger.info(f"Initialising query technique: {self.config.QUERY_TECHNIQUE}")
         self.query_technique = get_query_technique(
@@ -180,14 +207,148 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
         )
 
     # ------------------------------------------------------------------
-    # Retrieval
+    # Retrieval  (wraps any query technique with visual classification)
     # ------------------------------------------------------------------
 
     def retrieve_with_technique(self, question: str, top_k: Optional[int] = None) -> List[Dict[str, Any]]:
+        """
+        Multimodal retrieval that works with ANY query technique.
+
+        1. Classify the question: visual or text?
+        2. Run the configured query technique for text retrieval.
+        3. If visual → also retrieve page images with the original query.
+           If text  → look up page images from the text results metadata.
+        """
         top_k = top_k or self.config.TOP_K
         if self.query_technique is None:
             raise RuntimeError("Call initialize_components() first.")
-        return self.query_technique.retrieve(question, top_k)
+
+        _trace(f"Question: {question[:120]}")
+
+        # Step 1: Classify
+        is_visual = self._classify_visual(question)
+
+        # Step 2: Run query technique for text retrieval
+        _trace(f"Running query technique: {self.config.QUERY_TECHNIQUE} (top_k={top_k})")
+        text_results = self.query_technique.retrieve(question, top_k)
+        _trace(f"Got {len(text_results)} text results")
+
+        if not self.config.USE_MULTIMODAL or not self.vector_db:
+            return text_results
+
+        # Step 3: Add images
+        max_images = self.config.QUERY_TECHNIQUE_CONFIG.get("max_page_images", 2)
+
+        if is_visual:
+            # Strategy 4: search images directly with the original query
+            _trace(f"VISUAL → image retrieval with original query (top_k={max_images})")
+            query_emb = self.embedder.embed_query(question)
+            image_results = self.vector_db.retrieve(
+                query_emb, top_k=max_images, allowed_types=["page_image"]
+            )
+            if image_results:
+                for r in image_results:
+                    p = r.get("payload", {})
+                    _trace(f"  image: doc={p.get('doc_name')}  page={p.get('page_num')}  score={r.get('score',0):.3f}")
+            else:
+                # Fallback to page lookup from text metadata
+                _trace(f"  No image results — falling back to text metadata lookup")
+                image_results = self._lookup_page_images(text_results, max_images)
+        else:
+            # Strategy 2: look up page images from text results metadata
+            _trace(f"TEXT → page image lookup from text results metadata")
+            image_results = self._lookup_page_images(text_results, max_images)
+
+        n_text = len(text_results)
+        n_img = len(image_results)
+        _trace(f"Returning {n_text + n_img} results ({n_text} text + {n_img} page_image)")
+        return text_results + image_results
+
+    # ------------------------------------------------------------------
+    # Visual classification
+    # ------------------------------------------------------------------
+
+    def _classify_visual(self, question: str) -> bool:
+        """Ask the LLM: does this question need visual content?"""
+        _trace("Classifying: visual or text?")
+        try:
+            response = self.generator.chat([
+                {"role": "system", "content": _VISUAL_CLASSIFY_PROMPT},
+                {"role": "user", "content": _VISUAL_CLASSIFY_EXAMPLES},
+                {"role": "assistant", "content": "Understood. Send me the question."},
+                {"role": "user", "content": question},
+            ])
+            _trace(f"LLM response: {response.strip()}")
+
+            match = re.search(r"\{.*\}", response, re.DOTALL)
+            if match:
+                data = json.loads(match.group())
+                is_visual = bool(data.get("visual", False))
+                _trace(f"Classified: {'VISUAL' if is_visual else 'TEXT'}")
+                return is_visual
+        except Exception as e:
+            _trace(f"Classification failed ({e}), defaulting to TEXT")
+        return False
+
+    # ------------------------------------------------------------------
+    # Page image helpers
+    # ------------------------------------------------------------------
+
+    def _lookup_page_images(self, text_results: List[Dict], max_images: int = 2) -> List[Dict[str, Any]]:
+        """Fetch page images from Qdrant by (doc_name, page_num) from text results."""
+        from qdrant_client.http.models import Filter, FieldCondition, MatchValue
+
+        # Collect unique (doc_name, page_num) from text results
+        seen = set()
+        lookups = []
+        for r in text_results:
+            payload = r.get("payload", {})
+            pdf_name = payload.get("pdf_name", "")
+            doc_stem = pdf_name.replace(".pdf", "")
+            for pn in (payload.get("page_numbers") or []):
+                key = (doc_stem, pn)
+                if key not in seen:
+                    seen.add(key)
+                    lookups.append(key)
+                    if len(lookups) >= max_images:
+                        break
+            if len(lookups) >= max_images:
+                break
+
+        if not lookups:
+            return []
+
+        _trace(f"  Looking up {len(lookups)} page images: {lookups}")
+        results = []
+        collection = self.vector_db.config.VECTOR_DB_COLLECTION
+
+        for doc_name, page_num in lookups:
+            try:
+                points, _ = self.vector_db.client.scroll(
+                    collection_name=collection,
+                    scroll_filter=Filter(must=[
+                        FieldCondition(key="type", match=MatchValue(value="page_image")),
+                        FieldCondition(key="doc_name", match=MatchValue(value=doc_name)),
+                        FieldCondition(key="page_num", match=MatchValue(value=page_num)),
+                    ]),
+                    limit=1,
+                    with_payload=True,
+                    with_vectors=False,
+                )
+                if points:
+                    pt = points[0]
+                    results.append({
+                        "id": pt.id, "score": 0.0,
+                        "payload": pt.payload,
+                        "text": pt.payload.get("text", ""),
+                    })
+                    _trace(f"  Found: {doc_name} page {page_num}")
+                else:
+                    _trace(f"  Not found: {doc_name} page {page_num}")
+            except Exception as e:
+                _trace(f"  Error: {doc_name} p{page_num}: {e}")
+
+        return results
 
     # ------------------------------------------------------------------
     # Generation routing

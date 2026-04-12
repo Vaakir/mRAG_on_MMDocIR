@@ -152,6 +152,7 @@ class BaseRAGPipeline:
                 embedder=self.embedder,
                 vector_db=self.vector_db,
                 top_k=self.config.TOP_K,
+                allowed_types=getattr(self.config, "ALLOWED_CHUNK_TYPES", None),
             )
 
     def initialize_components(self):

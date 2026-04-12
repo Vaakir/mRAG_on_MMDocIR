@@ -117,8 +117,9 @@ class AdvancedConfig(BaselineConfig):
     VLM_MODEL: str = "qwen3.5:122b"
     """Vision-language model used when image chunks are retrieved"""
 
-    # Sequential generation — one model, avoid concurrent calls on shared GPU
+    # Sequential — keeps logs readable and avoids concurrent calls on shared GPU
     GENERATION_WORKERS: int = 1
+    RETRIEVAL_WORKERS: int = 1
 
     PAGE_IMAGES_TRAIN_DIR: Path = PAGE_IMAGES_TRAIN_DIR
     IMAGES_TRAIN_DIR: Path = IMAGES_TRAIN_DIR
@@ -134,6 +135,7 @@ class AdvancedConfig(BaselineConfig):
     QUERY_TECHNIQUE_CONFIG: Dict[str, Any] = field(
         default_factory=lambda: {
             "num_variants": 3,
+            "max_page_images": 2,
         }
     )
 
@@ -167,3 +169,5 @@ class HyDEConfig(AdvancedConfig):
     """HyDE (Hypothetical Documents) configuration."""
 
     QUERY_TECHNIQUE: str = "hyde"
+
+

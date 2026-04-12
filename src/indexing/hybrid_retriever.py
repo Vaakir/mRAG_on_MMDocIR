@@ -34,11 +34,13 @@ class HybridRetriever:
         embedder,
         vector_db,
         top_k: int = 5,
+        allowed_types: List[str] = None,
     ):
         self.chunks = chunks
         self.embedder = embedder
         self.vector_db = vector_db
         self.top_k = top_k
+        self.allowed_types = allowed_types  # e.g. ["text"] — prevents page_images from consuming candidate slots
 
         logger.info(f"Building BM25 index over {len(chunks)} chunks...")
         tokenized = [_tokenize(chunk["text"]) for chunk in chunks]
@@ -103,7 +105,7 @@ class HybridRetriever:
 
         # --- Dense retrieval ---
         query_emb = self.embedder.embed_query(query)
-        dense_results = self.vector_db.retrieve(query_emb, top_k=n_candidates)
+        dense_results = self.vector_db.retrieve(query_emb, top_k=n_candidates, allowed_types=self.allowed_types)
         # Map chunk id → dense rank (0-based)
         dense_rank = {r["id"]: rank for rank, r in enumerate(dense_results)}
 

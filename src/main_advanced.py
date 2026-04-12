@@ -37,7 +37,7 @@ def get_config(technique: str = 'standard') -> AdvancedConfig:
         config = HyDEConfig()
     else:
         config = AdvancedConfig()
-    
+
     # Explicitly set technique to ensure it's applied
     # (dataclass inheritance doesn't override defaults reliably)
     if technique == 'step_back':
@@ -49,7 +49,6 @@ def get_config(technique: str = 'standard') -> AdvancedConfig:
     elif technique == 'query_expansion':
         config.QUERY_TECHNIQUE = 'query_expansion'
     elif technique != 'standard':
-        # For preset configs (multi_query, rag_fusion, hyde), ensure technique is set
         config.QUERY_TECHNIQUE = technique
     
     return config

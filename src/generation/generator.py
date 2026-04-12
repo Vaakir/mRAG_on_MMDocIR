@@ -64,15 +64,13 @@ Strict Instructions (NON-NEGOTIABLE):
 
 Be direct. No padding. No explanations unless specifically asked."""
 
-VISION_PROMPT = """You are a vision model extracting answers from images.
+VISION_PROMPT = """Answer the question using the image(s) provided.
+Output ONLY the direct answer. No explanation, no reasoning, no preamble, no "Based on...".
 
-Rules:
-- Use the image as the primary source.
-- Do NOT include reasoning.
-- Do NOT include explanations.
-- For counting questions, return ONLY a number.
-- Output ONLY the final answer.
-"""
+- Number question → output the number only.
+- Yes/no question → output "Yes" or "No" only.
+- List question → output ["item1", "item2"] only.
+- Single answer → output the answer only."""
 # -------------------------------------------------------------------
 class BaselineGenerator:
     """LLM-based answer generator using Ollama via the ollama Python library."""
