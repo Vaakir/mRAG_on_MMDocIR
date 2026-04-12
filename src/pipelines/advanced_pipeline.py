@@ -1,11 +1,8 @@
 # src/pipelines/advanced_pipeline.py
-# Advanced RAG pipeline with multimodal retrieval (text + page images + evidence crops).
-# Baseline pipeline = text only.
-# Advanced pipeline = text + image in one Qdrant collection, routes to VLM when images retrieved.
+# Advanced RAG pipeline with multimodal retrieval (text + page images).
+# Uses any query technique + MultimodalRetriever for image-aware retrieval.
 
-import json
 import logging
-import re
 import time
 from pathlib import Path
 from typing import Dict, Any, List, Optional
@@ -14,51 +11,30 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from config.config import AdvancedConfig
 from pipelines.base_pipeline import BaseRAGPipeline
 from preprocessing.image_processor import load_page_image_chunks
-from indexing.embedder import TextEmbedder
 from generation.generator import VisionGenerator
 from query_techniques import get_query_technique
+from retrieval_techniques import MultimodalRetriever
 from evaluation.retrieval_metrics import evaluate_retrieval
 from evaluation.generation_metrics import evaluate_generation
 
 logger = logging.getLogger(__name__)
 
-# Prompt for visual question classification
-_VISUAL_CLASSIFY_PROMPT = """\
-You classify questions for a document retrieval system.
-Determine if the question requires VISUAL content (figures, charts, tables, photographs, maps, diagrams) to answer, or if TEXT content alone is sufficient.
-
-Respond with a JSON object only, no other text:
-{"visual": true/false}"""
-
-_VISUAL_CLASSIFY_EXAMPLES = """\
-Question: "What DNA repair mechanisms does Figure 11 demonstrate?"
-{"visual": true}
-
-Question: "What is the total revenue for FY 2021?"
-{"visual": false}
-
-Question: "How many emojis does the right subfig have compared to the left?"
-{"visual": true}
-
-Question: "What year is printed on the t-shirt the man is wearing?"
-{"visual": true}"""
-
-
-def _trace(msg: str):
-    """Print a trace line for notebook readability."""
-    print(f"  [retrieval] {msg}")
-
 
 class AdvancedRAGPipeline(BaseRAGPipeline):
     """
     Advanced RAG pipeline.
-    Same vector space for text chunks, page images, and evidence crops.
-    Routes generation to qwen3-vl when image chunks are in the top-K results.
+
+    - Text + page images in one Qdrant collection (same CLIP embedding space).
+    - Any query technique (standard, hyde, multi_query, etc.) for text retrieval.
+    - MultimodalRetriever wraps the query technique with visual classification
+      and page image retrieval (Strategy 2 + 4).
+    - Routes generation to VLM when image chunks are in the results.
     """
 
     def __init__(self, config: AdvancedConfig):
         super().__init__(config)
         self.query_technique = None
+        self.multimodal_retriever: Optional[MultimodalRetriever] = None
         self.vlm: Optional[VisionGenerator] = None
 
     # ------------------------------------------------------------------
@@ -66,22 +42,16 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
     # ------------------------------------------------------------------
 
     def build_index(self, force_rebuild: bool = True):
-        """
-        Build the multimodal index:
-          1. Text chunks  (from preprocessed JSON, text encoder)
-          2. Page images  (page_images_train, image encoder)
-          3. Evidence crops (train.jsonl question texts, text encoder → image path in metadata)
-        All stored in one Qdrant collection.
-        """
+        """Build multimodal index: text chunks + page images."""
         logger.info(f"Building multimodal index with {type(self.config).__name__}...")
         start_time = time.time()
 
-        # Step 1: Init embedder
+        # Init embedder + Qdrant
+        from indexing.embedder import TextEmbedder
+        from indexing.vector_database import QdrantVectorDB
+
         logger.info(f"Initialising embedder: {self.config.EMBEDDING_MODEL}")
         self.embedder = TextEmbedder(self.config.EMBEDDING_MODEL)
-
-        # Step 2: Init Qdrant
-        from indexing.vector_database import QdrantVectorDB
         self.vector_db = QdrantVectorDB(self.config)
 
         # Check existing collection
@@ -103,44 +73,35 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
         # ---------- Build from scratch ----------
         logger.info("Building new multimodal index from scratch...")
 
-        # --- Text chunks ---
         from data.chunk_loader import load_preprocessed_chunks, print_chunk_statistics
         chunks_path = Path(self.config.PREPROCESSED_CHUNKS_FILE)
-        logger.info(f"Loading text chunks from {chunks_path}")
         self.chunks = load_preprocessed_chunks(chunks_path)
         print_chunk_statistics(self.chunks)
-        logger.info(f"Loaded {len(self.chunks)} text chunks")
 
         text_embeddings = self.embedder.embed_texts(
             [c["text"] for c in self.chunks],
             batch_size=self.config.EMBEDDING_BATCH_SIZE,
         )
 
-        # --- Page images ---
+        # Page images
         page_chunks = []
         page_embeddings = None
         if self.config.USE_MULTIMODAL:
             page_chunks = load_page_image_chunks(
-                self.config.PAGE_IMAGES_TRAIN_DIR,
-                self.config.DATA_DIR,
+                self.config.PAGE_IMAGES_TRAIN_DIR, self.config.DATA_DIR,
             )
             if page_chunks:
-                # Resolve relative paths to absolute for embedding (need to open files)
                 abs_paths = [str(self.config.DATA_DIR / c["image_path"]) for c in page_chunks]
                 page_embeddings = self.embedder.embed_images(abs_paths)
 
-        # --- Index into Qdrant ---
+        # Index into Qdrant
         self.vector_db.create_collection(force_recreate=True)
-
         qdrant_docs = []
         doc_id = 0
 
-        # Text chunks
         for chunk, emb in zip(self.chunks, text_embeddings):
             qdrant_docs.append({
-                "id": doc_id,
-                "embedding": emb,
-                "text": chunk["text"],
+                "id": doc_id, "embedding": emb, "text": chunk["text"],
                 "metadata": {
                     "type": "text",
                     "pdf_name": str(chunk.get("pdf_name", "unknown")),
@@ -152,13 +113,10 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
             })
             doc_id += 1
 
-        # Page images
         if page_embeddings is not None:
             for chunk, emb in zip(page_chunks, page_embeddings):
                 qdrant_docs.append({
-                    "id": doc_id,
-                    "embedding": emb,
-                    "text": chunk["text"],
+                    "id": doc_id, "embedding": emb, "text": chunk["text"],
                     "metadata": {
                         "type": "page_image",
                         "image_path": chunk["image_path"],
@@ -169,28 +127,21 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
                 doc_id += 1
 
         self.vector_db.index_documents(qdrant_docs)
-        elapsed = time.time() - start_time
-        logger.info(
-            f"Indexed {doc_id} documents "
-            f"({len(self.chunks)} text, {len(page_chunks)} page images) in {elapsed:.2f}s"
-        )
-
+        logger.info(f"Indexed {doc_id} docs ({len(self.chunks)} text, {len(page_chunks)} images) in {time.time() - start_time:.2f}s")
         self._initialize_retriever()
 
     def _load_chunks_for_bm25(self):
-        """Load text chunks into memory for the BM25 component."""
         if self.config.USE_HYBRID_RETRIEVAL:
             from data.chunk_loader import load_preprocessed_chunks
-            chunks_path = Path(self.config.PREPROCESSED_CHUNKS_FILE)
-            self.chunks = load_preprocessed_chunks(chunks_path)
+            self.chunks = load_preprocessed_chunks(Path(self.config.PREPROCESSED_CHUNKS_FILE))
 
     # ------------------------------------------------------------------
     # Component initialisation
     # ------------------------------------------------------------------
 
     def initialize_components(self):
-        """Init single VisionGenerator for both text and image, and query technique."""
-        logger.info(f"Initialising generator (VisionGenerator): {self.config.LLM_MODEL}")
+        """Init generator, query technique, and multimodal retriever."""
+        logger.info(f"Initialising generator: {self.config.LLM_MODEL}")
         self.generator = VisionGenerator(
             base_url=self.config.OLLAMA_BASE_URL,
             model=self.config.LLM_MODEL,
@@ -206,165 +157,38 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
             self.config.QUERY_TECHNIQUE_CONFIG,
         )
 
+        if self.config.USE_MULTIMODAL:
+            logger.info("Initialising multimodal retriever...")
+            self.multimodal_retriever = MultimodalRetriever(
+                query_technique=self.query_technique,
+                embedder=self.embedder,
+                vector_db=self.vector_db,
+                generator=self.generator,
+                max_page_images=self.config.QUERY_TECHNIQUE_CONFIG.get("max_page_images", 2),
+            )
+
     # ------------------------------------------------------------------
-    # Retrieval  (wraps any query technique with visual classification)
+    # Retrieval
     # ------------------------------------------------------------------
 
     def retrieve_with_technique(self, question: str, top_k: Optional[int] = None) -> List[Dict[str, Any]]:
-        """
-        Multimodal retrieval that works with ANY query technique.
-
-        1. Classify the question: visual or text?
-        2. Run the configured query technique for text retrieval.
-        3. If visual → also retrieve page images with the original query.
-           If text  → look up page images from the text results metadata.
-        """
         top_k = top_k or self.config.TOP_K
-        if self.query_technique is None:
-            raise RuntimeError("Call initialize_components() first.")
-
-        _trace(f"Question: {question[:120]}")
-
-        # Step 1: Classify
-        is_visual = self._classify_visual(question)
-
-        # Step 2: Run query technique for text retrieval
-        _trace(f"Running query technique: {self.config.QUERY_TECHNIQUE} (top_k={top_k})")
-        text_results = self.query_technique.retrieve(question, top_k)
-        _trace(f"Got {len(text_results)} text results")
-
-        if not self.config.USE_MULTIMODAL or not self.vector_db:
-            return text_results
-
-        # Step 3: Add images
-        max_images = self.config.QUERY_TECHNIQUE_CONFIG.get("max_page_images", 2)
-
-        if is_visual:
-            # Strategy 4: search images directly with the original query
-            _trace(f"VISUAL → image retrieval with original query (top_k={max_images})")
-            query_emb = self.embedder.embed_query(question)
-            image_results = self.vector_db.retrieve(
-                query_emb, top_k=max_images, allowed_types=["page_image"]
-            )
-            if image_results:
-                for r in image_results:
-                    p = r.get("payload", {})
-                    _trace(f"  image: doc={p.get('doc_name')}  page={p.get('page_num')}  score={r.get('score',0):.3f}")
-            else:
-                # Fallback to page lookup from text metadata
-                _trace(f"  No image results — falling back to text metadata lookup")
-                image_results = self._lookup_page_images(text_results, max_images)
-        else:
-            # Strategy 2: look up page images from text results metadata
-            _trace(f"TEXT → page image lookup from text results metadata")
-            image_results = self._lookup_page_images(text_results, max_images)
-
-        n_text = len(text_results)
-        n_img = len(image_results)
-        _trace(f"Returning {n_text + n_img} results ({n_text} text + {n_img} page_image)")
-        return text_results + image_results
-
-    # ------------------------------------------------------------------
-    # Visual classification
-    # ------------------------------------------------------------------
-
-    def _classify_visual(self, question: str) -> bool:
-        """Ask the LLM: does this question need visual content?"""
-        _trace("Classifying: visual or text?")
-        try:
-            response = self.generator.chat([
-                {"role": "system", "content": _VISUAL_CLASSIFY_PROMPT},
-                {"role": "user", "content": _VISUAL_CLASSIFY_EXAMPLES},
-                {"role": "assistant", "content": "Understood. Send me the question."},
-                {"role": "user", "content": question},
-            ])
-            _trace(f"LLM response: {response.strip()}")
-
-            match = re.search(r"\{.*\}", response, re.DOTALL)
-            if match:
-                data = json.loads(match.group())
-                is_visual = bool(data.get("visual", False))
-                _trace(f"Classified: {'VISUAL' if is_visual else 'TEXT'}")
-                return is_visual
-        except Exception as e:
-            _trace(f"Classification failed ({e}), defaulting to TEXT")
-        return False
-
-    # ------------------------------------------------------------------
-    # Page image helpers
-    # ------------------------------------------------------------------
-
-    def _lookup_page_images(self, text_results: List[Dict], max_images: int = 2) -> List[Dict[str, Any]]:
-        """Fetch page images from Qdrant by (doc_name, page_num) from text results."""
-        from qdrant_client.http.models import Filter, FieldCondition, MatchValue
-
-        # Collect unique (doc_name, page_num) from text results
-        seen = set()
-        lookups = []
-        for r in text_results:
-            payload = r.get("payload", {})
-            pdf_name = payload.get("pdf_name", "")
-            doc_stem = pdf_name.replace(".pdf", "")
-            for pn in (payload.get("page_numbers") or []):
-                key = (doc_stem, pn)
-                if key not in seen:
-                    seen.add(key)
-                    lookups.append(key)
-                    if len(lookups) >= max_images:
-                        break
-            if len(lookups) >= max_images:
-                break
-
-        if not lookups:
-            return []
-
-        _trace(f"  Looking up {len(lookups)} page images: {lookups}")
-        results = []
-        collection = self.vector_db.config.VECTOR_DB_COLLECTION
-
-        for doc_name, page_num in lookups:
-            try:
-                points, _ = self.vector_db.client.scroll(
-                    collection_name=collection,
-                    scroll_filter=Filter(must=[
-                        FieldCondition(key="type", match=MatchValue(value="page_image")),
-                        FieldCondition(key="doc_name", match=MatchValue(value=doc_name)),
-                        FieldCondition(key="page_num", match=MatchValue(value=page_num)),
-                    ]),
-                    limit=1,
-                    with_payload=True,
-                    with_vectors=False,
-                )
-                if points:
-                    pt = points[0]
-                    results.append({
-                        "id": pt.id, "score": 0.0,
-                        "payload": pt.payload,
-                        "text": pt.payload.get("text", ""),
-                    })
-                    _trace(f"  Found: {doc_name} page {page_num}")
-                else:
-                    _trace(f"  Not found: {doc_name} page {page_num}")
-            except Exception as e:
-                _trace(f"  Error: {doc_name} p{page_num}: {e}")
-
-        return results
+        if self.multimodal_retriever:
+            return self.multimodal_retriever.retrieve(question, top_k)
+        if self.query_technique:
+            return self.query_technique.retrieve(question, top_k)
+        raise RuntimeError("Call initialize_components() first.")
 
     # ------------------------------------------------------------------
     # Generation routing
     # ------------------------------------------------------------------
 
     def _generate(self, question: str, retrieved: List[Dict[str, Any]]) -> str:
-        """
-        Route to VLM if any image chunks were retrieved, otherwise use text LLM.
-        BM25-only results have no 'type' in payload — treat those as text.
-        """
-        _IMAGE_TYPES = {"page_image"}
-        image_results = [r for r in retrieved if r.get("payload", {}).get("type") in _IMAGE_TYPES]
-        text_results  = [r for r in retrieved if r.get("payload", {}).get("type") not in _IMAGE_TYPES]
+        """Route to VLM if page images were retrieved, otherwise text LLM."""
+        image_results = [r for r in retrieved if r.get("payload", {}).get("type") == "page_image"]
+        text_results  = [r for r in retrieved if r.get("payload", {}).get("type") != "page_image"]
 
         if image_results and self.vlm is not None:
-            # Collect image paths — stored as relative to DATA_DIR, resolve now
             image_paths = []
             for r in image_results:
                 ip = r["payload"].get("image_path", [])
@@ -374,15 +198,12 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
                     image_paths.append(str(self.config.DATA_DIR / p))
 
             text_context = "\n\n".join(
-                f"[Document {i+1}]:\n{r['text']}"
-                for i, r in enumerate(text_results)
+                f"[Document {i+1}]:\n{r['text']}" for i, r in enumerate(text_results)
             )
             return self.vlm.generate_with_images(question, image_paths, text_context)
 
-        # Text-only fallback
         context = "\n\n".join(
-            f"[Document {i+1}]:\n{r['text']}"
-            for i, r in enumerate(retrieved)
+            f"[Document {i+1}]:\n{r['text']}" for i, r in enumerate(retrieved)
         )
         return self.generator.generate(question, context)
 
@@ -393,31 +214,22 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
     def run_query(self, question: str, use_technique: bool = True, top_k: Optional[int] = None) -> Dict[str, Any]:
         top_k = top_k or self.config.TOP_K
 
-        if use_technique and self.query_technique:
+        if use_technique:
             retrieved = self.retrieve_with_technique(question, top_k)
         else:
             retrieved = self.retrieve(question, top_k)
 
         answer = self._generate(question, retrieved)
-
-        return {
-            "question": question,
-            "retrieved_docs": retrieved,
-            "answer": answer,
-            "num_docs": len(retrieved),
-        }
+        return {"question": question, "retrieved_docs": retrieved, "answer": answer, "num_docs": len(retrieved)}
 
     # ------------------------------------------------------------------
     # Evaluation
     # ------------------------------------------------------------------
 
     def evaluate(self, test_questions: List[Dict[str, Any]], use_technique: bool = True):
-        """
-        Two-phase evaluation (retrieval parallel → generation parallel).
-        Same structure as before but generation routes through _generate().
-        """
+        """Two-phase evaluation: retrieval → generation."""
         eval_start = time.time()
-        logger.info(f"Evaluating {len(test_questions)} questions (technique={use_technique})...")
+        logger.info(f"Evaluating {len(test_questions)} questions...")
 
         test_subset = test_questions[:self.config.EVAL_SUBSET_SIZE]
 
@@ -428,17 +240,15 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
         with ThreadPoolExecutor(max_workers=self.config.RETRIEVAL_WORKERS) as executor:
             futures = {}
             for i, tq in enumerate(test_subset):
-                fn = self.retrieve_with_technique if (use_technique and self.query_technique) else self.retrieve
+                fn = self.retrieve_with_technique if use_technique else self.retrieve
                 futures[executor.submit(fn, tq["question"], self.config.TOP_K)] = i
 
-            completed = 0
             for future in as_completed(futures):
-                all_retrievals[futures[future]] = future.result()
-                completed += 1
-                logger.info(f"  Retrieved {completed}/{len(test_subset)}")
+                idx = futures[future]
+                all_retrievals[idx] = future.result()
+                logger.info(f"  Retrieved {sum(1 for r in all_retrievals if r is not None)}/{len(test_subset)}")
 
         phase1_time = time.time() - phase1_start
-        logger.info(f"Phase 1 done in {phase1_time:.2f}s")
 
         # Phase 2: Generation
         phase2_start = time.time()
@@ -449,18 +259,12 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
                 (i, tq, executor.submit(self._generate, tq["question"], all_retrievals[i]))
                 for i, tq in enumerate(test_subset)
             ]
-
-            completed_count = 0
             for i, tq, future in futures:
                 answer = future.result()
-                completed_count += 1
-                logger.info(f"  Generated {completed_count}/{len(futures)}")
-
                 print(f"\n{'-'*80}")
                 print(f"Question: {tq['question']}")
                 print(f"Ground Truth: {tq['answer']}")
                 print(f"Generated Answer: {answer}")
-
                 generation_results.append({
                     "question": tq["question"],
                     "answer": answer,
@@ -468,21 +272,15 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
                 })
 
         phase2_time = time.time() - phase2_start
-        logger.info(f"Phase 2 done in {phase2_time:.2f}s")
 
-        retrieval_metrics = evaluate_retrieval(
-            [r for r in all_retrievals],
-            test_subset,
-        )
+        retrieval_metrics = evaluate_retrieval(all_retrievals, test_subset)
         generation_metrics = evaluate_generation(
             [r["answer"] for r in generation_results],
             [r["expected_answer"] for r in generation_results],
         )
 
         total_time = time.time() - eval_start
-        logger.info(f"Total evaluation time: {total_time:.2f}s")
-        logger.info(f"Retrieval metrics: {retrieval_metrics}")
-        logger.info(f"Generation metrics: {generation_metrics}")
+        logger.info(f"Evaluation done in {total_time:.2f}s")
 
         return {
             "retrieval": retrieval_metrics,

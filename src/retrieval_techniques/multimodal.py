@@ -1,153 +1,98 @@
-# src/query_techniques/multimodal.py
-# Combined Strategy 2 + 4: text-first page-image lookup + visual query reformulation.
+# src/retrieval_techniques/multimodal.py
+# Multimodal retrieval: wraps any query technique with visual classification
+# and page image retrieval.
 
+import json
+import re
 from typing import List, Dict, Any
 
-from ..query_techniques.base import QueryTechnique
+from qdrant_client.http.models import Filter, FieldCondition, MatchValue
+
+
+# ----- Prompts for visual classification -----
 
 CLASSIFY_PROMPT = """\
 You classify questions for a document retrieval system.
 Determine if the question requires VISUAL content (figures, charts, tables, photographs, maps, diagrams) to answer, or if TEXT content alone is sufficient.
 
 Respond with a JSON object only, no other text:
-{"visual": true/false, "query": "short image description under 15 words or null"}"""
+{"visual": true/false}"""
 
 CLASSIFY_EXAMPLES = """\
 Question: "What DNA repair mechanisms does Figure 11 demonstrate?"
-{"visual": true, "query": "figure 11 DNA repair mechanisms diagram"}
+{"visual": true}
 
 Question: "What is the total revenue for FY 2021?"
-{"visual": false, "query": null}
+{"visual": false}
 
 Question: "How many emojis does the right subfig have compared to the left?"
-{"visual": true, "query": "figure with emojis subfigures comparison"}
+{"visual": true}
 
 Question: "What year is printed on the t-shirt the man is wearing?"
-{"visual": true, "query": "photograph man wearing t-shirt year printed"}"""
+{"visual": true}"""
 
 
 def _trace(msg: str):
-    """Print a trace line. Sequential, no interleaving, shows up in notebook output."""
-    print(f"  [multimodal] {msg}")
+    """Sequential print trace for notebook readability."""
+    print(f"  [retrieval] {msg}")
 
 
-class MultimodalRetrieval(QueryTechnique):
+# ----- Main class -----
+
+class MultimodalRetriever:
     """
-    Multimodal retrieval: routes between text and visual strategies.
+    Wraps any query technique with visual classification and page image retrieval.
 
-    Text path  (Strategy 2): text retrieval → look up page images for
-                              retrieved pages by metadata → VLM gets both.
-    Visual path (Strategy 4): LLM rewrites query into a short visual
-                              description → image retrieval + text retrieval.
-
-    The LLM classifies each question first to decide the path.
+    Flow:
+        1. LLM classifies the question as visual or text.
+        2. Run the configured query technique for text retrieval.
+        3. Add page images:
+           - VISUAL → image search with the original query (Strategy 4)
+           - TEXT   → look up page images from text results metadata (Strategy 2)
     """
 
-    def __init__(self, embedder, retriever, generator, config=None):
-        super().__init__(embedder, retriever, generator, config)
-        self.vector_db = (config or {}).get("vector_db")
-        self.max_page_images = (config or {}).get("max_page_images", 2)
-        _trace(f"Initialized — max_page_images={self.max_page_images}, vector_db={'yes' if self.vector_db else 'no'}")
+    def __init__(self, query_technique, embedder, vector_db, generator, max_page_images: int = 2):
+        self.query_technique = query_technique
+        self.embedder = embedder
+        self.vector_db = vector_db
+        self.generator = generator
+        self.max_page_images = max_page_images
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
     def retrieve(self, question: str, top_k: int = 5) -> List[Dict[str, Any]]:
-        print()  # blank line before each query trace
-        _trace(f"==== New query ====")
         _trace(f"Question: {question[:120]}")
 
         # Step 1: Classify
-        analysis = self._classify_question(question)
-        needs_visual = analysis["needs_visual"]
-        visual_query = analysis.get("visual_query")
+        is_visual = self._classify_visual(question)
 
-        # Step 2: Route
-        if needs_visual and visual_query and self.vector_db:
-            _trace(f"Route → VISUAL PATH (Strategy 4)")
-            _trace(f"Visual query: \"{visual_query}\"")
-            results = self._visual_retrieval(question, visual_query, top_k)
+        # Step 2: Text retrieval via query technique
+        _trace(f"Text retrieval (top_k={top_k})...")
+        text_results = self.query_technique.retrieve(question, top_k)
+        _trace(f"Got {len(text_results)} text results")
+
+        # Step 3: Add images
+        if is_visual:
+            _trace(f"VISUAL → image search with original query")
+            image_results = self._image_search(question)
+            if not image_results:
+                _trace(f"No image results → falling back to metadata lookup")
+                image_results = self._page_image_lookup(text_results)
         else:
-            _trace(f"Route → TEXT PATH (Strategy 2)")
-            results = self._text_with_page_images(question, top_k)
+            _trace(f"TEXT → page image lookup from metadata")
+            image_results = self._page_image_lookup(text_results)
 
-        # Summary
-        n_text = sum(1 for r in results if r.get("payload", {}).get("type", "text") == "text")
-        n_img  = sum(1 for r in results if r.get("payload", {}).get("type") == "page_image")
-        _trace(f"Done — returning {len(results)} results ({n_text} text + {n_img} page_image)")
-        return results
-
-    # ------------------------------------------------------------------
-    # Strategy 2 — text-first, page image lookup
-    # ------------------------------------------------------------------
-
-    def _text_with_page_images(self, question: str, top_k: int) -> List[Dict[str, Any]]:
-        """Retrieve text chunks, then look up page images for those pages."""
-        _trace(f"[S2] Text retrieval (top_k={top_k})...")
-        text_results = self.retriever.retrieve(question, top_k=top_k)
-        _trace(f"[S2] Got {len(text_results)} text chunks")
-
-        for i, r in enumerate(text_results):
-            p = r.get("payload", {})
-            _trace(f"[S2]   [{i+1}] doc={p.get('pdf_name','?')}  pages={p.get('page_numbers')}  score={r.get('score',0):.3f}")
-
-        if not self.vector_db:
-            _trace(f"[S2] No vector_db — skipping page image lookup")
-            return text_results
-
-        lookups = self._collect_page_lookups(text_results)
-        _trace(f"[S2] Page image lookup for {len(lookups)} pages: {lookups}")
-        page_images = self._lookup_page_images(lookups)
-        _trace(f"[S2] Found {len(page_images)}/{len(lookups)} page images")
-
-        return text_results + page_images
-
-    # ------------------------------------------------------------------
-    # Strategy 4 — visual query reformulation
-    # ------------------------------------------------------------------
-
-    def _visual_retrieval(self, question: str, visual_query: str, top_k: int) -> List[Dict[str, Any]]:
-        """Reformulated visual query for image search + standard text retrieval."""
-        image_budget = min(self.max_page_images, top_k)
-        text_budget = max(top_k - image_budget, 2)
-        _trace(f"[S4] Budget: {text_budget} text + {image_budget} images")
-
-        # Text retrieval with the original question
-        _trace(f"[S4] Text retrieval with original question...")
-        text_results = self.retriever.retrieve(question, top_k=text_budget)
-        _trace(f"[S4] Got {len(text_results)} text chunks")
-        for i, r in enumerate(text_results):
-            p = r.get("payload", {})
-            _trace(f"[S4]   [{i+1}] doc={p.get('pdf_name','?')}  pages={p.get('page_numbers')}  score={r.get('score',0):.3f}")
-
-        # Image retrieval with the reformulated visual query
-        _trace(f"[S4] Image retrieval with visual query: \"{visual_query}\"")
-        visual_emb = self.embedder.embed_query(visual_query)
-        image_results = self.vector_db.retrieve(
-            visual_emb, top_k=image_budget, allowed_types=["page_image"]
-        )
-
-        if image_results:
-            _trace(f"[S4] Got {len(image_results)} image results:")
-            for i, r in enumerate(image_results):
-                p = r.get("payload", {})
-                _trace(f"[S4]   [{i+1}] doc={p.get('doc_name')}  page={p.get('page_num')}  score={r.get('score',0):.3f}")
-        else:
-            _trace(f"[S4] No image results — falling back to page lookup from text metadata")
-            lookups = self._collect_page_lookups(text_results)
-            image_results = self._lookup_page_images(lookups)
-            _trace(f"[S4] Fallback found {len(image_results)} page images")
-
+        _trace(f"Returning {len(text_results)} text + {len(image_results)} images")
         return text_results + image_results
 
     # ------------------------------------------------------------------
-    # Classification
+    # Visual classification
     # ------------------------------------------------------------------
 
-    def _classify_question(self, question: str) -> Dict[str, Any]:
-        """Ask the LLM whether the question needs visual content."""
-        _trace(f"Classifying question...")
+    def _classify_visual(self, question: str) -> bool:
+        _trace("Classifying: visual or text?")
         try:
             response = self.generator.chat([
                 {"role": "system", "content": CLASSIFY_PROMPT},
@@ -155,40 +100,72 @@ class MultimodalRetrieval(QueryTechnique):
                 {"role": "assistant", "content": "Understood. Send me the question."},
                 {"role": "user", "content": question},
             ])
-            clean = response.strip().replace("\n", " | ")
-            _trace(f"LLM response: {clean}")
-            result = self._parse_classification(response)
-            _trace(f"Parsed: needs_visual={result['needs_visual']}, visual_query={result.get('visual_query')}")
-            return result
-        except Exception as e:
-            _trace(f"Classification FAILED ({e}) — defaulting to text path")
-            return {"needs_visual": False, "visual_query": None}
+            _trace(f"LLM: {response.strip()}")
 
-    @staticmethod
-    def _parse_classification(response: str) -> Dict[str, Any]:
-        import json, re
-
-        text = response.strip()
-
-        # Extract JSON object from the response (LLM may wrap it in extra text)
-        match = re.search(r"\{.*\}", text, re.DOTALL)
-        if match:
-            try:
+            match = re.search(r"\{.*\}", response, re.DOTALL)
+            if match:
                 data = json.loads(match.group())
-                needs_visual = bool(data.get("visual", False))
-                visual_query = data.get("query")
-                if visual_query and str(visual_query).lower() in ("null", "none", "n/a", ""):
-                    visual_query = None
-                return {"needs_visual": needs_visual, "visual_query": visual_query}
-            except json.JSONDecodeError:
-                pass
-
-        _trace("Could not parse JSON from LLM response, defaulting to text path")
-        return {"needs_visual": False, "visual_query": None}
+                is_visual = bool(data.get("visual", False))
+                _trace(f"→ {'VISUAL' if is_visual else 'TEXT'}")
+                return is_visual
+        except Exception as e:
+            _trace(f"Classification failed ({e}), defaulting to TEXT")
+        return False
 
     # ------------------------------------------------------------------
-    # Page image helpers
+    # Strategy 4 — image search with original query
     # ------------------------------------------------------------------
+
+    def _image_search(self, question: str) -> List[Dict[str, Any]]:
+        query_emb = self.embedder.embed_query(question)
+        results = self.vector_db.retrieve(
+            query_emb, top_k=self.max_page_images, allowed_types=["page_image"]
+        )
+        for r in results:
+            p = r.get("payload", {})
+            _trace(f"  image: doc={p.get('doc_name')}  page={p.get('page_num')}  score={r.get('score',0):.3f}")
+        return results
+
+    # ------------------------------------------------------------------
+    # Strategy 2 — page image lookup from text results metadata
+    # ------------------------------------------------------------------
+
+    def _page_image_lookup(self, text_results: List[Dict]) -> List[Dict[str, Any]]:
+        lookups = self._collect_page_lookups(text_results)
+        if not lookups:
+            return []
+
+        _trace(f"  Looking up {len(lookups)} pages: {lookups}")
+        results = []
+        collection = self.vector_db.config.VECTOR_DB_COLLECTION
+
+        for doc_name, page_num in lookups:
+            try:
+                points, _ = self.vector_db.client.scroll(
+                    collection_name=collection,
+                    scroll_filter=Filter(must=[
+                        FieldCondition(key="type", match=MatchValue(value="page_image")),
+                        FieldCondition(key="doc_name", match=MatchValue(value=doc_name)),
+                        FieldCondition(key="page_num", match=MatchValue(value=page_num)),
+                    ]),
+                    limit=1,
+                    with_payload=True,
+                    with_vectors=False,
+                )
+                if points:
+                    pt = points[0]
+                    results.append({
+                        "id": pt.id, "score": 0.0,
+                        "payload": pt.payload,
+                        "text": pt.payload.get("text", ""),
+                    })
+                    _trace(f"  Found: {doc_name} page {page_num}")
+                else:
+                    _trace(f"  Not found: {doc_name} page {page_num}")
+            except Exception as e:
+                _trace(f"  Error: {doc_name} p{page_num}: {e}")
+
+        return results
 
     def _collect_page_lookups(self, text_results: List[Dict]) -> List[tuple]:
         """Extract unique (doc_name, page_num) pairs from text results."""
@@ -196,11 +173,8 @@ class MultimodalRetrieval(QueryTechnique):
         lookups = []
         for r in text_results:
             payload = r.get("payload", {})
-            pdf_name = payload.get("pdf_name", "")
-            doc_stem = pdf_name.replace(".pdf", "")
-            page_nums = payload.get("page_numbers") or []
-
-            for pn in page_nums:
+            doc_stem = payload.get("pdf_name", "").replace(".pdf", "")
+            for pn in (payload.get("page_numbers") or []):
                 key = (doc_stem, pn)
                 if key not in seen:
                     seen.add(key)
@@ -208,45 +182,3 @@ class MultimodalRetrieval(QueryTechnique):
                     if len(lookups) >= self.max_page_images:
                         return lookups
         return lookups
-
-    def _lookup_page_images(self, lookups: List[tuple]) -> List[Dict[str, Any]]:
-        """Fetch page images from Qdrant by (doc_name, page_num) metadata."""
-        if not lookups or not self.vector_db:
-            return []
-
-        from qdrant_client.http.models import Filter, FieldCondition, MatchValue
-
-        results = []
-        collection = self.vector_db.config.VECTOR_DB_COLLECTION
-
-        for doc_name, page_num in lookups:
-            try:
-                page_filter = Filter(must=[
-                    FieldCondition(key="type", match=MatchValue(value="page_image")),
-                    FieldCondition(key="doc_name", match=MatchValue(value=doc_name)),
-                    FieldCondition(key="page_num", match=MatchValue(value=page_num)),
-                ])
-
-                points, _ = self.vector_db.client.scroll(
-                    collection_name=collection,
-                    scroll_filter=page_filter,
-                    limit=1,
-                    with_payload=True,
-                    with_vectors=False,
-                )
-
-                if points:
-                    pt = points[0]
-                    results.append({
-                        "id": pt.id,
-                        "score": 0.0,
-                        "payload": pt.payload,
-                        "text": pt.payload.get("text", ""),
-                    })
-                    _trace(f"  Found page image: {doc_name} page {page_num}")
-                else:
-                    _trace(f"  Not found: {doc_name} page {page_num}")
-            except Exception as e:
-                _trace(f"  Error looking up {doc_name} p{page_num}: {e}")
-
-        return results
