@@ -260,7 +260,11 @@ class AgenticRAGPipeline(BaseRAGPipeline):
         # Extract predictions and ground truths for generation evaluation
         predictions = [r.get("answer", "") for r in results]
         ground_truths = [r.get("ground_truth", "") for r in results]
-        generation_metrics = evaluate_generation(predictions, ground_truths)
+        generation_metrics = evaluate_generation(
+            predictions, 
+            ground_truths,
+            embedder=self.embedder  # Pass embedder for true semantic similarity (BGE/BAAI embeddings)
+        )
         
         elapsed = time.time() - eval_start
         

@@ -218,7 +218,8 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
         
         generation_metrics = evaluate_generation(
             [r['answer'] for r in generation_results],
-            [r['expected_answer'] for r in generation_results]
+            [r['expected_answer'] for r in generation_results],
+            embedder=self.embedder  # Pass embedder for true semantic similarity (Jina embeddings)
         )
         logger.info(f"Generation metrics: {generation_metrics}")
         
