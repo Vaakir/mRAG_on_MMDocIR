@@ -3,7 +3,7 @@
 
 from pathlib import Path
 from dataclasses import dataclass, field
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 # Define paths outside the dataclass for cleaner referencing
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -124,6 +124,10 @@ class AdvancedConfig(BaselineConfig):
     IMAGES_TRAIN_DIR: Path = IMAGES_TRAIN_DIR
     PAGE_IMAGES_TEST_DIR: Path = PAGE_IMAGES_TEST_DIR
     IMAGES_TEST_DIR: Path = IMAGES_TEST_DIR
+
+    # ===== RETRIEVAL FILTER =====
+    ALLOWED_CHUNK_TYPES: List[str] = field(default_factory=lambda: ["text", "page_image"])
+    """Only retrieve these chunk types. Excludes 'evidence' (circular — indexed from question text)."""
 
     # ===== QUERY TECHNIQUE SETTINGS =====
     QUERY_TECHNIQUE: str = "standard"

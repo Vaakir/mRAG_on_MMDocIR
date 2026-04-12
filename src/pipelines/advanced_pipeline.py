@@ -11,7 +11,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from config.config import AdvancedConfig
 from pipelines.base_pipeline import BaseRAGPipeline
-from preprocessing.image_processor import load_page_image_chunks, load_evidence_chunks
+from preprocessing.image_processor import load_page_image_chunks
 from indexing.embedder import TextEmbedder
 from generation.generator import VisionGenerator
 from query_techniques import get_query_technique
@@ -101,21 +101,6 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
                 abs_paths = [str(self.config.DATA_DIR / c["image_path"]) for c in page_chunks]
                 page_embeddings = self.embedder.embed_images(abs_paths)
 
-        # --- Evidence crops ---
-        evidence_chunks = []
-        evidence_embeddings = None
-        if self.config.USE_MULTIMODAL:
-            evidence_chunks = load_evidence_chunks(
-                self.config.IMAGES_TRAIN_DIR,
-                self.config.TRAIN_JSONL,
-                self.config.DATA_DIR,
-            )
-            if evidence_chunks:
-                evidence_embeddings = self.embedder.embed_texts(
-                    [c["text"] for c in evidence_chunks],  # question text
-                    batch_size=self.config.EMBEDDING_BATCH_SIZE,
-                )
-
         # --- Index into Qdrant ---
         self.vector_db.create_collection(force_recreate=True)
 
@@ -155,28 +140,11 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
                 })
                 doc_id += 1
 
-        # Evidence crops
-        if evidence_embeddings is not None:
-            for chunk, emb in zip(evidence_chunks, evidence_embeddings):
-                qdrant_docs.append({
-                    "id": doc_id,
-                    "embedding": emb,
-                    "text": chunk["text"],   # question text (display/BM25)
-                    "metadata": {
-                        "type": "evidence",
-                        "image_path": chunk["image_path"],  # list[str]
-                        "question_id": chunk.get("question_id"),
-                        "doc_name": chunk.get("doc_name", ""),
-                    },
-                })
-                doc_id += 1
-
         self.vector_db.index_documents(qdrant_docs)
         elapsed = time.time() - start_time
         logger.info(
             f"Indexed {doc_id} documents "
-            f"({len(self.chunks)} text, {len(page_chunks)} page images, "
-            f"{len(evidence_chunks)} evidence crops) in {elapsed:.2f}s"
+            f"({len(self.chunks)} text, {len(page_chunks)} page images) in {elapsed:.2f}s"
         )
 
         self._initialize_retriever()
@@ -230,7 +198,7 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
         Route to VLM if any image chunks were retrieved, otherwise use text LLM.
         BM25-only results have no 'type' in payload — treat those as text.
         """
-        _IMAGE_TYPES = {"page_image", "evidence"}
+        _IMAGE_TYPES = {"page_image"}
         image_results = [r for r in retrieved if r.get("payload", {}).get("type") in _IMAGE_TYPES]
         text_results  = [r for r in retrieved if r.get("payload", {}).get("type") not in _IMAGE_TYPES]
 

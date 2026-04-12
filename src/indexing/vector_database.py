@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import List, Dict, Optional
 
 from qdrant_client import QdrantClient
-from qdrant_client.http.models import Distance, VectorParams, PointStruct, HnswConfigDiff
+from qdrant_client.http.models import Distance, VectorParams, PointStruct, HnswConfigDiff, Filter, FieldCondition, MatchAny
 
 # -------------------------------------------------------------------
 class QdrantVectorDB:
@@ -255,16 +255,19 @@ class QdrantVectorDB:
                 query_embedding,
                 collection_name: str = None,
                 top_k: int = None,
-                query_vector_name: str = None) -> List[Dict]:
+                query_vector_name: str = None,
+                allowed_types: Optional[List[str]] = None) -> List[Dict]:
         """
         Retrieve the top-k most similar documents using a pre-computed query embedding.
-        
+
         Args:
             query_embedding: Pre-computed query embedding (np.ndarray or list)
             collection_name: Name of the collection. Uses config name if None.
             top_k: Number of results. Uses config value if None.
             query_vector_name: For multi-vector mode, which vector field to search
-            
+            allowed_types: If set, only return chunks whose 'type' payload field is in this list.
+                           E.g. ["text", "page_image"] excludes any other types.
+
         Returns:
             List[Dict]: Retrieved documents with scores and metadata
         """
@@ -272,23 +275,31 @@ class QdrantVectorDB:
             collection_name = self.config.VECTOR_DB_COLLECTION
         if top_k is None:
             top_k = self.config.TOP_K
-        
+
         # Convert numpy array to list if needed
         if isinstance(query_embedding, np.ndarray):
             query_embedding = query_embedding.tolist()
-        
+
         # For multi-vector collections, specify which vector field to use
         vector_field = None
         if hasattr(self.config, "VECTOR_DB_VECTORS_CONFIG") and self.config.VECTOR_DB_VECTORS_CONFIG:
             vector_field = query_vector_name or list(self.config.VECTOR_DB_VECTORS_CONFIG.keys())[0] # Default to the first vector field if not specified
-        
+
+        # Build type filter if allowed_types is specified
+        query_filter = None
+        if allowed_types:
+            query_filter = Filter(
+                must=[FieldCondition(key="type", match=MatchAny(any=allowed_types))]
+            )
+
         try:
             search_params = self.config.VECTOR_DB_SEARCH_PARAMS if hasattr(self.config, "VECTOR_DB_SEARCH_PARAMS") else None
-            search_results = self.client.query_points( # Query the Qdrant collection using the pre-computed query embedding to retrieve the most similar documents based on the specified vector field (for multi-vector) and top_k results, along with any additional search parameters from the config
+            search_results = self.client.query_points(
                 collection_name=collection_name,
                 query=query_embedding,
                 using=vector_field,
                 limit=top_k,
+                query_filter=query_filter,
                 search_params=search_params
             ).points
         except Exception as e:
@@ -307,6 +318,33 @@ class QdrantVectorDB:
             })
         
         return retrieved_docs
+    #-------------------
+    def retrieve_split(self,
+                       query_embedding,
+                       top_k_text: int = 3,
+                       top_k_image: int = 2,
+                       collection_name: str = None) -> List[Dict]:
+        """
+        Retrieve top-k text chunks and top-k page_image chunks separately, then
+        merge sorted by score. Prevents text-text similarity from crowding out
+        cross-modal text-image results, which typically score lower in CLIP space.
+
+        Args:
+            query_embedding: Pre-computed query embedding
+            top_k_text: Number of text chunks to retrieve
+            top_k_image: Number of page_image chunks to retrieve
+            collection_name: Uses config name if None
+
+        Returns:
+            List[Dict]: Merged results sorted by score descending
+        """
+        text_results  = self.retrieve(query_embedding, collection_name=collection_name,
+                                      top_k=top_k_text,  allowed_types=["text"])
+        image_results = self.retrieve(query_embedding, collection_name=collection_name,
+                                      top_k=top_k_image, allowed_types=["page_image"])
+        merged = text_results + image_results
+        merged.sort(key=lambda r: r["score"], reverse=True)
+        return merged
     #-------------------
     def retrieve_by_ids(self,
                        doc_ids: List[int],

@@ -177,4 +177,5 @@ class BaseRAGPipeline:
              raise RuntimeError("Embedder or Vector DB not initialized. Call build_index() first.")
 
         query_embedding = self.embedder.embed_query(question)
-        return self.vector_db.retrieve(query_embedding=query_embedding, top_k=top_k)
+        return self.vector_db.retrieve(query_embedding=query_embedding, top_k=top_k,
+                                       allowed_types=getattr(self.config, "ALLOWED_CHUNK_TYPES", None))

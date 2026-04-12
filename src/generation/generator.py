@@ -352,9 +352,8 @@ class VisionGenerator(BaselineGenerator):
         if not think:
             messages = self._inject_no_think(messages)
 
-        options = {"temperature": 0.0, "top_p": 0.1}
+        options = {"temperature": 0.0, "top_p": 0.1, "num_predict": 4096}
         if not think:
-            # Image parsing: highly prone to looping, needs penalty
             options["repeat_penalty"] = 1.1
         options.update(kwargs.pop("options", {}))
 

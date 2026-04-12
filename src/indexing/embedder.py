@@ -56,7 +56,7 @@ class TextEmbedder:
     def embed_query(self, query: str) -> np.ndarray:
         """Embed a single query text."""
         with self._lock:
-            return self.model.encode([query], normalize_embeddings=True)[0]
+            return self.model.encode([query], prompt_name="retrieval.query", normalize_embeddings=True)[0]
 
     def embed_images(
         self,
