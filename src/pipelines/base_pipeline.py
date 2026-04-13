@@ -1,13 +1,18 @@
 import logging
 import time
+import sqlite3
+import json
 from pathlib import Path
 from typing import Dict, Any, List, Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from data.chunk_loader import load_preprocessed_chunks, print_chunk_statistics
 from indexing.embedder import TextEmbedder, create_chunk_embeddings
 from indexing.vector_database import QdrantVectorDB
 from indexing.hybrid_retriever import HybridRetriever
 from generation.generator import BaselineGenerator
+from evaluation.retrieval_metrics import evaluate_retrieval
+from evaluation.generation_metrics import evaluate_generation
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -30,6 +35,61 @@ class BaseRAGPipeline:
         self.hybrid_retriever: Optional[HybridRetriever] = None
         self.generator: Optional[BaselineGenerator] = None
         self.chunks: Optional[List[Dict]] = None
+        
+        # Initialize Cache Database
+        self._init_cache_db()
+
+    def _init_cache_db(self):
+        """Initialize SQLite database for caching query responses."""
+        db_path = getattr(self.config, 'CACHE_DB_PATH', Path('query_cache.db'))
+        
+        # Ensure parent directory exists
+        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+        
+        self.cache_conn = sqlite3.connect(str(db_path), check_same_thread=False)
+        self.cache_conn.execute('''
+            CREATE TABLE IF NOT EXISTS query_cache (
+                query TEXT PRIMARY KEY,
+                response_json TEXT
+            )
+        ''')
+        self.cache_conn.commit()
+
+    def _get_cached_response(self, query: str) -> Optional[Dict[str, Any]]:
+        """Retrieve a cached response for an exact query match."""
+        cursor = self.cache_conn.cursor()
+        cursor.execute("SELECT response_json FROM query_cache WHERE query = ?", (query,))
+        row = cursor.fetchone()
+        if row:
+            try:
+                return json.loads(row[0])
+            except Exception as e:
+                logger.warning(f"Failed to load cached response for query '{query}': {e}")
+        return None
+
+    def _cache_response(self, query: str, response: Dict[str, Any]):
+        """Save a response to the cache database."""
+        try:
+            response_json = json.dumps(response)
+            with self.cache_conn:
+                self.cache_conn.execute(
+                    "INSERT OR REPLACE INTO query_cache (query, response_json) VALUES (?, ?)",
+                    (query, response_json)
+                )
+        except Exception as e:
+            logger.warning(f"Failed to cache response for query '{query}': {e}")
+
+    def run_query_cached(self, question: str, **kwargs) -> Dict[str, Any]:
+        """Wrap the run_query method to check the cache first."""
+        cached_result = self._get_cached_response(question)
+        if cached_result:
+            logger.info(f"Cache hit for query: {question[:50]}...")
+            return cached_result
+            
+        logger.info(f"Cache miss for query. Running pipeline: {question[:50]}...")
+        result = self.run_query(question, **kwargs)
+        self._cache_response(question, result)
+        return result
 
     def build_index(self, force_rebuild: bool = True):
         """
@@ -177,3 +237,73 @@ class BaseRAGPipeline:
 
         query_embedding = self.embedder.embed_query(question)
         return self.vector_db.retrieve(query_embedding=query_embedding, top_k=top_k)
+
+    def evaluate(self, test_data: List[Dict[str, Any]], **kwargs) -> Dict[str, Any]:
+        """
+        Evaluate the pipeline on test data in parallel using multithreading.
+        """
+        # Check subset limits from config
+        subset_size = getattr(self.config, 'EVAL_SUBSET_SIZE', len(test_data))
+        test_subset = test_data[:subset_size]
+        
+        logger.info(f"Evaluating on {len(test_subset)} test queries using multithreading (kwargs: {kwargs})...\n")
+        
+        eval_total_start = time.time()
+        
+        # Pre-allocate lists to maintain order matching test_subset
+        all_retrieved = [None] * len(test_subset)
+        all_predictions = [None] * len(test_subset)
+        all_ground_truths = [None] * len(test_subset)
+        
+        # Use GENERATION_WORKERS as the primary concurrency bottleneck limiter
+        workers = getattr(self.config, 'GENERATION_WORKERS', 2)
+        
+        # ===== PHASE 1: PARALLEL RETRIEVAL & GENERATION =====
+        phase1_start = time.time()
+        
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            # Submit all questions to the executor using run_query_cached
+            futures = {
+                executor.submit(self.run_query_cached, record["question"], **kwargs): (i, record)
+                for i, record in enumerate(test_subset)
+            }
+            
+            completed = 0
+            for future in as_completed(futures):
+                i, record = futures[future]
+                result = future.result()
+                
+                # Store results at correct original index
+                all_retrieved[i] = result['retrieved_docs']
+                all_predictions[i] = result['answer']
+                all_ground_truths[i] = record['answer']
+                
+                completed += 1
+                logger.info(f"Processed query {completed}/{len(test_subset)}")
+                logger.info(f"Question: {record['question']}")
+                logger.info(f"Ground Truth: {record['answer']}")
+                logger.info(f"Generated Answer: {result['answer']}\n")
+        
+        phase1_time = time.time() - phase1_start
+        logger.info(f"Phase 1 (Parallel Retrieval + Generation): {phase1_time:.2f}s")
+        
+        # ===== PHASE 2: METRIC COMPUTATION =====
+        phase2_start = time.time()
+        retrieval_metrics = evaluate_retrieval(all_retrieved, test_subset)
+        generation_metrics = evaluate_generation(all_predictions, all_ground_truths)
+        phase2_time = time.time() - phase2_start
+        logger.info(f"Phase 2 (Metric Computation): {phase2_time:.2f}s")
+        
+        eval_total_time = time.time() - eval_total_start
+        
+        all_metrics = {
+            'retrieval': retrieval_metrics,
+            'generation': generation_metrics,
+            'timing': {
+                'phase1': phase1_time,
+                'phase2': phase2_time,
+                'total': eval_total_time
+            }
+        }
+        
+        return all_metrics
