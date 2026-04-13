@@ -12,8 +12,65 @@ from ..tools.output_parser import (
     RetrieverDecision,
     GeneratorDecision
 )
+from generation.prompts import get_prompt_strategy
 
 logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# HELPER FUNCTION: Clean LLM responses
+# ============================================================================
+
+def clean_and_extract_json(response_text: str) -> dict:
+    """
+    Clean LLM response and extract JSON.
+    
+    Handles:
+    - Removes <think> and </think> XML tags
+    - Extracts JSON from markdown code blocks
+    - Returns first valid JSON object found
+    
+    Args:
+        response_text: Raw LLM response text
+        
+    Returns:
+        Parsed JSON as dictionary
+        
+    Raises:
+        json.JSONDecodeError: If no valid JSON found
+    """
+    # Remove XML-style thinking tags
+    cleaned = response_text.replace("<think>", "").replace("</think>", "").strip()
+    
+    # Try direct JSON parse first
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        pass
+    
+    # Try markdown code blocks
+    if "```json" in cleaned:
+        json_str = cleaned.split("```json")[1].split("```")[0].strip()
+        return json.loads(json_str)
+    elif "```" in cleaned:
+        json_str = cleaned.split("```")[1].split("```")[0].strip()
+        return json.loads(json_str)
+    
+    # Last resort: try to find first { ... } JSON object
+    start = cleaned.find("{")
+    if start != -1:
+        bracket_count = 0
+        for i in range(start, len(cleaned)):
+            if cleaned[i] == "{":
+                bracket_count += 1
+            elif cleaned[i] == "}":
+                bracket_count -= 1
+                if bracket_count == 0:
+                    json_str = cleaned[start:i+1]
+                    return json.loads(json_str)
+    
+    # If all else fails, raise error
+    raise json.JSONDecodeError(f"Cannot extract valid JSON from: {response_text}", response_text, 0)
 
 
 # ============================================================================
@@ -26,7 +83,7 @@ def make_query_rewriter_node(llm, query_techniques_dict, config: Dict[str, Any])
     Factory function to create the query rewriter node.
     
     The query rewriter agent decides which of the 8 QueryTechnique classes
-    to use based on the user's question.
+    to use, based on the user's question.
     
     Args:
         llm: LangChain LLM instance (for decision-making)
@@ -72,54 +129,43 @@ def make_query_rewriter_node(llm, query_techniques_dict, config: Dict[str, Any])
         # Build prompt for LLM to decide which technique to use
         available_techniques = list(query_techniques_dict.keys())
         
-        prompt = f"""You are a query planning agent. Your job is to decide which query technique
-to use for improved retrieval.
+        prompt = f"""You are a query planning agent. Your job is to decide which query technique to use for better retrieval.
 
-Available techniques:
-- standard: No modification (baseline)
-- multi_query: Generate multiple paraphrases and retrieve for each (use for ambiguous or multi-faceted questions)
-- rag_fusion: Paraphrases with RRF fusion (good for complex questions)
-- step_back: Abstract to broader concept, then retrieve (good for specific queries needing context)
-- hyde: Generate hypothetical documents matching the query (good for semantic searches)
-- query_decomposition: Break into sub-questions (good for multi-part questions)
-- query_rewriting: Improve grammar and clarity (good for poorly-phrased questions)
-- query_expansion: Add synonyms and related terms (good for narrow searches)
+QUESTION: {question}
 
-Question: {question}
+AVAILABLE TECHNIQUES (choose exactly ONE):
+1. "standard": No modification (baseline retrieval)
+2. "multi_query": Generate multiple paraphrases and retrieve for each (ambiguous/multi-faceted questions)
+3. "rag_fusion": Paraphrases with RRF fusion (complex questions)
+4. "step_back": Abstract to broader concept, then retrieve (specific queries needing context)
+5. "hyde": Generate hypothetical documents (semantic searches)
+6. "query_decomposition": Break into sub-questions (multi-part questions)
+7. "query_rewriting": Improve grammar and clarity (poorly-phrased questions)
+8. "query_expansion": Add synonyms and related terms (narrow searches, entity searches)
 
-Retry attempt: {retry_count}
-Last technique used: {last_technique if last_technique else "None"}
+RETRY CONTEXT:
+- Attempt number: {retry_count + 1}
+- Last technique used: {last_technique if last_technique else "None (first attempt)"}
+- On retry: Choose a DIFFERENT technique than last time
 
-On retry, prefer a DIFFERENT technique than last time (e.g., if last was multi_query, try step_back or query_decomposition).
+DECISION:
+Think about the question type, then select the best technique.
 
-Decide which technique to use and explain why.
+REQUIRED: Return ONLY a JSON object with exactly 2 fields:
+1. "technique": Must be exactly one of the 8 techniques listed above (string)
+2. "reasoning": Explain why this technique will help (string)
 
-Respond with ONLY valid JSON (no markdown code block, no extra text):
-{{
-    "technique": "one of the 8 listed above",
-    "reasoning": "why you chose this technique"
-}}"""
+Return ONLY this JSON (no markdown, no code blocks, no extra text):
+{{"technique": "standard", "reasoning": "This is a straightforward factual question"}}"""
         
-        # Call LLM to get decision
+        # Call LLM to get decision on which technique to use
         try:
             response = llm.invoke(prompt)
-            response_text = response.content if hasattr(response, 'content') else str(response)
+            response_text = response.content if hasattr(response, 'content') else str(response) # Handle different response types
             
             # Try to parse as JSON
-            try:
-                decision_dict = json.loads(response_text)
-            except json.JSONDecodeError:
-                # Try to extract JSON from markdown code block
-                if "```json" in response_text:
-                    json_str = response_text.split("```json")[1].split("```")[0].strip()
-                    decision_dict = json.loads(json_str)
-                elif "```" in response_text:
-                    json_str = response_text.split("```")[1].split("```")[0].strip()
-                    decision_dict = json.loads(json_str)
-                else:
-                    raise ValueError(f"Cannot parse LLM response as JSON: {response_text}")
-            
-            decision = QueryRewriterDecision(**decision_dict)
+            decision_dict = clean_and_extract_json(response_text) # This will raise an error if parsing fails, which we catch below
+            decision = QueryRewriterDecision(**decision_dict) # Validate and create Pydantic model (also checks if technique is valid)
             
         except Exception as e:
             logger.warning(f"Failed to parse LLM decision: {e}, falling back to 'standard'")
@@ -134,14 +180,14 @@ Respond with ONLY valid JSON (no markdown code block, no extra text):
         
         # Apply the chosen query technique
         technique = query_techniques_dict.get(decision.technique)
-        if not technique:
+        if not technique: # This should not happen due to Pydantic validation, but we check just in case
             logger.warning(f"Technique {decision.technique} not found, using 'standard'")
             technique = query_techniques_dict['standard']
         
-        # Retrieve using the technique
+        # Retrieve documents using the technique
         retrieved_docs = technique.retrieve(question, top_k=config.get('TOP_K', 5))
         
-        # Format retrieved text
+        # Format the retrieved text
         retrieved_text = "\n\n".join([
             f"[Document {i+1}]:\n{doc.get('text', '')}"
             for i, doc in enumerate(retrieved_docs)
@@ -160,8 +206,8 @@ Respond with ONLY valid JSON (no markdown code block, no extra text):
             "rewritten_queries": [question],  # Store the final queries used
             "retrieved_documents": retrieved_docs,
             "retrieved_text": retrieved_text,
-            "last_technique_used": decision.technique,
-            "agent_decisions": {
+            "last_technique_used": decision.technique, # Store last technique for retry logic
+            "agent_decisions": { # Store the decision details for analysis
                 **existing_decisions,
                 "query_rewriter": {
                     "technique": decision.technique,
@@ -212,7 +258,7 @@ def make_grader_node(llm, config: Dict[str, Any]):
         logger.info(f"{'='*80}")
         logger.info(f"Evaluating {len(retrieved_docs)} documents")
         
-        if not retrieved_docs:
+        if not retrieved_docs: # No documents to grade; return not relevant
             logger.warning("No documents to grade")
             return {
                 "grade_decision": "no",
@@ -227,49 +273,39 @@ def make_grader_node(llm, config: Dict[str, Any]):
             for i, doc in enumerate(retrieved_docs[:5])  # Grade top 5
         ])
         
-        prompt = f"""You are a document relevance grader.
+        prompt = f"""You are a document relevance grader. Your job is to assess if retrieved documents are relevant to the question.
 
-Question: {question}
+QUESTION:
+{question}
 
-Retrieved Documents (showing first 500 chars each):
+RETRIEVED DOCUMENTS (first 500 chars each):
 {doc_text}
 
-Are these documents relevant to answering the question?
-Consider:
-- Do they contain information that could help answer the question?
-- Are they related to the topic?
-- Would they help generate a good answer?
+EVALUATION CRITERIA:
+1. Does the content contain information to answer the question?
+2. Is the content related to the topic?
+3. Would this help generate a good answer?
 
-Respond with ONLY valid JSON (no markdown):
-{{
-    "relevant": "yes" or "no",
-    "confidence": 0.0-1.0,
-    "reasoning": "why or why not",
-    "num_relevant": 0-5
-}}"""
+REQUIRED: Return ONLY a JSON object with ALL four fields:
+1. "relevant": Must be exactly "yes" or "no" (string)
+2. "confidence": Must be a number from 0.0 to 1.0 (e.g., 0.95 for 95% confident)
+3. "num_relevant": Must be an integer from 0 to {len(retrieved_docs)} (count of relevant docs)
+4. "reasoning": Explain why you made this judgment (string)
+
+Return ONLY this JSON (no markdown, no code blocks, no extra text):
+{{"relevant": "yes/no", "confidence": 0.0to1.0, "num_relevant": 0-{len(retrieved_docs)}, "reasoning": "explanation"}}"""
         
         try:
-            response = llm.invoke(prompt)
-            response_text = response.content if hasattr(response, 'content') else str(response)
+            response = llm.invoke(prompt) # Call LLM to get grading decision
+            response_text = response.content if hasattr(response, 'content') else str(response) # Handle different response types
             
             # Parse JSON
-            try:
-                grade_dict = json.loads(response_text)
-            except json.JSONDecodeError:
-                if "```json" in response_text:
-                    json_str = response_text.split("```json")[1].split("```")[0].strip()
-                    grade_dict = json.loads(json_str)
-                elif "```" in response_text:
-                    json_str = response_text.split("```")[1].split("```")[0].strip()
-                    grade_dict = json.loads(json_str)
-                else:
-                    raise ValueError(f"Cannot parse: {response_text}")
-            
-            grade = DocumentGrade(**grade_dict)
+            grade_dict = clean_and_extract_json(response_text)
+            grade = DocumentGrade(**grade_dict) # Validate and create Pydantic model (also checks field types and values)
             
         except Exception as e:
             logger.warning(f"Failed to grade documents: {e}, assuming relevant")
-            grade = DocumentGrade(
+            grade = DocumentGrade( # Default to relevant if grading fails, to avoid blocking generation
                 relevant="yes",
                 confidence=0.5,
                 reasoning="Error in grading",
@@ -281,22 +317,22 @@ Respond with ONLY valid JSON (no markdown):
         
         # Get existing agent_decisions and retry count safely (handle both dict and AgenticRAGState)
         if isinstance(state, dict):
-            existing_decisions = state.get('agent_decisions') or {}
-            current_retry_count = state.get('retry_count', 0)
+            existing_decisions = state.get('agent_decisions') or {} # Existing decisions from previous nodes
+            current_retry_count = state.get('retry_count', 0)       # Current retry count for this question
         else:
-            existing_decisions = state.agent_decisions or {}
-            current_retry_count = state.retry_count
+            existing_decisions = state.agent_decisions or {} # Existing decisions from previous nodes
+            current_retry_count = state.retry_count          # Current retry count for this question
         
         # Increment retry count if documents are not relevant (will retry)
         new_retry_count = current_retry_count + 1 if grade.relevant == "no" else current_retry_count
         
         return {
-            "grade_decision": grade.relevant,
-            "grade_score": grade.relevant,
-            "grade_confidence": grade.confidence,
-            "grade_reasoning": grade.reasoning,
-            "retry_count": new_retry_count,
-            "agent_decisions": {
+            "grade_decision": grade.relevant, # Store the relevance decision for routing
+            "grade_score": grade.relevant,    # Store the same relevance decision as a score for clarity
+            "grade_confidence": grade.confidence, # Store the confidence in the grading decision
+            "grade_reasoning": grade.reasoning, # Store the reasoning for the grading decision
+            "retry_count": new_retry_count, # Update retry count in state (increment if documents are not relevant)
+            "agent_decisions": { # Store the decision details for analysis
                 **existing_decisions,
                 "grader": {
                     "relevant": grade.relevant,
@@ -338,9 +374,9 @@ def make_generator_node(llm, generator, config: Dict[str, Any]):
         
         # Handle both AgenticRAGState and dict
         if isinstance(state, dict):
-            question = state.get('original_question', '')
-            context = state.get('retrieved_text', '')
-            grade_decision = state.get('grade_decision', '')
+            question = state.get('original_question', '') # Original question (not rewritten, for generation)
+            context = state.get('retrieved_text', '')     # Formatted retrieved text to use as context for generation
+            grade_decision = state.get('grade_decision', '') # Grader's decision on the relevance (to inform strategy choice)
             retry_count = state.get('retry_count', 0)
             max_retries = state.get('max_retries', 2)
         else:
@@ -351,56 +387,46 @@ def make_generator_node(llm, generator, config: Dict[str, Any]):
             max_retries = state.max_retries
         
         # Build prompt for strategy selection
-        prompt = f"""You are an expert in selecting prompting strategies.
+        prompt = f"""You are an expert in selecting prompting strategies for answer generation.
 
-Question: {question}
-Context available: {"Yes" if context else "No"}
-Documents relevant: {grade_decision}
+CONTEXT:
+- Question: {question}
+- Context available: {"Yes" if context else "No"}
+- Documents relevant: {grade_decision}
 
-Which prompting strategy would work best?
+AVAILABLE STRATEGIES:
+1. "standard": Direct extraction from context without explanation (factual, simple)
+2. "cot": Chain-of-thought reasoning with step-by-step logic (complex, requires reasoning)
+3. "few_shot": Example-based reasoning (learn from patterns)
+4. "role": Expert role assumption (financial analyst, researcher, etc.) (domain-specific)
+5. "ensemble": Multiple strategies combined (highest quality but slower)
 
-Available strategies:
-- standard: Direct extraction from context without explanation
-- cot: Chain-of-thought reasoning with step-by-step logic (good for complex questions)
-- few_shot: Example-based reasoning
-- role: Expert role assumption (e.g., financial analyst) - good for domain-specific q's
-- ensemble: Multiple strategies combined
+SELECTION CRITERIA:
+- Question complexity (simple vs. complex)
+- Whether reasoning/explanation is needed
+- Domain specificity (general vs. specialized)
+- Available context quality
 
-Choose based on:
-- Question complexity
-- Whether reasoning is needed
-- Domain specificity
+REQUIRED: Return ONLY a JSON object with ALL four fields:
+1. "strategy": Must be exactly one of: "standard", "cot", "few_shot", "role", or "ensemble"
+2. "reasoning": Explain your choice (why this strategy works best)
+3. "needs_more_context": Boolean true or false (do we need more context?)
+4. "confidence": A number from 0.0 to 1.0 (how confident are you?)
 
-Respond with ONLY valid JSON:
-{{
-    "strategy": "standard|cot|few_shot|role|ensemble",
-    "reasoning": "why this strategy",
-    "needs_more_context": false,
-    "confidence": 0.0-1.0
-}}"""
+Return ONLY this JSON (no markdown, no code blocks, no extra text):
+{{"strategy": "standard/cot/few_shot/role/ensemble", "reasoning": "explanation", "needs_more_context": false, "confidence": 0.9}}"""
         
         try:
-            response = llm.invoke(prompt)
-            response_text = response.content if hasattr(response, 'content') else str(response)
+            response = llm.invoke(prompt) # Call LLM to get strategy decision
+            response_text = response.content if hasattr(response, 'content') else str(response) # Handle different response types
             
             # Parse JSON
-            try:
-                strategy_dict = json.loads(response_text)
-            except json.JSONDecodeError:
-                if "```json" in response_text:
-                    json_str = response_text.split("```json")[1].split("```")[0].strip()
-                    strategy_dict = json.loads(json_str)
-                elif "```" in response_text:
-                    json_str = response_text.split("```")[1].split("```")[0].strip()
-                    strategy_dict = json.loads(json_str)
-                else:
-                    raise ValueError(f"Cannot parse: {response_text}")
-            
-            strategy_decision = GeneratorDecision(**strategy_dict)
+            strategy_dict = clean_and_extract_json(response_text)
+            strategy_decision = GeneratorDecision(**strategy_dict) # Validate and create Pydantic model (also checks if strategy is valid and that confidence is in range)
             
         except Exception as e:
             logger.warning(f"Failed to decide strategy: {e}, using 'standard'")
-            strategy_decision = GeneratorDecision(
+            strategy_decision = GeneratorDecision( # Default to standard strategy if decision fails, to ensure continuation of generation
                 strategy="standard",
                 reasoning="Error in selection, using default",
                 needs_more_context=False,
@@ -410,30 +436,28 @@ Respond with ONLY valid JSON:
         logger.info(f"Chose strategy: {strategy_decision.strategy}")
         logger.info(f"Confidence: {strategy_decision.confidence}")
         
-        # Generate answer using the chosen strategy
-        from generation.prompts import get_prompt_strategy
-        
-        strategy = get_prompt_strategy(
+        # Generate answer using the chosen strategy        
+        strategy = get_prompt_strategy( # Get the actual prompting strategy function based on the decision
             strategy_decision.strategy,
             generator,
             {}
         )
         
-        answer = strategy.generate(question, context)
+        answer = strategy.generate(question, context) # Generate the answer using the selected strategy
         
         logger.info(f"Generated answer length: {len(answer)} chars")
         
         # Get existing agent_decisions safely (handle both dict and AgenticRAGState)
         if isinstance(state, dict):
-            existing_decisions = state.get('agent_decisions') or {}
+            existing_decisions = state.get('agent_decisions') or {} # Existing decisions from previous nodes
         else:
-            existing_decisions = state.agent_decisions or {}
+            existing_decisions = state.agent_decisions or {} # Existing decisions from previous nodes
         
         return {
-            "generated_answer": answer,
-            "chosen_prompting_strategy": strategy_decision.strategy,
-            "generation_confidence": strategy_decision.confidence,
-            "agent_decisions": {
+            "generated_answer": answer, # Store the generated answer in state
+            "chosen_prompting_strategy": strategy_decision.strategy, # Store the chosen strategy for reporting
+            "generation_confidence": strategy_decision.confidence, # Store the confidence in the generation quality
+            "agent_decisions": { # Store the decision details for analysis
                 **existing_decisions,
                 "generator": {
                     "strategy": strategy_decision.strategy,
@@ -453,21 +477,21 @@ Respond with ONLY valid JSON:
 
 def route_after_grading(state: AgenticRAGState) -> Literal["generator", "query_rewriter"]:
     """
-    Route after grading: if documents not relevant and retries left, go back to rewriter.
+    Route after grading: if documents are not relevant and retries left, go back to rewriter.
     Otherwise, go to generator.
     """
     
     # Handle both AgenticRAGState and dict
     if isinstance(state, dict):
-        grade_decision = state.get('grade_decision', '')
-        retry_count = state.get('retry_count', 0)
-        max_retries = state.get('max_retries', 2)
+        grade_decision = state.get('grade_decision', '') # Grader's decision on the relevance
+        retry_count = state.get('retry_count', 0)        # Current retry count for this question
+        max_retries = state.get('max_retries', 2)        # Maximum retries allowed before forcing generation
     else:
         grade_decision = state.grade_decision
         retry_count = state.retry_count
         max_retries = state.max_retries
     
-    if (grade_decision == "no" and retry_count < max_retries):
+    if (grade_decision == "no" and retry_count < max_retries): # If documents are not relevant and we have retries left, go back to query rewriter
         logger.info(f"Routing to query_rewriter for retry {retry_count + 1}")
         return "query_rewriter"
     

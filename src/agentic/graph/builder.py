@@ -37,7 +37,7 @@ def build_agentic_graph(
     Returns:
         Compiled LangGraph StateGraph
     """
-    
+    # If no config provided, use empty dict (nodes will handle defaults)
     if config is None:
         config = {}
     
@@ -51,20 +51,15 @@ def build_agentic_graph(
     grader = make_grader_node(llm, config)
     generator_node = make_generator_node(llm, generator, config)
     
-    # Add nodes to graph
+    # Add nodes to the graph
     graph.add_node("query_rewriter", query_rewriter)
     graph.add_node("grader", grader)
     graph.add_node("generator", generator_node)
     
-    # Add edges
-    # Start -> query_rewriter
-    graph.add_edge(START, "query_rewriter")
-    
-    # query_rewriter -> grader
-    graph.add_edge("query_rewriter", "grader")
-    
-    # grader -> (conditional routing)
-    graph.add_conditional_edges(
+    # Add edges, with conditional routing after grader
+    graph.add_edge(START, "query_rewriter") # Start -> query_rewriter    
+    graph.add_edge("query_rewriter", "grader") # query_rewriter -> grader
+    graph.add_conditional_edges( # grader -> (conditional routing)
         "grader",
         route_after_grading,
         {
@@ -72,9 +67,7 @@ def build_agentic_graph(
             "generator": "generator"
         }
     )
-    
-    # generator -> END
-    graph.add_edge("generator", END)
+    graph.add_edge("generator", END) # generator -> END
     
     # Compile with async support
     compiled_graph = graph.compile()

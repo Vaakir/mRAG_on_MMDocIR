@@ -10,6 +10,9 @@ from pipelines.base_pipeline import BaseRAGPipeline
 from agentic.graph.builder import build_agentic_graph
 from agentic.graph.state import AgenticRAGState
 from query_techniques import get_query_technique
+from agentic.llm import SimpleLLM
+from evaluation.retrieval_metrics import evaluate_retrieval
+from evaluation.generation_metrics import evaluate_generation
 
 logger = logging.getLogger(__name__)
 
@@ -25,16 +28,14 @@ class AgenticRAGPipeline(BaseRAGPipeline):
     def __init__(self, config: AdvancedConfig):
         """Initialize the agentic pipeline."""
         super().__init__(config)
-        self.agentic_graph = None
-        self.llm = None
+        self.agentic_graph = None # Will hold the compiled LangGraph StateGraph
+        self.llm = None           # LLM for agent decision-making
         
     def initialize_components(self):
         """Initialize all components including LLM for agent decision-making."""
         super().initialize_components()
         
-        # Initialize LLM for agent decision-making
-        from agentic.llm import SimpleLLM
-        
+        # Initialize LLM for agent decision-making        
         logger.info(f"Initializing LLM for agent decisions: {self.config.LLM_MODEL}")
         
         self.llm = SimpleLLM(
@@ -51,7 +52,7 @@ class AgenticRAGPipeline(BaseRAGPipeline):
         Returns:
             Dict mapping technique names to QueryTechnique instances
         """
-        
+        # Build the query techniques dict by instantiating each technique with required dependencies
         technique_names = [
             'standard',
             'multi_query',
@@ -65,19 +66,20 @@ class AgenticRAGPipeline(BaseRAGPipeline):
         
         techniques_dict = {}
         
+        # Instantiate each technique and add to the dict
         for technique_name in technique_names:
             try:
-                technique = get_query_technique(
+                technique = get_query_technique( # Factory function to get the appropriate technique instance
                     technique_name,
                     self.embedder,
                     self.hybrid_retriever or self.retriever,
                     self.generator,
                     self.config.QUERY_TECHNIQUE_CONFIG
                 )
-                techniques_dict[technique_name] = technique
-                logger.info(f"  ✓ Loaded {technique_name}")
+                techniques_dict[technique_name] = technique # Store the instance in the dict
+                logger.info(f"  [OK]Loaded {technique_name}")
             except Exception as e:
-                logger.error(f"  ✗ Failed to load {technique_name}: {e}")
+                logger.error(f"  [ERROR] Failed to load {technique_name}: {e}")
         
         logger.info(f"Query techniques loaded: {list(techniques_dict.keys())}")
         return techniques_dict
@@ -102,7 +104,7 @@ class AgenticRAGPipeline(BaseRAGPipeline):
             'MAX_RETRIES': getattr(self.config, 'MAX_RETRIES', 2)
         }
         
-        self.agentic_graph = build_agentic_graph(
+        self.agentic_graph = build_agentic_graph( # Build the LangGraph StateGraph using the builder function, passing all dependencies
             self.llm,
             self.embedder,
             self.hybrid_retriever or self.retriever,
@@ -153,13 +155,13 @@ class AgenticRAGPipeline(BaseRAGPipeline):
         
         # Run the graph synchronously
         try:
-            final_state = self.agentic_graph.invoke(initial_state)
+            final_state = self.agentic_graph.invoke(initial_state) # Invoke the graph with the initial state and get the final state after all agents have processed
         except Exception as e:
             logger.error(f"Error running graph: {e}")
             raise
         
         # Extract results (handle both dict and AgenticRAGState)
-        if isinstance(final_state, dict):
+        if isinstance(final_state, dict): # If the graph returns a dict instead of an AgenticRAGState
             # retrieved_documents from agentic nodes are in Qdrant format with payload
             raw_docs = final_state.get('retrieved_documents') or []
             result = {
@@ -171,7 +173,7 @@ class AgenticRAGPipeline(BaseRAGPipeline):
                 "confidence": final_state.get('generation_confidence', 0.0),
                 "num_docs_retrieved": len(raw_docs),
             }
-        else:
+        else: # Assume it's an AgenticRAGState and extract fields accordingly
             raw_docs = final_state.retrieved_documents or []
             result = {
                 "question": question,
@@ -207,16 +209,17 @@ class AgenticRAGPipeline(BaseRAGPipeline):
         eval_start = time.time()
         logger.info(f"\nEvaluating agentic pipeline on {len(test_questions)} questions...")
         
-        test_subset = test_questions[:self.config.EVAL_SUBSET_SIZE]
+        test_subset = test_questions[:self.config.EVAL_SUBSET_SIZE] # Limit to subset for faster evaluation during development
         
         results = []
         
+        # Run each test question through the pipeline and collect results
         for i, test_q in enumerate(test_subset):
             logger.info(f"\n[{i+1}/{len(test_subset)}] {test_q['question'][:100]}...")
             
             try:
-                result = self.run_query(test_q['question'])
-                result['ground_truth'] = test_q.get('answer', '')
+                result = self.run_query(test_q['question']) # Run the question through the agentic pipeline and get the result
+                result['ground_truth'] = test_q.get('answer', '') # Add ground truth to the result for later evaluation
                 results.append(result)
             except Exception as e:
                 logger.error(f"Failed to process question: {e}")
@@ -228,9 +231,6 @@ class AgenticRAGPipeline(BaseRAGPipeline):
                 })
         
         # Compute evaluation metrics (same as other systems for comparison)
-        from evaluation.retrieval_metrics import evaluate_retrieval
-        from evaluation.generation_metrics import evaluate_generation
-        
         # Prepare docs for retrieval evaluation
         # evaluate_retrieval expects: List of retrieved document lists (one per query)
         # Each document should be in Qdrant format with id, score, text, payload (metadata)
@@ -250,20 +250,20 @@ class AgenticRAGPipeline(BaseRAGPipeline):
                 'map', 'mrr'
             ]}
         else:
-            # Evaluate
+            # Evaluate retrieval using the raw retrieved documents and ground truth answers
             retrieval_metrics = evaluate_retrieval(
-                retrieval_results,
-                test_subset,
+                retrieval_results, 
+                test_subset,       
                 k_values=[1, 3, 5]
             )
         
         # Extract predictions and ground truths for generation evaluation
         predictions = [r.get("answer", "") for r in results]
         ground_truths = [r.get("ground_truth", "") for r in results]
-        generation_metrics = evaluate_generation(
+        generation_metrics = evaluate_generation( 
             predictions, 
             ground_truths,
-            embedder=self.embedder  # Pass embedder for true semantic similarity (BGE/BAAI embeddings)
+            embedder=self.embedder  # Pass embedder for true semantic similarity computation
         )
         
         elapsed = time.time() - eval_start

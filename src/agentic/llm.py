@@ -33,10 +33,10 @@ class SimpleLLM:
         Args:
             base_url: Ollama server URL
             model: Model name to use
-            api_key: API key for authentication (defaults to OLLAMA_API_KEY env var)
+            api_key: API key for authentication
         """
         self.base_url = base_url.rstrip('/')
-        self.model = model
+        self.model = model # Model name to use 
         self.api_key = api_key or os.getenv('OLLAMA_API_KEY')
         
         if not self.api_key:
@@ -65,13 +65,13 @@ class SimpleLLM:
             SimpleLLMResponse object with content attribute
         """
         try:
-            response = self._client.generate(
+            response = self._client.generate( # Call the Ollama API to generate a response based on the prompt
                 model=self.model,
                 prompt=prompt,
                 stream=False
             )
             
-            content = response.get('response', '')
+            content = response.get('response', '') # Extract the generated content from the response
             
             if not content:
                 raise ResponseError("Empty response from Ollama")

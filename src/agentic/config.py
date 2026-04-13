@@ -1,4 +1,4 @@
-"""Configuration for System 3 agentic RAG (optional - can use AdvancedConfig directly)."""
+"""Configuration for System 3 agentic RAG (is optional; can use AdvancedConfig directly)."""
 
 from dataclasses import dataclass, field
 from typing import Dict, Any

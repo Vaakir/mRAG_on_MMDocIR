@@ -41,10 +41,12 @@ logger = logging.getLogger(__name__)
 def main():
     """Main entry point for System 3 agentic pipeline."""
     
+    # Argument parsing
     parser = argparse.ArgumentParser(
         description="Run System 3 Agentic mRAG Pipeline"
     )
     
+    # Test with a single query
     parser.add_argument(
         "--test-query",
         type=str,
@@ -52,12 +54,14 @@ def main():
         help="Test with a single query"
     )
     
+    # Run full evaluation
     parser.add_argument(
         "--eval",
         action="store_true",
         help="Run full evaluation"
     )
     
+    # Number of queries to evaluate in full evaluation mode
     parser.add_argument(
         "--eval-size",
         type=int,
@@ -65,12 +69,14 @@ def main():
         help="Number of test queries to evaluate (default: 5)"
     )
     
+    # Force rebuild of index
     parser.add_argument(
         "--rebuild-index",
         action="store_true",
         help="Force rebuild of index"
     )
     
+    # Output file for results
     parser.add_argument(
         "--output",
         type=str,
@@ -78,6 +84,7 @@ def main():
         help="Output file for results (JSON)"
     )
     
+    # Parse arguments
     args = parser.parse_args()
     
     logger.info("="*80)
@@ -113,8 +120,8 @@ def main():
     # Test with single query
     if args.test_query:
         logger.info(f"\nTesting with query: {args.test_query}")
-        result = pipeline.run_query(args.test_query)
-        results = {"single_query": result}
+        result = pipeline.run_query(args.test_query) # Run the query through the agentic pipeline
+        results = {"single_query": result} # Store result in a dict for potential saving
         
         # Print result
         print("\n" + "="*80)
@@ -136,13 +143,14 @@ def main():
         # Run evaluation
         eval_summary = pipeline.evaluate(test_data)
         
+        # Store results for potential saving
         results = eval_summary
         
         # Print summary
         print("\n" + "="*80)
         print("EVALUATION SUMMARY")
         print("="*80)
-        print(f"Questions evaluated: {eval_summary['num_questions']}")
+        print(f"No. of questions evaluated: {eval_summary['num_questions']}")
         print(f"Total time: {eval_summary['time_elapsed']:.2f}s")
         print(f"Time per question: {eval_summary['time_per_question']:.2f}s")
         
