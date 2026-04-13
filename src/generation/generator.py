@@ -32,18 +32,6 @@ def normalize_ws(text: str) -> str:
     return " ".join(text.split())
 # -------------------------------------------------------------------
 # Baseline prompt template for the system role
-SYSTEM_PROMPT2 = """You are a helpful assistant that answers questions based on the provided context.
-
-Instructions:
-- Answer the question using ONLY the provided context.
-- If the question requires counting, listing, or comparison:
-  - Identify all relevant items in the context.
-  - Apply the required condition step by step.
-  - Ensure the final count is correct.
-- If the answer is partially available, explain what is missing.
-- If the answer cannot be found, say: "I cannot find the answer in the provided context."
-- Be concise but ensure accuracy."""
-
 SYSTEM_PROMPT = """You are a concise assistant. Answer using ONLY the provided context.
 
 Strict Instructions (NON-NEGOTIABLE):
