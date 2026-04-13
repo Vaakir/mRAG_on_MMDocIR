@@ -75,12 +75,13 @@ def run_single_query_test(pipeline: AdvancedRAGPipeline, question: str, ground_t
     print(f"\nGenerated Answer:\n{result['answer']}")
 
 
-def main(technique: str = 'standard', eval_subset: int = 20, force_rebuild: bool = False):
+def main(technique: str = 'standard', prompting_strategy: str = 'standard', eval_subset: int = 20, force_rebuild: bool = False):
     """
     Main function to run the advanced pipeline.
     
     Args:
         technique: Query technique to use ('standard', 'multi_query', 'rag_fusion', 'hyde', etc.)
+        prompting_strategy: Prompting strategy for answer generation ('standard', 'role', 'cot', 'ensemble')
         eval_subset: Number of test questions to evaluate on
         force_rebuild: Force rebuild of the index
     """
@@ -88,18 +89,22 @@ def main(technique: str = 'standard', eval_subset: int = 20, force_rebuild: bool
     main_start = time.time()
     
     print(f"\n{'='*80}")
-    print(f"ADVANCED RAG PIPELINE - Query Technique: {technique.upper()}")
+    print(f"ADVANCED RAG PIPELINE")
+    print(f"  Query Technique: {technique.upper()}")
+    print(f"  Prompting Strategy: {prompting_strategy.upper()}")
     print(f"{'='*80}\n")
     
     # Get configuration
     config = get_config(technique)
     config.EVAL_SUBSET_SIZE = eval_subset
+    config.PROMPTING_STRATEGY = prompting_strategy
     
     print(f"Configuration:")
     print(f"  Embedding Model: {config.EMBEDDING_MODEL}")
     print(f"  LLM Model: {config.LLM_MODEL}")
     print(f"  Vector DB: {config.VECTOR_DB_COLLECTION}")
     print(f"  Query Technique: {config.QUERY_TECHNIQUE}")
+    print(f"  Prompting Strategy: {config.PROMPTING_STRATEGY}")
     print(f"  Retrieved Top-K: {config.TOP_K}")
     if 'num_variants' in config.QUERY_TECHNIQUE_CONFIG:
         print(f"  Technique Variants: {config.QUERY_TECHNIQUE_CONFIG['num_variants']}")
@@ -317,12 +322,18 @@ def compare_techniques(techniques: list = None, eval_subset: int = 20):
 if __name__ == "__main__":
     import argparse
     
-    parser = argparse.ArgumentParser(description="Advanced RAG Pipeline with Query Techniques")
+    parser = argparse.ArgumentParser(description="Advanced RAG Pipeline with Query Techniques and Prompting Strategies")
     parser.add_argument(
         '--technique',
         type=str,
         default='standard',
         help='Query technique to use (standard, multi_query, rag_fusion, step_back, hyde, query_decomposition, query_rewriting, query_expansion)'
+    )
+    parser.add_argument(
+        '--prompting-strategy',
+        type=str,
+        default='standard',
+        help='Prompting strategy for answer generation (standard, role, cot, ensemble)'
     )
     parser.add_argument(
         '--eval-subset',
@@ -346,4 +357,4 @@ if __name__ == "__main__":
     if args.compare:
         compare_techniques(eval_subset=args.eval_subset)
     else:
-        main(technique=args.technique, eval_subset=args.eval_subset, force_rebuild=args.force_rebuild)
+        main(technique=args.technique, prompting_strategy=args.prompting_strategy, eval_subset=args.eval_subset, force_rebuild=args.force_rebuild)

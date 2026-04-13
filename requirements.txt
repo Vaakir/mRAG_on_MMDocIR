@@ -19,7 +19,7 @@ rank-bm25
 ollama
 
 # PDF processing
-unstructured
+unstructured[pdf]
 pdfplumber
 
 # Data / utils
@@ -28,3 +28,6 @@ tqdm
 requests
 python-dotenv
 matplotlib
+
+# Detrics
+rouge-score

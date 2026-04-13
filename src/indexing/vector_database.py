@@ -8,66 +8,9 @@ Supports three modes: local (disk), memory (in-memory), and docker (containerize
 import numpy as np
 from pathlib import Path
 from typing import List, Dict, Optional
-from dataclasses import dataclass, field
 
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import Distance, VectorParams, PointStruct, HnswConfigDiff
-
-# -------------------------------------------------------------------
-@dataclass
-class QdrantConfig:
-    """
-    Configuration for Qdrant vector database
-    
-    Supports both single-vector and multi-vector modes.
-    
-    Example single-vector:
-        config = QdrantConfig(
-            embedding_dimension=384,
-            distance="COSINE"
-        )
-    
-    Example multi-vector:
-        config = QdrantConfig(
-            vectors_config={
-                "text": {"dimension": 384, "distance": "COSINE"},
-                "image": {"dimension": 512, "distance": "DOT"}
-            }
-        )
-    """
-    
-    # Database mode: 'docker', 'memory', or 'local'
-    db_mode: str = "local"
-    
-    # Local disk path (used when db_mode = "local")
-    local_path: str = "./local_qdrant"
-    
-    # Docker connection settings
-    docker_url: str = "http://localhost:6333"
-    
-    # Collection settings
-    collection_name: str = "documents"
-    
-    # Single-vector mode (used if vectors_config is None)
-    embedding_dimension: int = 384
-    distance: str = "COSINE"  # COSINE, DOT, MANHATTAN, EUCLID
-    
-    # Multi-vector mode (overrides single-vector if specified)
-    # Format: {"vector_name": {"dimension": int, "distance": str}}
-    # Example: {"text": {"dimension": 384, "distance": "COSINE"}}
-    vectors_config: Optional[Dict[str, Dict]] = None
-    
-    # HNSW Index Parameters
-    # Example:
-    # {"m": 16, "ef_construct": 200, "full_scan_threshold": 10000, "on_disk": False}
-    hnsw_config: Optional[Dict] = None
-    
-    # Search-time parameters
-    # Example: {"ef": 100}
-    search_params: Optional[Dict] = None
-    
-    # Retrieval settings
-    top_k: int = 5
 
 # -------------------------------------------------------------------
 class QdrantVectorDB:
@@ -83,12 +26,12 @@ class QdrantVectorDB:
     
     """
     #-------------------
-    def __init__(self, config: QdrantConfig):
+    def __init__(self, config):
         """
         Initialize the vector database.
         
         Args:
-            config: QdrantConfig object with database settings
+            config: BaselineConfig or AdvancedConfig object with database settings
         """
         self.config = config # Store the configuration for later use in collection creation and retrieval
         self.client = self._initialize_client() # Initialize the Qdrant client based on the specified mode (local, memory, docker)
@@ -107,14 +50,14 @@ class QdrantVectorDB:
         """Build vectors configuration for collection creation."""
         
         # If vectors_config is provided, we are in multi-vector mode and need to build a dict of vector_name -> VectorParams
-        if self.config.vectors_config:
+        if hasattr(self.config, "VECTOR_DB_VECTORS_CONFIG") and self.config.VECTOR_DB_VECTORS_CONFIG:
             # Multi-vector mode
             vectors_config = {}
             
             # Loop through each vector field in the config and create a VectorParams object for it
-            for vector_name, params in self.config.vectors_config.items():
-                dimension = params.get("dimension", 384)           # Default dimension if not specified
-                distance_str = params.get("distance", "COSINE")    # Default distance if not specified
+            for vector_name, params in self.config.VECTOR_DB_VECTORS_CONFIG.items():
+                dimension = params.get("dimension", self.config.EMBEDDING_DIMENSION)           # Default dimension if not specified
+                distance_str = params.get("distance", self.config.VECTOR_DB_DISTANCE)    # Default distance if not specified
                 distance = self._get_distance_metric(distance_str) # Convert distance string to Distance enum
                 # For multi-vector collections, we use a dict of vector_name -> VectorParams
                 vectors_config[vector_name] = VectorParams(
@@ -124,19 +67,20 @@ class QdrantVectorDB:
             return vectors_config
         else:
             # Single-vector mode
-            distance = self._get_distance_metric(self.config.distance) # Convert distance string to Distance enum
+            distance = self._get_distance_metric(self.config.VECTOR_DB_DISTANCE) # Convert distance string to Distance enum
             return VectorParams( # For single-vector collections, we return a single VectorParams object
-                size=self.config.embedding_dimension,
+                size=self.config.EMBEDDING_DIMENSION,
                 distance=distance
             )
     #-------------------
     def _initialize_client(self) -> QdrantClient:
         """Initialize Qdrant client based on config mode."""
-        mode = self.config.db_mode.lower() # Get the database mode from the configuration and convert it to lowercase for consistency
+        mode = self.config.VECTOR_DB_MODE.lower() # Get the database mode from the configuration and convert it to lowercase for consistency
         
         if mode == "docker":
-            print(f"Connecting to Qdrant Docker at {self.config.docker_url}...")
-            client = QdrantClient(url=self.config.docker_url) # Connect to the Qdrant instance running in Docker using the specified URL
+            docker_url = self.config.VECTOR_DB_DOCKER_URL
+            print(f"Connecting to Qdrant Docker at {docker_url}...")
+            client = QdrantClient(url=docker_url) # Connect to the Qdrant instance running in Docker using the specified URL
             print("✓ Connected to Qdrant Docker")
 
         elif mode == "memory":
@@ -145,8 +89,9 @@ class QdrantVectorDB:
             print("[OK] In-memory Qdrant initialized")
 
         elif mode == "local":
-            print(f"Initializing local Qdrant at {self.config.local_path}...")
-            client = QdrantClient(path=self.config.local_path) # Initialize a local Qdrant instance that stores data on disk at the specified path (data will persist across runs)
+            local_path = self.config.VECTOR_DB_PATH
+            print(f"Initializing local Qdrant at {local_path}...")
+            client = QdrantClient(path=local_path) # Initialize a local Qdrant instance that stores data on disk at the specified path (data will persist across runs)
             print(f"\n[OK] Local Qdrant initialized")
 
         else:
@@ -162,9 +107,8 @@ class QdrantVectorDB:
             collection_name: Name of the collection. Uses config name if None.
             force_recreate: Delete and recreate if collection exists
         """
-        # Use collection name from parameter or config
         if collection_name is None:
-            collection_name = self.config.collection_name
+            collection_name = self.config.VECTOR_DB_COLLECTION
         
         try:
             self.client.get_collection(collection_name) # Check if collection already exists
@@ -181,8 +125,8 @@ class QdrantVectorDB:
         
         # Build HNSW config if provided
         hnsw_config = None
-        if self.config.hnsw_config:
-            hnsw_config = HnswConfigDiff(**self.config.hnsw_config)
+        if hasattr(self.config, "VECTOR_DB_HNSW_CONFIG") and self.config.VECTOR_DB_HNSW_CONFIG:
+            hnsw_config = HnswConfigDiff(**self.config.VECTOR_DB_HNSW_CONFIG)
         
         # Create the collection with the specified name, vectors configuration, and HNSW configuration (if provided)
         self.client.create_collection(
@@ -192,16 +136,16 @@ class QdrantVectorDB:
         )
         print(f"✓ Collection '{collection_name}' created")
 
-        if self.config.vectors_config:
-            print(f"  Mode: Multi-vector with {len(self.config.vectors_config)} vector fields")
+        if hasattr(self.config, "VECTOR_DB_VECTORS_CONFIG") and self.config.VECTOR_DB_VECTORS_CONFIG:
+            print(f"  Mode: Multi-vector with {len(self.config.VECTOR_DB_VECTORS_CONFIG)} vector fields")
             
         else:
-            print(f"  Mode: Single-vector ({self.config.embedding_dimension}D, {self.config.distance})")
+            print(f"  Mode: Single-vector ({self.config.EMBEDDING_DIMENSION}D, {self.config.VECTOR_DB_DISTANCE})")
     #-------------------
     def delete_collection(self, collection_name: str = None) -> None:
         """Delete a collection."""
         if collection_name is None:
-            collection_name = self.config.collection_name # Use collection name from parameter or config
+            collection_name = self.config.VECTOR_DB_COLLECTION
         
         try:
             self.client.delete_collection(collection_name) # Delete the specified collection from Qdrant
@@ -237,7 +181,7 @@ class QdrantVectorDB:
             int: Total number of documents indexed
         """
         if collection_name is None:
-            collection_name = self.config.collection_name # Use collection name from parameter or config
+            collection_name = self.config.VECTOR_DB_COLLECTION # Use collection name from parameter or config
         
         points = [] # List to hold PointStruct objects for batch indexing
         total_indexed = 0 # Counter for total indexed documents
@@ -247,7 +191,7 @@ class QdrantVectorDB:
             doc_id = doc.get('id', idx) # Use provided 'id' or fallback to index if not provided
             
             # Determine if single or multi-vector mode
-            if self.config.vectors_config:
+            if hasattr(self.config, "VECTOR_DB_VECTORS_CONFIG") and self.config.VECTOR_DB_VECTORS_CONFIG:
                 # Multi-vector mode
                 if 'embeddings' not in doc or not isinstance(doc['embeddings'], dict):
                     print(f"Warning: Document {idx} missing 'embeddings' dict, skipping...")
@@ -325,9 +269,9 @@ class QdrantVectorDB:
             List[Dict]: Retrieved documents with scores and metadata
         """
         if collection_name is None:
-            collection_name = self.config.collection_name # Use collection name from parameter or config
+            collection_name = self.config.VECTOR_DB_COLLECTION
         if top_k is None:
-            top_k = self.config.top_k # Use top_k from parameter or config
+            top_k = self.config.TOP_K
         
         # Convert numpy array to list if needed
         if isinstance(query_embedding, np.ndarray):
@@ -335,16 +279,17 @@ class QdrantVectorDB:
         
         # For multi-vector collections, specify which vector field to use
         vector_field = None
-        if self.config.vectors_config:
-            vector_field = query_vector_name or list(self.config.vectors_config.keys())[0] # Default to the first vector field if not specified
+        if hasattr(self.config, "VECTOR_DB_VECTORS_CONFIG") and self.config.VECTOR_DB_VECTORS_CONFIG:
+            vector_field = query_vector_name or list(self.config.VECTOR_DB_VECTORS_CONFIG.keys())[0] # Default to the first vector field if not specified
         
         try:
+            search_params = self.config.VECTOR_DB_SEARCH_PARAMS if hasattr(self.config, "VECTOR_DB_SEARCH_PARAMS") else None
             search_results = self.client.query_points( # Query the Qdrant collection using the pre-computed query embedding to retrieve the most similar documents based on the specified vector field (for multi-vector) and top_k results, along with any additional search parameters from the config
                 collection_name=collection_name,
                 query=query_embedding,
                 using=vector_field,
                 limit=top_k,
-                search_params=self.config.search_params
+                search_params=search_params
             ).points
         except Exception as e:
             print(f"Error retrieving documents: {e}")
@@ -377,7 +322,7 @@ class QdrantVectorDB:
             List[Dict]: Retrieved documents
         """
         if collection_name is None:
-            collection_name = self.config.collection_name
+            collection_name = self.config.VECTOR_DB_COLLECTION
         
         try:
             points = self.client.retrieve( # Retrieve documents from Qdrant by their IDs for the specified collection
@@ -400,7 +345,7 @@ class QdrantVectorDB:
     def count_documents(self, collection_name: str = None) -> int:
         """Count documents in a collection."""
         if collection_name is None:
-            collection_name = self.config.collection_name
+            collection_name = self.config.VECTOR_DB_COLLECTION
         
         try:
             info = self.client.get_collection(collection_name) # Get the collection information from Qdrant, which includes the count of indexed documents (points) in the collection for reference and monitoring purposes
@@ -411,7 +356,7 @@ class QdrantVectorDB:
     def get_collection_info(self, collection_name: str = None) -> Dict:
         """Get collection information."""
         if collection_name is None:
-            collection_name = self.config.collection_name
+            collection_name = self.config.VECTOR_DB_COLLECTION
         
         try:
             return self.client.get_collection(collection_name)
@@ -422,7 +367,7 @@ class QdrantVectorDB:
     def clear_collection(self, collection_name: str = None) -> None:
         """Clear all documents from a collection."""
         if collection_name is None:
-            collection_name = self.config.collection_name
+            collection_name = self.config.VECTOR_DB_COLLECTION
         
         self.delete_collection(collection_name) # Delete the existing collection to clear all documents
         self.create_collection(collection_name) # Recreate the collection to start fresh after clearing

@@ -16,6 +16,10 @@ Date,Name,Start,End,Tag,WorkingOn
 
 25.03.2026,BaalCat,12:15,14:00,Planning,Planning filestructure etc
 26.03.2026,BaalCat,07:45,15:30,Reading Theory & Coding,"Theory about RAG, Vector Databases and related, Implementing First Draft of Vector DB with simple test"
+27.03.2026,BaalCat,12:15,16:00,System 1,Helping GabIsr with problem solving for system 1 pipeline and LLM calls.
+07.04.2026,BaalCat,14:00,16:00,Planning,Mob programming/full code walkthrough + working on prompt strategies code
+09.04.2026,BaalCat,12:00,16:00,System 2,Reading paper on ensemble/self-consistency to implement it in prompt strategies.
+09.04.2026,BaalCat,18.00,23.00,System 2,Looking over prompt strategy code + removing dead/unneeded code + updating code after pull from main.
 
 25.03.2026,GabIsr,12:15,14:00,Planning,Planning filestructure etc
 25.03.2026,GabIsr,20:30,23:15,Reading & Exploration,"Reading about dataset structure, and potential tools/libraries/frameworks that we can use for the project" 

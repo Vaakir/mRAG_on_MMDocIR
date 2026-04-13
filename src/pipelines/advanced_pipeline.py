@@ -8,206 +8,57 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from generation.prompts import get_prompt_strategy
 from config.config import AdvancedConfig
-from data.data_loader import load_train_data, load_test_data
-from data.chunk_loader import load_preprocessed_chunks, print_chunk_statistics
-from indexing.embedder import TextEmbedder, create_chunk_embeddings
-from indexing.vector_database import QdrantConfig, QdrantVectorDB
-from indexing.hybrid_retriever import HybridRetriever
-from generation.generator import BaselineGenerator
+from pipelines.base_pipeline import BaseRAGPipeline
+from query_techniques import get_query_technique
 from evaluation.retrieval_metrics import evaluate_retrieval
 from evaluation.generation_metrics import evaluate_generation
-from query_techniques import get_query_technique
+from typing import Dict, Any, List, Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
+import logging
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
-class AdvancedRAGPipeline:
+class AdvancedRAGPipeline(BaseRAGPipeline):
     """
     Advanced RAG pipeline with configurable components and query techniques.
-    
-    Features:
-    - Modular component management (embedder, generator, vector DB, retriever)
-    - Query technique selection and configuration
-    - Easy component swapping for experimentation
-    - Configurable chunking, embedding, and retrieval settings
+    Inherits initialization and retrieval logic from BaseRAGPipeline.
     """
     
     def __init__(self, config: 'AdvancedConfig'):
-        """
-        Initialize the advanced pipeline with a configuration object.
-        
-        Args:
-            config: AdvancedConfig instance with all settings
-        """
-        self.config = config
-        
-        # Components (initialized during build_index or setup)
-        self.embedder: Optional[TextEmbedder] = None
-        self.vector_db: Optional[QdrantVectorDB] = None
-        self.hybrid_retriever: Optional[HybridRetriever] = None
-        self.generator: Optional[BaselineGenerator] = None
+        super().__init__(config)
         self.query_technique = None
-        self.chunks: Optional[List[Dict]] = None
-    
-    def build_index(self, force_rebuild: bool = True):
-        """
-        Build or load the document index.
+        self.prompt_strategy = None
         
-        Steps:
-        1. Initialize embedder
-        2. Initialize vector database
-        3. Load or create chunks
-        4. Create embeddings
-        5. Index documents
-        6. Initialize hybrid retriever
-        7. Initialize query technique
-        """
-        logger.info("Building index with advanced configuration...")
-        start_time = time.time()
-        
-        # Step 1: Initialize embedder with configured model
-        logger.info(f"Initializing embedder: {self.config.EMBEDDING_MODEL}")
-        self.embedder = TextEmbedder(self.config.EMBEDDING_MODEL)
-        
-        # Step 2: Initialize Qdrant with configured settings
-        logger.info(f"Initializing vector database: {self.config.VECTOR_DB_MODE}")
-        qdrant_config = QdrantConfig(
-            db_mode=self.config.VECTOR_DB_MODE,
-            local_path=self.config.VECTOR_DB_PATH,
-            collection_name=self.config.VECTOR_DB_COLLECTION,
-            embedding_dimension=self.config.EMBEDDING_DIMENSION,
-            distance=self.config.VECTOR_DB_DISTANCE,
-            top_k=self.config.TOP_K
-        )
-        self.vector_db = QdrantVectorDB(qdrant_config)
-        
-        # Check if collection exists
-        collection_exists = False
-        collection_document_count = 0
-        
-        try:
-            collection_document_count = self.vector_db.count_documents()
-            collection_exists = collection_document_count > 0
-            logger.info(f"Collection check: {collection_document_count} documents found")
-        except Exception as e:
-            logger.info(f"Collection does not exist: {e}")
-            collection_exists = False
-        
-        # Load existing index if available and not forcing rebuild
-        if not force_rebuild and collection_exists:
-            logger.info(f"Loading existing index with {collection_document_count} documents...")
-            if self.config.USE_HYBRID_RETRIEVAL:
-                chunks_path = Path(self.config.PREPROCESSED_CHUNKS_FILE)
-                if not chunks_path.is_absolute():
-                    chunks_path = Path(self.config.PROJECT_ROOT) / self.config.PREPROCESSED_CHUNKS_FILE.lstrip('./').lstrip('.\\')
-                self.chunks = load_preprocessed_chunks(chunks_path)
-            elapsed = time.time() - start_time
-            logger.info(f"Index loaded in {elapsed:.2f} seconds")
-            
-            # Initialize remaining components
-            self._initialize_retriever()
-            return
-        
-        # Build new index
-        logger.info("Building new index...")
-        
-        # Step 3: Load or create chunks
-        if self.config.USE_PREPROCESSED_CHUNKS:
-            logger.info(f"Loading pre-processed chunks from: {self.config.PREPROCESSED_CHUNKS_FILE}")
-            # Resolve path relative to project root if it's relative
-            chunks_path = Path(self.config.PREPROCESSED_CHUNKS_FILE)
-            if not chunks_path.is_absolute():
-                chunks_path = Path(self.config.PROJECT_ROOT) / self.config.PREPROCESSED_CHUNKS_FILE.lstrip('./').lstrip('.\\')
-            self.chunks = load_preprocessed_chunks(chunks_path)
-            print_chunk_statistics(self.chunks)
-            logger.info(f"✓ Loaded {len(self.chunks)} chunks")
-        else:
-            logger.info("Processing documents from scratch...")
-            # This would include PDF processing, etc.
-            # For now, assuming pre-processed chunks exist
-            chunks_path = Path(self.config.PREPROCESSED_CHUNKS_FILE)
-            if not chunks_path.is_absolute():
-                chunks_path = Path(self.config.PROJECT_ROOT) / self.config.PREPROCESSED_CHUNKS_FILE.lstrip('./').lstrip('.\\')
-            self.chunks = load_preprocessed_chunks(chunks_path)
-        
-        # Step 4: Create embeddings
-        logger.info(f"Creating embeddings with {self.config.EMBEDDING_MODEL}...")
-        embeddings = create_chunk_embeddings(self.chunks, self.embedder)
-        logger.info(f"✓ Created {len(embeddings)} embeddings")
-        
-        # Step 5: Index in vector database
-        logger.info("Indexing documents in vector database...")
-        self.vector_db.create_collection(force_recreate=True)
-        
-        qdrant_docs = []
-        for i, (chunk, embedding) in enumerate(zip(self.chunks, embeddings)):
-            qdrant_docs.append({
-                'id': i,
-                'embedding': embedding,
-                'text': chunk['text'],
-                'metadata': {
-                    'pdf_name': chunk['pdf_name'],
-                    'pdf_path': chunk['pdf_path'],
-                    'chunk_id': chunk['chunk_id'],
-                    'char_len': chunk['char_len'],
-                    'page_numbers': chunk['page_numbers'],
-                }
-            })
-        
-        self.vector_db.index_documents(qdrant_docs)
-        elapsed = time.time() - start_time
-        logger.info(f"Index built in {elapsed:.2f} seconds")
-        
-        # Step 6: Initialize retriever and query technique
-        self._initialize_retriever()
-    
-    def _initialize_retriever(self):
-        """Initialize hybrid retriever and query technique."""
-        if self.config.USE_HYBRID_RETRIEVAL:
-            logger.info("Initializing hybrid retriever...")
-            self.hybrid_retriever = HybridRetriever(
-                chunks=self.chunks,
-                embedder=self.embedder,
-                vector_db=self.vector_db,
-                top_k=self.config.TOP_K,
-            )
-    
     def initialize_components(self):
-        """Initialize generator and query technique."""
-        logger.info(f"Initializing generator: {self.config.LLM_MODEL}")
-        self.generator = BaselineGenerator(self.config.OLLAMA_BASE_URL, self.config.LLM_MODEL)
+        """Initialize generator, prompting strategy, and query technique."""
+        super().initialize_components()
+        
+        logger.info(f"Initializing prompting strategy: {self.config.PROMPTING_STRATEGY}")
+        strategy_config = self.config.PROMPTING_STRATEGY_CONFIG.copy()
+        
+        # Pass embedder to ensemble if using embedding_similarity aggregation
+        if (self.config.PROMPTING_STRATEGY == 'ensemble' and 
+            strategy_config.get('aggregation_method') == 'embedding_similarity'):
+            logger.info("Ensemble using embedding_similarity - providing embedder to strategy")
+            strategy_config['embedder'] = self.embedder
+        
+        self.prompt_strategy = get_prompt_strategy(
+            self.config.PROMPTING_STRATEGY,
+            self.generator,
+            strategy_config
+        )
         
         logger.info(f"Initializing query technique: {self.config.QUERY_TECHNIQUE}")
         self.query_technique = get_query_technique(
             self.config.QUERY_TECHNIQUE,
             self.embedder,
-            self.hybrid_retriever or self.retriever,
+            self.hybrid_retriever or getattr(self, 'retriever', None),
             self.generator,
             self.config.QUERY_TECHNIQUE_CONFIG
         )
-    
-    def retrieve(self, question: str, top_k: Optional[int] = None) -> List[Dict[str, Any]]:
-        """
-        Retrieve relevant documents using the configured retrieval method.
-        
-        Args:
-            question: User's question
-            top_k: Override default top_k if needed
-            
-        Returns:
-            List of retrieved documents
-        """
-        if top_k is None:
-            top_k = self.config.TOP_K
-        
-        if self.config.USE_HYBRID_RETRIEVAL and self.hybrid_retriever:
-            return self.hybrid_retriever.retrieve(question, top_k=top_k)
-        
-        # Fallback to dense-only
-        query_embedding = self.embedder.embed_query(question)
-        return self.vector_db.retrieve(query_embedding=query_embedding, top_k=top_k)
     
     def retrieve_with_technique(self, question: str, top_k: Optional[int] = None) -> List[Dict[str, Any]]:
         """
@@ -255,8 +106,8 @@ class AdvancedRAGPipeline:
             for i, result in enumerate(retrieved)
         ])
         
-        # Generate answer
-        answer = self.generator.generate(question, context)
+        # Generate answer using the configured prompting strategy
+        answer = self.prompt_strategy.generate(question, context)
         
         return {
             "question": question,
@@ -333,7 +184,7 @@ class AdvancedRAGPipeline:
                     f"[Document {j+1}]:\n{result['text']}"
                     for j, result in enumerate(retrieved)
                 ])
-                future = executor.submit(self.generator.generate, test_q['question'], context)
+                future = executor.submit(self.prompt_strategy.generate, test_q['question'], context)
                 futures.append((i, test_q, future))
             
             # Collect results in order as they complete
