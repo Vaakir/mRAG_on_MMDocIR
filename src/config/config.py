@@ -1,4 +1,4 @@
-# src/config/advanced_config.py
+# src/config/config.py
 # Configuration for the all systems to share a single source of truth
 
 from pathlib import Path
