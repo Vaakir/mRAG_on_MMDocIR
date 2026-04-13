@@ -34,9 +34,9 @@ class EnsemblePromptStrategy(PromptStrategy):
     - include_strategy_metadata: Whether to include which strategy generated answer
     - verbose_logging: Enable detailed logging
     
-    Users can configure via advanced_config.py PROMPTING_STRATEGY_CONFIG:
+    Users can configure via config.py PROMPTING_STRATEGY_CONFIG:
     ```python
-    # In advanced_config.py
+    # In config.py
     PROMPTING_STRATEGY: str = "ensemble"
     PROMPTING_STRATEGY_CONFIG: Dict[str, Any] = {
         'mode': 'multi_prompt',

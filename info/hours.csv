@@ -10,6 +10,9 @@ Date,Name,Start,End,Tag,WorkingOn
 07.04.2026,vaakir,10:30,12:30,System 1,Refactor + Baseline pipeline fix
 07.04.2026,vaakir,12:30,14:00,System 2,Refactor + Advanced pipeline fix
 07.04.2026,vaakir,14:00,16:00,Planning,Mob programming/full code walkthrough + Refactor + Clarifying remaining tasks in group
+08.04.2026,vaakir,10:00,13:00,Fix,Debugging system 1 and 2 run issues
+08.04.2026,vaakir,13:00,17:00,Refactor,Config files merged inheritance added across many classes standardizing some code
+
 
 25.03.2026,BaalCat,12:15,14:00,Planning,Planning filestructure etc
 26.03.2026,BaalCat,07:45,15:30,Reading Theory & Coding,"Theory about RAG, Vector Databases and related, Implementing First Draft of Vector DB with simple test"

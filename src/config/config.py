@@ -1,4 +1,4 @@
-# src/config/advanced_config.py
+# src/config/config.py
 # Configuration for the all systems to share a single source of truth
 
 from pathlib import Path
@@ -18,7 +18,9 @@ TRAIN_JSONL = DATA_DIR / "train" / "train.jsonl"
 TEST_JSONL = DATA_DIR / "test" / "test.jsonl"
 
 CACHE_DIR = PROJECT_ROOT / "cache"
+CACHE_DB_PATH = CACHE_DIR / "query_cache.db"
 PREPROCESSED_CHUNKS_FILE = SRC_DIR / "data" / "preprocessed" / "chunks_fixed_size.json"
+RESULTS_CSV = PROJECT_ROOT / "experiments_results.csv"
 
 
 @dataclass
@@ -38,6 +40,8 @@ class BaselineConfig:
     TEST_JSONL: Path = TEST_JSONL
 
     CACHE_DIR: Path = CACHE_DIR
+    CACHE_DB_PATH: Path = CACHE_DB_PATH
+    RESULTS_CSV: Path = RESULTS_CSV
 
     PREPROCESSED_CHUNKS_FILE: str = str(PREPROCESSED_CHUNKS_FILE)
 
