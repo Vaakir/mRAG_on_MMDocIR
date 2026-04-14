@@ -119,12 +119,12 @@ def make_query_rewriter_node(llm, query_techniques_dict, config: Dict[str, Any])
             retry_count = state.retry_count
             last_technique = state.last_technique_used
         
-        logger.info(f"\n{'='*80}")
-        logger.info(f"QUERY REWRITER AGENT (Attempt {retry_count + 1})")
-        logger.info(f"{'='*80}")
-        logger.info(f"Question: {question}")
+        print(f"\n{'='*80}")
+        print(f"QUERY REWRITER AGENT (Attempt {retry_count + 1})")
+        print(f"{'='*80}")
+        print(f"Question: {question}")
         if last_technique:
-            logger.info(f"Last technique (to avoid on retry): {last_technique}")
+            print(f"Last technique (to avoid on retry): {last_technique}")
         
         # Build prompt for LLM to decide which technique to use
         available_techniques = list(query_techniques_dict.keys())
@@ -160,20 +160,20 @@ NO OTHER TEXT. ONLY JSON."""
             decision = QueryRewriterDecision(**decision_dict) # Validate and create Pydantic model (also checks if technique is valid)
             
         except Exception as e:
-            logger.warning(f"Failed to parse LLM decision: {e}, falling back to 'standard'")
+            print(f"Failed to parse LLM decision: {e}, falling back to 'standard'")
             decision = QueryRewriterDecision(
                 technique="standard",
                 reasoning="Error in parsing, using baseline",
                 rewritten_queries=[question]
             )
         
-        logger.info(f"Chose technique: {decision.technique}")
-        logger.info(f"Reasoning: {decision.reasoning}")
+        print(f"Chose technique: {decision.technique}")
+        print(f"Reasoning: {decision.reasoning}")
         
         # Apply the chosen query technique
         technique = query_techniques_dict.get(decision.technique)
         if not technique: # This should not happen due to Pydantic validation, but we check just in case
-            logger.warning(f"Technique {decision.technique} not found, using 'standard'")
+            print(f"Technique {decision.technique} not found, using 'standard'")
             technique = query_techniques_dict['standard']
         
         # Retrieve documents using the technique
@@ -185,7 +185,7 @@ NO OTHER TEXT. ONLY JSON."""
             for i, doc in enumerate(retrieved_docs)
         ])
         
-        logger.info(f"Retrieved {len(retrieved_docs)} documents")
+        print(f"Retrieved {len(retrieved_docs)} documents")
         
         # Get existing agent_decisions safely (handle both dict and AgenticRAGState)
         if isinstance(state, dict):
@@ -252,13 +252,13 @@ def make_grader_node(llm, config: Dict[str, Any]):
             question = state.original_question
             retrieved_docs = state.retrieved_documents or []
         
-        logger.info(f"\n{'='*80}")
-        logger.info("GRADER AGENT")
-        logger.info(f"{'='*80}")
-        logger.info(f"Evaluating {len(retrieved_docs)} documents for relevance")
+        print(f"\n{'='*80}")
+        print("GRADER AGENT")
+        print(f"{'='*80}")
+        print(f"Evaluating {len(retrieved_docs)} documents for relevance")
         
         if not retrieved_docs: # No documents to grade; return not relevant
-            logger.warning("No documents to grade")
+            print("No documents to grade")
             return {
                 "grade_decision": "no",
                 "grade_score": "no",
@@ -319,14 +319,14 @@ NO OTHER TEXT. ONLY JSON."""
             grade = DocumentGrade(**{k: v for k, v in grade_dict.items() if k in {'relevant', 'confidence', 'reasoning', 'num_relevant'}})
             
             # Log detailed grading information
-            logger.info(f"Grade: {grade.relevant} (confidence: {grade.confidence})")
-            logger.info(f"Relevant docs: {grade.num_relevant}/{len(retrieved_docs)}")
+            print(f"Grade: {grade.relevant} (confidence: {grade.confidence})")
+            print(f"Relevant docs: {grade.num_relevant}/{len(retrieved_docs)}")
             if 'num_partial' in grade_dict:
-                logger.info(f"Partially relevant docs: {grade_dict['num_partial']}")
-            logger.info(f"Reasoning: {grade.reasoning}")
+                print(f"Partially relevant docs: {grade_dict['num_partial']}")
+            print(f"Reasoning: {grade.reasoning}")
             
         except Exception as e:
-            logger.warning(f"Failed to grade documents: {e}, assuming relevant")
+            print(f"Failed to grade documents: {e}, assuming relevant")
             grade = DocumentGrade( # Default to relevant if grading fails, to avoid blocking generation
                 relevant="yes",
                 confidence=0.5,
@@ -334,8 +334,8 @@ NO OTHER TEXT. ONLY JSON."""
                 num_relevant=len(retrieved_docs)
             )
         
-        logger.info(f"Grade: {grade.relevant} (confidence: {grade.confidence})")
-        logger.info(f"Reasoning: {grade.reasoning}")
+        print(f"Grade: {grade.relevant} (confidence: {grade.confidence})")
+        print(f"Reasoning: {grade.reasoning}")
         
         # Get existing agent_decisions and retry count safely (handle both dict and AgenticRAGState)
         if isinstance(state, dict):
@@ -438,7 +438,7 @@ NO OTHER TEXT. ONLY JSON."""
             strategy_decision = GeneratorDecision(**strategy_dict) # Validate and create Pydantic model (also checks if strategy is valid and that confidence is in range)
             
         except Exception as e:
-            logger.warning(f"Failed to decide strategy: {e}, using 'standard'")
+            print(f"Failed to decide strategy: {e}, using 'standard'")
             strategy_decision = GeneratorDecision( # Default to standard strategy if decision fails, to ensure continuation of generation
                 strategy="standard",
                 reasoning="Error in selection, using default",
@@ -446,8 +446,8 @@ NO OTHER TEXT. ONLY JSON."""
                 confidence=0.5
             )
         
-        logger.info(f"Chose strategy: {strategy_decision.strategy}")
-        logger.info(f"Confidence: {strategy_decision.confidence}")
+        print(f"Chose strategy: {strategy_decision.strategy}")
+        print(f"Confidence: {strategy_decision.confidence}")
         
         # Generate answer using the chosen strategy        
         strategy = get_prompt_strategy( # Get the actual prompting strategy function based on the decision
@@ -458,7 +458,7 @@ NO OTHER TEXT. ONLY JSON."""
         
         answer = strategy.generate(question, context) # Generate the answer using the selected strategy
         
-        logger.info(f"Generated answer length: {len(answer)} chars")
+        print(f"Generated answer length: {len(answer)} chars")
         
         # Get existing agent_decisions safely (handle both dict and AgenticRAGState)
         if isinstance(state, dict):
@@ -511,8 +511,8 @@ def route_after_grading(state: AgenticRAGState) -> Literal["generator", "query_r
     
     # If retry_count (1) <= max_retries (1), allow the retry to proceed
     if (grade_decision == "no" and retry_count <= max_retries): # If documents are not relevant and we haven't exceeded max retries, go back to query rewriter
-        logger.info(f"Routing to query_rewriter for retry (attempt {retry_count + 1})")
+        print(f"Routing to query_rewriter for retry (attempt {retry_count + 1})")
         return "query_rewriter"
     
-    logger.info("Routing to generator for answer generation (retries exhausted or docs relevant)")
+    print("Routing to generator for answer generation (retries exhausted or docs relevant)")
     return "generator"

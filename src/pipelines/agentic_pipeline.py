@@ -36,14 +36,14 @@ class AgenticRAGPipeline(BaseRAGPipeline):
         super().initialize_components()
         
         # Initialize LLM for agent decision-making        
-        logger.info(f"Initializing LLM for agent decisions: {self.config.LLM_MODEL}")
+        print(f"Initializing LLM for agent decisions: {self.config.LLM_MODEL}")
         
         self.llm = SimpleLLM(
             base_url=self.config.OLLAMA_BASE_URL,
             model=self.config.LLM_MODEL
         )
         
-        logger.info("LLM initialized for agents")
+        print("LLM initialized for agents")
     
     def build_query_techniques_dict(self) -> Dict[str, Any]:
         """
@@ -77,11 +77,11 @@ class AgenticRAGPipeline(BaseRAGPipeline):
                     self.config.QUERY_TECHNIQUE_CONFIG
                 )
                 techniques_dict[technique_name] = technique # Store the instance in the dict
-                logger.info(f"  [OK]Loaded {technique_name}")
+                print(f"  [OK]Loaded {technique_name}")
             except Exception as e:
-                logger.error(f"  [ERROR] Failed to load {technique_name}: {e}")
+                print(f"  [ERROR] Failed to load {technique_name}: {e}")
         
-        logger.info(f"Query techniques loaded: {list(techniques_dict.keys())}")
+        print(f"Query techniques loaded: {list(techniques_dict.keys())}")
         return techniques_dict
     
     def build_agentic_graph(self):
@@ -90,7 +90,7 @@ class AgenticRAGPipeline(BaseRAGPipeline):
         if self.llm is None:
             raise RuntimeError("LLM not initialized. Call initialize_components() first.")
         
-        logger.info("Building agentic graph...")
+        print("Building agentic graph...")
         
         # Build query techniques dict
         query_techniques_dict = self.build_query_techniques_dict()
@@ -113,7 +113,7 @@ class AgenticRAGPipeline(BaseRAGPipeline):
             config_dict
         )
         
-        logger.info("Agentic graph built successfully")
+        print("Agentic graph built successfully")
     
     def run_query(self, question: str) -> Dict[str, Any]:
         """
@@ -129,9 +129,9 @@ class AgenticRAGPipeline(BaseRAGPipeline):
         if self.agentic_graph is None:
             raise RuntimeError("Graph not built. Call build_agentic_graph() first.")
         
-        logger.info(f"\n{'='*80}")
-        logger.info(f"Running agentic pipeline for question: {question}")
-        logger.info(f"{'='*80}")
+        print(f"\n{'='*80}")
+        print(f"Running agentic pipeline for question: {question}")
+        print(f"{'='*80}")
         
         # Create initial state
         initial_state = AgenticRAGState(
@@ -157,7 +157,7 @@ class AgenticRAGPipeline(BaseRAGPipeline):
         try:
             final_state = self.agentic_graph.invoke(initial_state) # Invoke the graph with the initial state and get the final state after all agents have processed
         except Exception as e:
-            logger.error(f"Error running graph: {e}")
+            print(f"Error running graph: {e}")
             raise
         
         # Extract results (handle both dict and AgenticRAGState)
@@ -185,10 +185,7 @@ class AgenticRAGPipeline(BaseRAGPipeline):
                 "num_docs_retrieved": len(raw_docs),
             }
         
-        logger.info(f"\n{'='*80}")
-        logger.info("FINAL ANSWER")
-        logger.info(f"{'='*80}")
-        logger.info(result["answer"][:500] + ("..." if len(result["answer"]) > 500 else ""))
+        print("FINAL ANSWER\n" + result["answer"][:500] + ("..." if len(result["answer"]) > 500 else ""))
         
         return result
     
@@ -207,7 +204,7 @@ class AgenticRAGPipeline(BaseRAGPipeline):
             raise RuntimeError("Graph not built. Call build_agentic_graph() first.")
         
         eval_start = time.time()
-        logger.info(f"\nEvaluating agentic pipeline on {len(test_questions)} questions...")
+        print(f"\nEvaluating agentic pipeline on {len(test_questions)} questions...")
         
         test_subset = test_questions[:self.config.EVAL_SUBSET_SIZE] # Limit to subset for faster evaluation during development
         
@@ -215,14 +212,14 @@ class AgenticRAGPipeline(BaseRAGPipeline):
         
         # Run each test question through the pipeline and collect results
         for i, test_q in enumerate(test_subset):
-            logger.info(f"\n[{i+1}/{len(test_subset)}] {test_q['question'][:100]}...")
+            print(f"\n[{i+1}/{len(test_subset)}] Question: {test_q['question'][:100]}...")
             
             try:
                 result = self.run_query(test_q['question']) # Run the question through the agentic pipeline and get the result
                 result['ground_truth'] = test_q.get('answer', '') # Add ground truth to the result for later evaluation
                 results.append(result)
             except Exception as e:
-                logger.error(f"Failed to process question: {e}")
+                print(f"Failed to process question: {e}")
                 results.append({
                     "question": test_q['question'],
                     "answer": "",
@@ -241,7 +238,7 @@ class AgenticRAGPipeline(BaseRAGPipeline):
         
         # If raw documents not available, skip retrieval evaluation
         if not retrieval_results or len(retrieval_results) == 0:
-            logger.warning("No retrieved documents in raw format for evaluation. Skipping retrieval metrics.")
+            print("No retrieved documents in raw format for evaluation. Skipping retrieval metrics.")
             retrieval_metrics = {k: float('nan') for k in [
                 'precision@1', 'precision@3', 'precision@5',
                 'recall@1', 'recall@3', 'recall@5',
@@ -277,6 +274,6 @@ class AgenticRAGPipeline(BaseRAGPipeline):
             "results": results
         }
         
-        logger.info(f"\nEvaluation completed in {elapsed:.2f}s")
+        print(f"\nEvaluation completed in {elapsed:.2f}s")
         
         return eval_summary

@@ -87,39 +87,39 @@ def main():
     # Parse arguments
     args = parser.parse_args()
     
-    logger.info("="*80)
-    logger.info("SYSTEM 3: AGENTIC mRAG PIPELINE")
-    logger.info("="*80)
+    print("="*80)
+    print("SYSTEM 3: AGENTIC mRAG PIPELINE")
+    print("="*80)
     
     # Initialize config
-    logger.info("Loading configuration...")
+    print("Loading configuration...")
     config = AdvancedConfig()
     config.EVAL_SUBSET_SIZE = args.eval_size
     
     # Initialize pipeline
-    logger.info("Initializing agentic pipeline...")
+    print("Initializing agentic pipeline...")
     pipeline = AgenticRAGPipeline(config)
     
     # Build index
-    logger.info("Building/loading index...")
+    print("Building/loading index...")
     start = time.time()
     pipeline.build_index(force_rebuild=args.rebuild_index)
     index_time = time.time() - start
-    logger.info(f"Index ready in {index_time:.2f}s")
+    print(f"Index ready in {index_time:.2f}s")
     
     # Initialize components
-    logger.info("Initializing components...")
+    print("Initializing components...")
     pipeline.initialize_components()
     
     # Build agentic graph
-    logger.info("Building agentic graph...")
+    print("Building agentic graph...")
     pipeline.build_agentic_graph()
     
     results = None
     
     # Test with single query
     if args.test_query:
-        logger.info(f"\nTesting with query: {args.test_query}")
+        print(f"\nTesting with query: {args.test_query}")
         result = pipeline.run_query(args.test_query) # Run the query through the agentic pipeline
         results = {"single_query": result} # Store result in a dict for potential saving
         
@@ -135,7 +135,7 @@ def main():
     
     # Full evaluation
     elif args.eval:
-        logger.info(f"\nRunning evaluation on {args.eval_size} queries...")
+        print(f"\nRunning evaluation on {args.eval_size} queries...")
         
         # Load test data
         test_data = load_train_data(config.TRAIN_JSONL)
@@ -164,7 +164,7 @@ def main():
     
     else:
         # Default: test with sample query
-        logger.info("\nNo query or eval specified. Running sample query...")
+        print("\nNo query or eval specified. Running sample query...")
         sample_query = "What is the main topic of the documents?"
         result = pipeline.run_query(sample_query)
         results = {"sample_query": result}
@@ -178,7 +178,7 @@ def main():
     
     # Save results if requested
     if args.output and results:
-        logger.info(f"Saving results to {args.output}")
+        print(f"Saving results to {args.output}")
         with open(args.output, 'w') as f:
             # Convert any non-serializable objects
             def default_handler(obj):
@@ -193,7 +193,7 @@ def main():
                 default=default_handler
             )
     
-    logger.info("\nPipeline completed!")
+    print("\nPipeline completed!")
     print("\n" + "="*80)
 
 
