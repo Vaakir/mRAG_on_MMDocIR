@@ -45,27 +45,6 @@ class DocumentGrade(BaseModel):
     )
 
 
-class RetrieverDecision(BaseModel):
-    """Structured output from retriever agent."""
-    
-    # Number of documents to retrieve (1-20)
-    k: int = Field(ge=1, le=20, description="Number of documents to retrieve")
-    
-    # Retrieval method to use
-    method: Literal["hybrid", "dense", "bm25"] = Field(
-        description="Retrieval method to use"
-    )
-    
-    # Reasoning for the choice of retrieval method and k
-    reasoning: str = Field(description="Why this method and k?")
-    
-    # Confidence value in the retrieval method choice (0.0 to 1.0)
-    confidence: float = Field(
-        ge=0.0, le=1.0,
-        description="Confidence in decision"
-    )
-
-
 class GeneratorDecision(BaseModel):
     """Structured output from generator agent."""
     
