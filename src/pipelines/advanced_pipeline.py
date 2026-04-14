@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from config.config import AdvancedConfig
 from pipelines.base_pipeline import BaseRAGPipeline
-from preprocessing.image_processor import load_page_image_chunks
+from preprocessing.image_processor import load_page_image_chunks, load_figure_chunks
 from generation.generator import VisionGenerator
 from query_techniques import get_query_technique
 from retrieval_techniques import MultimodalRetriever
@@ -94,6 +94,17 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
                 abs_paths = [str(self.config.DATA_DIR / c["image_path"]) for c in page_chunks]
                 page_embeddings = self.embedder.embed_images(abs_paths)
 
+        # Extracted figures (pictures, charts, tables)
+        figure_chunks = []
+        figure_embeddings = None
+        if self.config.USE_MULTIMODAL and hasattr(self.config, "FIGURES_TRAIN_DIR"):
+            figure_chunks = load_figure_chunks(
+                self.config.FIGURES_TRAIN_DIR, self.config.DATA_DIR,
+            )
+            if figure_chunks:
+                abs_paths = [str(self.config.DATA_DIR / c["image_path"]) for c in figure_chunks]
+                figure_embeddings = self.embedder.embed_images(abs_paths)
+
         # Index into Qdrant
         self.vector_db.create_collection(force_recreate=True)
         qdrant_docs = []
@@ -126,8 +137,22 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
                 })
                 doc_id += 1
 
+        if figure_embeddings is not None:
+            for chunk, emb in zip(figure_chunks, figure_embeddings):
+                qdrant_docs.append({
+                    "id": doc_id, "embedding": emb, "text": chunk["text"],
+                    "metadata": {
+                        "type": "figure",
+                        "image_path": chunk["image_path"],
+                        "doc_name": chunk["doc_name"],
+                        "page_num": chunk["page_num"],
+                        "label": chunk["label"],
+                    },
+                })
+                doc_id += 1
+
         self.vector_db.index_documents(qdrant_docs)
-        logger.info(f"Indexed {doc_id} docs ({len(self.chunks)} text, {len(page_chunks)} images) in {time.time() - start_time:.2f}s")
+        logger.info(f"Indexed {doc_id} docs ({len(self.chunks)} text, {len(page_chunks)} page images, {len(figure_chunks)} figures) in {time.time() - start_time:.2f}s")
         self._initialize_retriever()
 
     def _load_chunks_for_bm25(self):
@@ -184,9 +209,10 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
     # ------------------------------------------------------------------
 
     def _generate(self, question: str, retrieved: List[Dict[str, Any]]) -> str:
-        """Route to VLM if page images were retrieved, otherwise text LLM."""
-        image_results = [r for r in retrieved if r.get("payload", {}).get("type") == "page_image"]
-        text_results  = [r for r in retrieved if r.get("payload", {}).get("type") != "page_image"]
+        """Route to VLM if page images or figures were retrieved, otherwise text LLM."""
+        image_types = {"page_image", "figure", "evidence"}
+        image_results = [r for r in retrieved if r.get("payload", {}).get("type") in image_types]
+        text_results  = [r for r in retrieved if r.get("payload", {}).get("type") not in image_types]
 
         if image_results and self.vlm is not None:
             image_paths = []

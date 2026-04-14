@@ -109,12 +109,12 @@ class AdvancedConfig(BaselineConfig):
     """Separate collection from baseline so the two don't interfere"""
 
     # Use one model for everything — no server model swapping = no OOM crashes
-    LLM_MODEL: str = "qwen3.5:122b"
+    LLM_MODEL: str = "gorina10.qwen3.5:122b"
 
     # ===== MULTIMODAL SETTINGS =====
     USE_MULTIMODAL: bool = True
 
-    VLM_MODEL: str = "qwen3.5:122b"
+    VLM_MODEL: str = "gorina10.qwen3.5:122b"
     """Vision-language model used when image chunks are retrieved"""
 
     # Sequential — keeps logs readable and avoids concurrent calls on shared GPU
@@ -126,9 +126,10 @@ class AdvancedConfig(BaselineConfig):
     PAGE_IMAGES_TEST_DIR: Path = PAGE_IMAGES_TEST_DIR
     IMAGES_TEST_DIR: Path = IMAGES_TEST_DIR
 
+    FIGURES_TRAIN_DIR: Path = DATA_DIR / "train" / "figures_train"
+
     # ===== RETRIEVAL FILTER =====
-    ALLOWED_CHUNK_TYPES: List[str] = field(default_factory=lambda: ["text", "page_image"])
-    """Only retrieve these chunk types. Excludes 'evidence' (circular — indexed from question text)."""
+    ALLOWED_CHUNK_TYPES: List[str] = field(default_factory=lambda: ["text", "page_image", "figure", "evidence"])
 
     # ===== QUERY TECHNIQUE SETTINGS =====
     QUERY_TECHNIQUE: str = "standard"

@@ -80,6 +80,54 @@ def load_page_image_chunks(page_images_dir: Path, data_dir: Path) -> List[Dict[s
     return chunks
 
 
+def load_figure_chunks(figures_dir: Path, data_dir: Path) -> List[Dict[str, Any]]:
+    """
+    Build a chunk list from extracted figures/charts/tables (PNGs).
+    Reads figures_metadata.json produced by extract_figures.py.
+
+    image_path is stored RELATIVE to data_dir for portability.
+
+    Returns a list of dicts:
+        type        : "figure"
+        image_path  : path relative to data_dir (string)
+        doc_name    : document name (PDF stem)
+        page_num    : int page number
+        label       : "picture", "chart", or "table"
+        text        : short description used as fallback display text
+    """
+    figures_dir = Path(figures_dir)
+    data_dir = Path(data_dir)
+    metadata_path = figures_dir / "figures_metadata.json"
+
+    if not metadata_path.exists():
+        logger.warning(f"No figures_metadata.json in {figures_dir}, skipping figures")
+        return []
+
+    with open(metadata_path, "r", encoding="utf-8") as f:
+        records = json.load(f)
+
+    chunks = []
+    for r in records:
+        img_path = figures_dir / r["filename"]
+        if not img_path.exists():
+            logger.debug(f"Figure image not found: {img_path}")
+            continue
+
+        rel_path = img_path.relative_to(data_dir)
+
+        chunks.append({
+            "type": "figure",
+            "image_path": str(rel_path),
+            "doc_name": r["doc_name"],
+            "page_num": r["page_num"],
+            "label": r["label"],
+            "text": f"{r['label']} on page {r['page_num']} of {r['doc_name']}",
+        })
+
+    logger.info(f"Built {len(chunks)} figure chunks from {metadata_path.name}")
+    return chunks
+
+
 def load_evidence_chunks(images_dir: Path, jsonl_path: Path, data_dir: Path) -> List[Dict[str, Any]]:
     """
     Build a chunk list from labeled evidence crops in the JSONL.

@@ -119,7 +119,7 @@ class MultimodalRetriever:
     def _image_search(self, question: str) -> List[Dict[str, Any]]:
         query_emb = self.embedder.embed_query(question)
         results = self.vector_db.retrieve(
-            query_emb, top_k=self.max_page_images, allowed_types=["page_image"]
+            query_emb, top_k=self.max_page_images, allowed_types=["page_image", "figure"]
         )
         for r in results:
             p = r.get("payload", {})
