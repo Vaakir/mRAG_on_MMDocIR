@@ -1,4 +1,6 @@
 # src/indexing/embedder.py
+import threading
+
 import torch
 from typing import List, Dict, Any
 import numpy as np
@@ -17,7 +19,7 @@ class TextEmbedder:
 
         self.model = SentenceTransformer(model_name, trust_remote_code=True, device="cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
         self.dimension = 1024  # Jina CLIP v2 outputs 1024 dimensions
-
+        self.encode_lock = threading.Lock()  # Lock for thread-safe encoding
         # logger.info(f"Embedding model loaded. Dimension: {self.dimension}")
         print(f"\n[OK] Embedding model loaded. Dimension: {self.dimension}")
 
@@ -50,8 +52,13 @@ class TextEmbedder:
         return np.vstack(all_embeddings) # Stack all batch embeddings into a single numpy array
 
     def embed_query(self, query: str) -> np.ndarray:
-        """Embed a single query text."""
-        return self.model.encode([query], normalize_embeddings=True)[0]
+        """Embed a single query text."""        
+        # Normalize text to lowercase for consistent tokenization:
+        normalized_query = query.lower()
+        
+        # Thread-safe encoding
+        with self.encode_lock:
+            return self.model.encode([normalized_query], prompt_name="document", normalize_embeddings=True)[0]
 
 # -------------------------------------------------------------------
 def create_chunk_embeddings(

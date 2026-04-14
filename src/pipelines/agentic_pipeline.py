@@ -101,7 +101,7 @@ class AgenticRAGPipeline(BaseRAGPipeline):
         # Build the graph
         config_dict = {
             'TOP_K': self.config.TOP_K,
-            'MAX_RETRIES': getattr(self.config, 'MAX_RETRIES', 2)
+            'MAX_RETRIES': getattr(self.config, 'MAX_RETRIES', 1)
         }
         
         self.agentic_graph = build_agentic_graph( # Build the LangGraph StateGraph using the builder function, passing all dependencies
@@ -145,7 +145,7 @@ class AgenticRAGPipeline(BaseRAGPipeline):
             grade_confidence=0.0,
             grade_reasoning="",
             retry_count=0,
-            max_retries=getattr(self.config, 'MAX_RETRIES', 2),
+            max_retries=getattr(self.config, 'MAX_RETRIES', 1), # Use config value or default to 2
             last_technique_used="",
             chosen_prompting_strategy="",
             generated_answer="",

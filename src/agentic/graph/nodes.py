@@ -129,34 +129,26 @@ def make_query_rewriter_node(llm, query_techniques_dict, config: Dict[str, Any])
         # Build prompt for LLM to decide which technique to use
         available_techniques = list(query_techniques_dict.keys())
         
-        prompt = f"""You are a query planning agent. Your job is to decide which query technique to use for better retrieval.
+        prompt = f"""Choose ONE query technique for this question:
+Question: {question}
 
-QUESTION: {question}
+Techniques:
+1. standard - baseline retrieval
+2. multi_query - multiple paraphrases
+3. rag_fusion - paraphrases with fusion
+4. step_back - abstract to broader concept
+5. hyde - hypothetical documents
+6. query_decomposition - break into sub-questions
+7. query_rewriting - improve phrasing
+8. query_expansion - add synonyms
 
-AVAILABLE TECHNIQUES (choose exactly ONE):
-1. "standard": No modification (baseline retrieval)
-2. "multi_query": Generate multiple paraphrases and retrieve for each (ambiguous/multi-faceted questions)
-3. "rag_fusion": Paraphrases with RRF fusion (complex questions)
-4. "step_back": Abstract to broader concept, then retrieve (specific queries needing context)
-5. "hyde": Generate hypothetical documents (semantic searches)
-6. "query_decomposition": Break into sub-questions (multi-part questions)
-7. "query_rewriting": Improve grammar and clarity (poorly-phrased questions)
-8. "query_expansion": Add synonyms and related terms (narrow searches, entity searches)
+Last technique: {last_technique if last_technique else "none"}
+Attempt: {retry_count + 1}
 
-RETRY CONTEXT:
-- Attempt number: {retry_count + 1}
-- Last technique used: {last_technique if last_technique else "None (first attempt)"}
-- On retry: Choose a DIFFERENT technique than last time
+RESPOND WITH ONLY THIS JSON:
+{{"technique": "<one of above>", "reasoning": "<short explanation>"}}
 
-DECISION:
-Think about the question type, then select the best technique.
-
-REQUIRED: Return ONLY a JSON object with exactly 2 fields:
-1. "technique": Must be exactly one of the 8 techniques listed above (string)
-2. "reasoning": Explain why this technique will help (string)
-
-Return ONLY this JSON (no markdown, no code blocks, no extra text):
-{{"technique": "standard", "reasoning": "This is a straightforward factual question"}}"""
+NO OTHER TEXT. ONLY JSON."""
         
         # Call LLM to get decision on which technique to use
         try:
@@ -230,7 +222,8 @@ def make_grader_node(llm, config: Dict[str, Any]):
     Factory function to create the grader node.
     
     The grader agent evaluates whether retrieved documents are relevant
-    to the user's question.
+    to the user's question. Enhanced version evaluates ALL documents
+    with multi-criteria scoring (not just top 3).
     
     Args:
         llm: LangChain LLM instance
@@ -242,7 +235,13 @@ def make_grader_node(llm, config: Dict[str, Any]):
     
     def grader_node(state: AgenticRAGState):
         """
-        Grader Agent: Evaluate relevance of retrieved documents.
+        Grader Agent: Evaluate relevance of retrieved documents with multi-criteria scoring.
+        
+        Enhanced to:
+        - Evaluate ALL retrieved documents (not just top 3)
+        - Use multi-criteria grading (answer containment, concept matching, context type)
+        - Provide detailed breakdown of relevant vs irrelevant docs
+        - Better count actual relevant documents
         """
         
         # Handle both AgenticRAGState and dict
@@ -256,7 +255,7 @@ def make_grader_node(llm, config: Dict[str, Any]):
         logger.info(f"\n{'='*80}")
         logger.info("GRADER AGENT")
         logger.info(f"{'='*80}")
-        logger.info(f"Evaluating {len(retrieved_docs)} documents")
+        logger.info(f"Evaluating {len(retrieved_docs)} documents for relevance")
         
         if not retrieved_docs: # No documents to grade; return not relevant
             logger.warning("No documents to grade")
@@ -267,48 +266,71 @@ def make_grader_node(llm, config: Dict[str, Any]):
                 "grade_reasoning": "No documents retrieved"
             }
         
-        # Build grading prompt
-        doc_text = "\n".join([
-            f"[Doc {i+1}]: {doc.get('text', '')[:500]}..."
-            for i, doc in enumerate(retrieved_docs[:5])  # Grade top 5
-        ])
+        # Build grading prompt that evaluates ALL documents with multi-criteria approach
+        # Show summaries of all docs, ask for detailed grading
+        doc_summaries = []
+        for i, doc in enumerate(retrieved_docs):
+            doc_text = doc.get('text', '')
+            # Truncate to 250 chars per doc to fit more docs in context
+            summary = doc_text[:250] + "..." if len(doc_text) > 250 else doc_text
+            doc_summaries.append(f"[Doc {i+1}]: {summary}")
         
-        prompt = f"""You are a document relevance grader. Your job is to assess if retrieved documents are relevant to the question.
+        doc_text = "\n\n".join(doc_summaries)
+        
+        prompt = f"""You are an expert evaluator. Grade these documents on relevance to the question.
 
-QUESTION:
-{question}
+Question: {question}
 
-RETRIEVED DOCUMENTS (first 500 chars each):
+Documents ({len(retrieved_docs)} total):
 {doc_text}
 
-EVALUATION CRITERIA:
-1. Does the content contain information to answer the question?
-2. Is the content related to the topic?
-3. Would this help generate a good answer?
+For EACH document, evaluate:
+1. Does it contain answer content for the question?
+2. Does it mention key concepts from the question?
+3. Is the context type (table, text, image caption, etc.) appropriate?
 
-REQUIRED: Return ONLY a JSON object with ALL four fields:
-1. "relevant": Must be exactly "yes" or "no" (string)
-2. "confidence": Must be a number from 0.0 to 1.0 (e.g., 0.95 for 95% confident)
-3. "num_relevant": Must be an integer from 0 to {len(retrieved_docs)} (count of relevant docs)
-4. "reasoning": Explain why you made this judgment (string)
+Then decide:
+- How many documents are RELEVANT? (contain answer content or key concepts)
+- How many are PARTIALLY relevant? (tangentially related)
+- Overall decision: yes|no (is there enough relevant content overall?)
+- Confidence: 0.0-1.0 (how sure are you?)
+- Reasoning: specific details on what makes docs relevant/irrelevant
 
-Return ONLY this JSON (no markdown, no code blocks, no extra text):
-{{"relevant": "yes/no", "confidence": 0.0to1.0, "num_relevant": 0-{len(retrieved_docs)}, "reasoning": "explanation"}}"""
+RESPOND WITH ONLY THIS JSON:
+{{
+    "relevant": "yes",
+    "confidence": 0.85,
+    "num_relevant": 3,
+    "num_partial": 1,
+    "reasoning": "Docs 1, 3, 5 directly contain answer content about [topic]. Docs 2, 4 are tangentially related. Strong confidence in relevance."
+}}
+
+NO OTHER TEXT. ONLY JSON."""
         
         try:
-            response = llm.invoke(prompt) # Call LLM to get grading decision
+            response = llm.invoke(prompt) # Call LLM to get detailed grading decision
             response_text = response.content if hasattr(response, 'content') else str(response) # Handle different response types
             
             # Parse JSON
             grade_dict = clean_and_extract_json(response_text)
-            grade = DocumentGrade(**grade_dict) # Validate and create Pydantic model (also checks field types and values)
+            
+            # Validate and create Pydantic model
+            # Note: DocumentGrade currently has num_relevant field, but we'll enhance the parsing to handle enhanced fields
+            grade = DocumentGrade(**{k: v for k, v in grade_dict.items() if k in {'relevant', 'confidence', 'reasoning', 'num_relevant'}})
+            
+            # Log detailed grading information
+            logger.info(f"Grade: {grade.relevant} (confidence: {grade.confidence})")
+            logger.info(f"Relevant docs: {grade.num_relevant}/{len(retrieved_docs)}")
+            if 'num_partial' in grade_dict:
+                logger.info(f"Partially relevant docs: {grade_dict['num_partial']}")
+            logger.info(f"Reasoning: {grade.reasoning}")
             
         except Exception as e:
             logger.warning(f"Failed to grade documents: {e}, assuming relevant")
             grade = DocumentGrade( # Default to relevant if grading fails, to avoid blocking generation
                 relevant="yes",
                 confidence=0.5,
-                reasoning="Error in grading",
+                reasoning="Error in advanced grading; defaulting to relevant",
                 num_relevant=len(retrieved_docs)
             )
         
@@ -338,6 +360,7 @@ Return ONLY this JSON (no markdown, no code blocks, no extra text):
                     "relevant": grade.relevant,
                     "confidence": grade.confidence,
                     "num_relevant": grade.num_relevant,
+                    "num_docs_evaluated": len(retrieved_docs),
                     "reasoning": grade.reasoning
                 }
             }
@@ -387,34 +410,24 @@ def make_generator_node(llm, generator, config: Dict[str, Any]):
             max_retries = state.max_retries
         
         # Build prompt for strategy selection
-        prompt = f"""You are an expert in selecting prompting strategies for answer generation.
+        prompt = f"""Choose a generation strategy:
+Question: {question}
+Context available: {"yes" if context else "no"}
+Documents relevant: {grade_decision}
 
-CONTEXT:
-- Question: {question}
-- Context available: {"Yes" if context else "No"}
-- Documents relevant: {grade_decision}
+Strategies:
+1. standard - direct extraction
+2. cot - step-by-step reasoning
+3. few_shot - example-based
+4. role - expert perspective
+5. ensemble - combined approach
 
-AVAILABLE STRATEGIES:
-1. "standard": Direct extraction from context without explanation (factual, simple)
-2. "cot": Chain-of-thought reasoning with step-by-step logic (complex, requires reasoning)
-3. "few_shot": Example-based reasoning (learn from patterns)
-4. "role": Expert role assumption (financial analyst, researcher, etc.) (domain-specific)
-5. "ensemble": Multiple strategies combined (highest quality but slower)
+Select the best strategy based on question complexity and context quality.
 
-SELECTION CRITERIA:
-- Question complexity (simple vs. complex)
-- Whether reasoning/explanation is needed
-- Domain specificity (general vs. specialized)
-- Available context quality
+RESPOND WITH ONLY THIS JSON:
+{{"strategy": "standard", "reasoning": "straightforward factual question", "needs_more_context": false, "confidence": 0.9}}
 
-REQUIRED: Return ONLY a JSON object with ALL four fields:
-1. "strategy": Must be exactly one of: "standard", "cot", "few_shot", "role", or "ensemble"
-2. "reasoning": Explain your choice (why this strategy works best)
-3. "needs_more_context": Boolean true or false (do we need more context?)
-4. "confidence": A number from 0.0 to 1.0 (how confident are you?)
-
-Return ONLY this JSON (no markdown, no code blocks, no extra text):
-{{"strategy": "standard/cot/few_shot/role/ensemble", "reasoning": "explanation", "needs_more_context": false, "confidence": 0.9}}"""
+NO OTHER TEXT. ONLY JSON."""
         
         try:
             response = llm.invoke(prompt) # Call LLM to get strategy decision
@@ -477,8 +490,13 @@ Return ONLY this JSON (no markdown, no code blocks, no extra text):
 
 def route_after_grading(state: AgenticRAGState) -> Literal["generator", "query_rewriter"]:
     """
-    Route after grading: if documents are not relevant and retries left, go back to rewriter.
+    Route after grading: if documents are not relevant and there are retries left, go back to rewriter.
     Otherwise, go to generator.
+    
+    The retry_count is incremented by the grader when it returns "no", so:
+    - retry_count = 1 means "first retry attempt was just made"
+    - max_retries = 1 means "allow up to 1 retry attempt"
+    - We use <= to allow the current retry to proceed
     """
     
     # Handle both AgenticRAGState and dict
@@ -491,9 +509,10 @@ def route_after_grading(state: AgenticRAGState) -> Literal["generator", "query_r
         retry_count = state.retry_count
         max_retries = state.max_retries
     
-    if (grade_decision == "no" and retry_count < max_retries): # If documents are not relevant and we have retries left, go back to query rewriter
-        logger.info(f"Routing to query_rewriter for retry {retry_count + 1}")
+    # If retry_count (1) <= max_retries (1), allow the retry to proceed
+    if (grade_decision == "no" and retry_count <= max_retries): # If documents are not relevant and we haven't exceeded max retries, go back to query rewriter
+        logger.info(f"Routing to query_rewriter for retry (attempt {retry_count + 1})")
         return "query_rewriter"
     
-    logger.info("Routing to generator for answer generation")
+    logger.info("Routing to generator for answer generation (retries exhausted or docs relevant)")
     return "generator"

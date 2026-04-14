@@ -10,7 +10,7 @@ class AgenticConfig(AdvancedConfig):
     """Configuration specific to agentic RAG (System 3)."""
     
     # ===== AGENT SETTINGS =====
-    MAX_RETRIES: int = 2
+    MAX_RETRIES: int = 1
     """Maximum number of retry iterations for query rewriting"""
     
     RETRY_ON_LOW_CONFIDENCE: bool = True

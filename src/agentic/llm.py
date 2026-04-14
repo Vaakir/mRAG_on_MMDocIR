@@ -54,27 +54,56 @@ class SimpleLLM:
         
         logger.info(f"SimpleLLM initialized: {self.model} at {self.base_url}")
     
-    def invoke(self, prompt: str) -> 'SimpleLLMResponse':
+    def invoke(self, prompt: str, max_retries: int = 1) -> 'SimpleLLMResponse':
         """
-        Call the LLM with a prompt.
+        Call the LLM with a prompt. Validates JSON output and retries if needed.
         
         Args:
             prompt: Input prompt string
+            max_retries: Max retry attempts if response is not valid JSON (default: 1)
             
         Returns:
             SimpleLLMResponse object with content attribute
         """
-        try:
-            response = self._client.generate( # Call the Ollama API to generate a response based on the prompt
+        def _make_call(prompt_text: str) -> str:
+            """Helper to make actual API call."""
+            response = self._client.generate(
                 model=self.model,
-                prompt=prompt,
+                prompt=prompt_text,
                 stream=False
             )
-            
-            content = response.get('response', '') # Extract the generated content from the response
-            
+            content = response.get('response', '')
             if not content:
                 raise ResponseError("Empty response from Ollama")
+            return content
+        
+        try:
+            # First attempt
+            content = _make_call(prompt)
+            
+            # Validate that response is valid JSON
+            if not content.strip().startswith('{'):
+                logger.warning(f"LLM response is not JSON. Retrying with correction prompt...")
+                
+                # Retry with explicit JSON correction instruction
+                if max_retries > 0:
+                    correction_prompt = f"""{prompt}
+
+IMPORTANT: Your previous response was not valid JSON. 
+RESPOND WITH ONLY A JSON OBJECT, NOTHING ELSE.
+NO EXPLANATION, NO MARKDOWN, JUST JSON.
+Start with {{ and end with }}."""
+                    try:
+                        content = _make_call(correction_prompt)
+                        if not content.strip().startswith('{'):
+                            logger.error("Retry failed. Response still not JSON. Using fallback.")
+                            return SimpleLLMResponse(content='{"error": "Failed to parse JSON", "fallback": true}')
+                    except Exception as retry_error:
+                        logger.error(f"Retry failed with error: {retry_error}. Using fallback.")
+                        return SimpleLLMResponse(content='{"error": "Failed to parse JSON", "fallback": true}')
+                else:
+                    logger.warning("Max retries exhausted. Using fallback.")
+                    return SimpleLLMResponse(content='{"error": "Failed to parse JSON", "fallback": true}')
             
             return SimpleLLMResponse(content=content)
             
@@ -83,12 +112,13 @@ class SimpleLLM:
                 logger.warning(f"Model {self.model} not found, attempting to pull...")
                 try:
                     self._client.pull(self.model)
-                    response = self._client.generate(
-                        model=self.model,
-                        prompt=prompt,
-                        stream=False
-                    )
-                    content = response.get('response', '')
+                    content = _make_call(prompt)
+                    
+                    # Validate JSON after pull
+                    if not content.strip().startswith('{'):
+                        logger.warning("Response after pull is still not JSON")
+                        return SimpleLLMResponse(content='{"error": "Failed to parse JSON", "fallback": true}')
+                    
                     return SimpleLLMResponse(content=content)
                 except Exception as pull_error:
                     logger.error(f"Failed to pull model: {pull_error}")
