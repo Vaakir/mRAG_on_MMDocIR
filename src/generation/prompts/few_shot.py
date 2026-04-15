@@ -24,6 +24,14 @@ DEFAULT_FEW_SHOT_EXAMPLES = [
     {
         "question": "What year did World War II end?",
         "answer": "1945"
+    },
+    {
+        "question": "How many times is \"resilience\" mentioned in the entire document?",
+        "answer": "12"
+    },
+    {
+        "question": "What strategic approaches are outlined for implementation?",
+        "answer": ["stakeholder engagement", "phased rollout", "risk assessment", "team training"]
     }
 ]
 

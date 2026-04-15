@@ -100,7 +100,7 @@ class AdvancedConfig(BaselineConfig):
     """
 
     # ===== ADVANCED APP OVERRIDES =====
-    EMBEDDING_MODEL: str = "BAAI/bge-large-en-v1.5"
+    EMBEDDING_MODEL: str = "jinaai/jina-clip-v2"
     """Embedding model name from Hugging Face"""
 
     VECTOR_DB_COLLECTION: str = "baseline_documents_v3"
