@@ -77,7 +77,7 @@ def clean_and_extract_json(response_text: str) -> dict:
 # Decides which QueryTechnique to use based on the question
 # ============================================================================
 
-def make_query_rewriter_node(llm, query_techniques_dict, config: Dict[str, Any]):
+def make_query_rewriter_node(agent_llm, query_techniques_dict, config: Dict[str, Any]):
     """
     Factory function to create the query rewriter node.
     
@@ -85,7 +85,7 @@ def make_query_rewriter_node(llm, query_techniques_dict, config: Dict[str, Any])
     to use, based on the user's question.
     
     Args:
-        llm: LangChain LLM instance (for decision-making)
+        agent_llm: Lightweight LLM instance for decision-making (qwen3-vl:8b)
         query_techniques_dict: Dict mapping technique names to QueryTechnique instances
         config: Configuration dict
         
@@ -149,9 +149,9 @@ RESPOND WITH ONLY THIS JSON:
 
 NO OTHER TEXT. ONLY JSON."""
         
-        # Call LLM to get decision on which technique to use
+        # Call agent LLM to get decision on which technique to use
         try:
-            response = llm.invoke(prompt)
+            response = agent_llm.invoke(prompt)
             response_text = response.content if hasattr(response, 'content') else str(response) # Handle different response types
             
             # Try to parse as JSON
@@ -216,7 +216,7 @@ NO OTHER TEXT. ONLY JSON."""
 # Decides if retrieved documents are relevant to the question
 # ============================================================================
 
-def make_grader_node(llm, config: Dict[str, Any]):
+def make_grader_node(agent_llm, config: Dict[str, Any]):
     """
     Factory function to create the grader node.
     
@@ -225,7 +225,7 @@ def make_grader_node(llm, config: Dict[str, Any]):
     with multi-criteria scoring (not just top 3).
     
     Args:
-        llm: LangChain LLM instance
+        agent_llm: Lightweight LLM instance for decision-making (qwen3-vl:8b)
         config: Configuration dict
         
     Returns:
@@ -307,7 +307,7 @@ RESPOND WITH ONLY THIS JSON:
 NO OTHER TEXT. ONLY JSON."""
         
         try:
-            response = llm.invoke(prompt) # Call LLM to get detailed grading decision
+            response = agent_llm.invoke(prompt) # Call agent LLM to get detailed grading decision
             response_text = response.content if hasattr(response, 'content') else str(response) # Handle different response types
             
             # Parse JSON
@@ -348,6 +348,7 @@ NO OTHER TEXT. ONLY JSON."""
         new_retry_count = current_retry_count + 1 if grade.relevant == "no" else current_retry_count
         
         return {
+            "retrieved_documents": retrieved_docs,  # PRESERVE: explicitly return retrieved documents to prevent them from being cleared
             "grade_decision": grade.relevant, # Store the relevance decision for routing
             "grade_score": grade.relevant,    # Store the same relevance decision as a score for clarity
             "grade_confidence": grade.confidence, # Store the confidence in the grading decision
@@ -373,16 +374,16 @@ NO OTHER TEXT. ONLY JSON."""
 # Decides which prompting strategy to use and generates answer
 # ============================================================================
 
-def make_generator_node(llm, generator, config: Dict[str, Any]):
+def make_generator_node(agent_llm, generator, config: Dict[str, Any]):
     """
     Factory function to create the generator node.
     
     The generator agent decides which prompting strategy to use
-    and generates the final answer.
+    and then uses the heavy LLM (via generator) for final answer generation.
     
     Args:
-        llm: LangChain LLM instance (for decision-making)
-        generator: BaselineGenerator instance (for answer generation)
+        agent_llm: Lightweight LLM instance for strategy decision-making (qwen3-vl:8b)
+        generator: BaselineGenerator instance (uses qwen3:32b for answer generation)
         config: Configuration dict
         
     Returns:
@@ -429,7 +430,7 @@ RESPOND WITH ONLY THIS JSON:
 NO OTHER TEXT. ONLY JSON."""
         
         try:
-            response = llm.invoke(prompt) # Call LLM to get strategy decision
+            response = agent_llm.invoke(prompt) # Call agent LLM to get strategy decision
             response_text = response.content if hasattr(response, 'content') else str(response) # Handle different response types
             
             # Parse JSON
@@ -459,13 +460,16 @@ NO OTHER TEXT. ONLY JSON."""
         
         print(f"Generated answer length: {len(answer)} chars")
         
-        # Get existing agent_decisions safely (handle both dict and AgenticRAGState)
+        # Get existing agent_decisions and retrieved_documents safely (handle both dict and AgenticRAGState)
         if isinstance(state, dict):
             existing_decisions = state.get('agent_decisions') or {} # Existing decisions from previous nodes
+            retrieved_docs = state.get('retrieved_documents') or []  # Get retrieved documents from state to preserve them
         else:
             existing_decisions = state.agent_decisions or {} # Existing decisions from previous nodes
+            retrieved_docs = state.retrieved_documents or []  # Get retrieved documents from state to preserve them
         
         return {
+            "retrieved_documents": retrieved_docs,  # PRESERVE: explicitly return retrieved documents to prevent them from being cleared
             "generated_answer": answer, # Store the generated answer in state
             "chosen_prompting_strategy": strategy_decision.strategy, # Store the chosen strategy for reporting
             "generation_confidence": strategy_decision.confidence, # Store the confidence in the generation quality

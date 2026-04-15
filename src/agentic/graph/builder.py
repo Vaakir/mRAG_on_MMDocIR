@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 def build_agentic_graph(
-    llm,
+    agent_llm,
     embedder,
     retriever,
     generator,
@@ -27,10 +27,10 @@ def build_agentic_graph(
     Build the agentic RAG graph using LangGraph.
     
     Args:
-        llm: LangChain LLM instance for agent decisions
+        agent_llm: Lightweight LLM instance for agent decisions (Query Rewriter, Grader, Generator strategy)
         embedder: TextEmbedder instance
         retriever: HybridRetriever instance
-        generator: BaselineGenerator instance
+        generator: BaselineGenerator instance (uses heavy LLM for answer generation)
         query_techniques_dict: Dict of QueryTechnique instances keyed by name
         config: Configuration dict
         
@@ -47,9 +47,9 @@ def build_agentic_graph(
     graph = StateGraph(AgenticRAGState)
     
     # Create node factories (closures that capture dependencies)
-    query_rewriter = make_query_rewriter_node(llm, query_techniques_dict, config)
-    grader = make_grader_node(llm, config)
-    generator_node = make_generator_node(llm, generator, config)
+    query_rewriter = make_query_rewriter_node(agent_llm, query_techniques_dict, config)
+    grader = make_grader_node(agent_llm, config)
+    generator_node = make_generator_node(agent_llm, generator, config)
     
     # Add nodes to the graph
     graph.add_node("query_rewriter", query_rewriter)

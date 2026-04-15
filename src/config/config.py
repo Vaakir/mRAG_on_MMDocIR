@@ -49,6 +49,7 @@ class BaselineConfig:
 
     # ===== LLM / GENERATOR SETTINGS =====
     LLM_MODEL: str = "qwen3:32b"
+    AGENT_LLM_MODEL: str = "qwen3:32b"  # Lightweight LLM for agent decisions (Query Rewriter, Grader, Generator strategy)
     OLLAMA_BASE_URL: str = "https://ollama.ux.uis.no"
     LLM_TEMPERATURE: float = 0.0
     LLM_TOP_P: float = 0.1

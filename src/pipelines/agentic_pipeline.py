@@ -32,18 +32,19 @@ class AgenticRAGPipeline(BaseRAGPipeline):
         self.llm = None           # LLM for agent decision-making
         
     def initialize_components(self):
-        """Initialize all components including LLM for agent decision-making."""
+        """Initialize all components including separate LLMs for agent decisions and generation."""
         super().initialize_components()
         
-        # Initialize LLM for agent decision-making        
-        print(f"Initializing LLM for agent decisions: {self.config.LLM_MODEL}")
+        # Initialize lightweight LLM for agent decision-making (Query Rewriter, Grader, Generator strategy)
+        print(f"Initializing lightweight LLM for agent decisions: {self.config.AGENT_LLM_MODEL}")
         
-        self.llm = SimpleLLM(
+        self.agent_llm = SimpleLLM(
             base_url=self.config.OLLAMA_BASE_URL,
-            model=self.config.LLM_MODEL
+            model=self.config.AGENT_LLM_MODEL
         )
         
-        print("LLM initialized for agents")
+        print(f"Agent LLM initialized: {self.config.AGENT_LLM_MODEL}")
+        print(f"Generator LLM (inherited from parent): {self.config.LLM_MODEL}")
     
     def build_query_techniques_dict(self) -> Dict[str, Any]:
         """
@@ -87,8 +88,8 @@ class AgenticRAGPipeline(BaseRAGPipeline):
     def build_agentic_graph(self):
         """Build the agentic graph with all agents."""
         
-        if self.llm is None:
-            raise RuntimeError("LLM not initialized. Call initialize_components() first.")
+        if self.agent_llm is None:
+            raise RuntimeError("Agent LLM not initialized. Call initialize_components() first.")
         
         print("Building agentic graph...")
         
@@ -105,10 +106,10 @@ class AgenticRAGPipeline(BaseRAGPipeline):
         }
         
         self.agentic_graph = build_agentic_graph( # Build the LangGraph StateGraph using the builder function, passing all dependencies
-            self.llm,
+            self.agent_llm,  # Lightweight LLM for agent decisions
             self.embedder,
             self.hybrid_retriever or self.retriever,
-            self.generator,
+            self.generator,  # Heavy LLM for final answer generation (self.generator uses qwen3:32b)
             query_techniques_dict,
             config_dict
         )
