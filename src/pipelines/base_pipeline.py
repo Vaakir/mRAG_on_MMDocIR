@@ -132,11 +132,11 @@ class BaseRAGPipeline:
                 'embedding': embedding,
                 'text': chunk['text'],
                 'metadata': {
-                    'pdf_name': chunk['pdf_name'],
-                    'pdf_path': chunk['pdf_path'],
-                    'chunk_id': chunk['chunk_id'],
-                    'char_len': chunk['char_len'],
-                    'page_numbers': chunk['page_numbers'],
+                    'pdf_name': str(chunk.get('pdf_name', 'unknown')),
+                    'pdf_path': str(chunk.get('pdf_path', 'unknown')),
+                    'chunk_id': chunk.get('chunk_id'),
+                    'char_len': int(chunk.get('char_len', 0)),
+                    'page_numbers': chunk.get('page_numbers'),
                 }
             })
         
@@ -157,6 +157,7 @@ class BaseRAGPipeline:
                 embedder=self.embedder,
                 vector_db=self.vector_db,
                 top_k=self.config.TOP_K,
+                allowed_types=getattr(self.config, "ALLOWED_CHUNK_TYPES", None),
             )
 
     def initialize_components(self):
@@ -173,15 +174,17 @@ class BaseRAGPipeline:
             List of dicts with: id, score, text, payload (metadata)
         """
         top_k = top_k or self.config.TOP_K
+        context_window = getattr(self.config, "CONTEXT_WINDOW", 0)
         if self.config.USE_HYBRID_RETRIEVAL and self.hybrid_retriever is not None:
-            return self.hybrid_retriever.retrieve(question, top_k=top_k)
+            return self.hybrid_retriever.retrieve(question, top_k=top_k, context_window=context_window)
 
         # Fallback: dense-only
         if self.embedder is None or self.vector_db is None:
              raise RuntimeError("Embedder or Vector DB not initialized. Call build_index() first.")
 
         query_embedding = self.embedder.embed_query(question)
-        return self.vector_db.retrieve(query_embedding=query_embedding, top_k=top_k)
+        return self.vector_db.retrieve(query_embedding=query_embedding, top_k=top_k,
+                                       allowed_types=getattr(self.config, "ALLOWED_CHUNK_TYPES", None))
 
     def evaluate(self, test_data: List[Dict[str, Any]], **kwargs) -> Dict[str, Any]:
         """
