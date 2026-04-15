@@ -3,6 +3,9 @@
 
 import os
 import sys
+import time
+import logging
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Optional
 
@@ -14,6 +17,9 @@ sys.path.append(str(Path(__file__).parent))
 from config.config import AdvancedConfig, MultiQueryConfig, RAGFusionConfig, HyDEConfig
 from data.data_loader import load_train_data
 from pipelines.advanced_pipeline import AdvancedRAGPipeline
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 
 def get_config(technique: str = 'standard') -> AdvancedConfig:
@@ -73,104 +79,62 @@ def run_single_query_test(pipeline: AdvancedRAGPipeline, question: str, ground_t
     print(f"\nGenerated Answer:\n{result['answer']}")
 
 
-def main(technique: str = 'standard', eval_subset: int = 20, force_rebuild: bool = False):
+def main(technique: str = 'standard', prompting_strategy: str = 'standard', eval_subset: int = 20, force_rebuild: bool = False):
     """
     Main function to run the advanced pipeline.
-    
-    Args:
-        technique: Query technique to use ('standard', 'multi_query', 'rag_fusion', 'hyde', etc.)
-        eval_subset: Number of test questions to evaluate on
-        force_rebuild: Force rebuild of the index
     """
-    import time
-    main_start = time.time()
-    
-    print(f"\n{'='*80}")
-    print(f"ADVANCED RAG PIPELINE - Query Technique: {technique.upper()}")
-    print(f"{'='*80}\n")
-    
-    # Get configuration
-    config = get_config(technique)
-    config.EVAL_SUBSET_SIZE = eval_subset
-    
-    print(f"Configuration:")
-    print(f"  Embedding Model: {config.EMBEDDING_MODEL}")
-    print(f"  LLM Model: {config.LLM_MODEL}")
-    print(f"  Vector DB: {config.VECTOR_DB_COLLECTION}")
-    print(f"  Query Technique: {config.QUERY_TECHNIQUE}")
-    print(f"  Retrieved Top-K: {config.TOP_K}")
-    if 'num_variants' in config.QUERY_TECHNIQUE_CONFIG:
-        print(f"  Technique Variants: {config.QUERY_TECHNIQUE_CONFIG['num_variants']}")
-    
-    # Initialize pipeline
-    pipeline = AdvancedRAGPipeline(config)
-    
-    # Build/load index
-    print(f"\n{'='*80}")
-    print("BUILDING INDEX")
-    print(f"{'='*80}")
-    build_start = time.time()
-    pipeline.build_index(force_rebuild=force_rebuild)
-    build_time = time.time() - build_start
-    print(f"\nIndex build completed in {build_time:.2f}s")
-    
-    # Initialize components (generator + query technique)
-    print(f"\n{'='*80}")
-    print("INITIALIZING COMPONENTS")
-    print(f"{'='*80}")
-    init_start = time.time()
-    pipeline.initialize_components()
-    init_time = time.time() - init_start
-    print(f"\nComponents initialized in {init_time:.2f}s")
-    
-    # Load test data
-    print(f"\nLoading test data...")
-    train_data = load_train_data(config.TRAIN_JSONL)
-    print(f"Loaded {len(train_data)} questions (all types)")
+    metrics = {'timing': {}}
 
-    # Test single query
-    if train_data:
-        sample = train_data[0]
-        run_single_query_test(
-            pipeline,
-            sample['question'],
-            sample.get('answer')
-        )
+    @contextmanager
+    def time_phase(name):
+        start = time.time()
+        yield
+        metrics['timing'][name] = time.time() - start
 
-    # Run evaluation
-    print(f"\n{'='*80}")
-    print(f"RUNNING EVALUATION (All Question Types)")
-    print(f"{'='*80}")
-    metrics = pipeline.evaluate(train_data[:eval_subset], use_technique=True)
-    
-    print(f"\n{'='*80}")
-    print("EVALUATION RESULTS")
-    print(f"{'='*80}")
-    print(f"\nRetrieval Metrics:")
-    for key, value in metrics['retrieval'].items():
-        if isinstance(value, float):
-            print(f"  {key}: {value:.4f}")
+    with time_phase('Total Pipeline Runtime'):
+        logger.info(f"Starting ADVANCED RAG SYSTEM | Technique: {technique.upper()} | Prompting: {prompting_strategy.upper()}")
+        
+        config = get_config(technique)
+        config.EVAL_SUBSET_SIZE = eval_subset
+        config.PROMPTING_STRATEGY = prompting_strategy
+        
+        logger.info(f"Configuration -> Embed: {config.EMBEDDING_MODEL} | LLM: {config.LLM_MODEL} | DB: {config.VECTOR_DB_COLLECTION}")
+        
+        pipeline = AdvancedRAGPipeline(config)
+        
+        with time_phase('Index Build/Load'):
+            pipeline.build_index(force_rebuild=force_rebuild)
+
+        with time_phase('Component Initialization'):
+            pipeline.initialize_components()
+
+        with time_phase('Data Loading'):
+            train_data = load_train_data(config.TRAIN_JSONL)
+            logger.info(f"Loaded {len(train_data)} questions (all types)")
+
+        if train_data:
+            with time_phase('Single Query Test'):
+                sample = train_data[0]
+                run_single_query_test(pipeline, sample['question'], sample.get('answer'))
+
+        with time_phase(f'Full Evaluation ({eval_subset} qs)'):
+            eval_metrics = pipeline.evaluate(train_data[:eval_subset], use_technique=True)
+
+        # Merge new metrics without clobbering inner timing dict
+        metrics.update({k: v for k, v in eval_metrics.items() if k != 'timing'})
+        if 'timing' in eval_metrics:
+            metrics['timing'].update(eval_metrics['timing'])
+
+    # Clean Printing
+    print(f"\n{'='*50}\n              FINAL EVALUATION METRICS\n{'='*50}")
+    for key, value in metrics.items():
+        if isinstance(value, dict):
+            print(f"\n--- {key.upper()} ---")
+            for sub_key, sub_val in value.items():
+                print(f"  {sub_key:<30}: {sub_val:.4f}" if isinstance(sub_val, float) else f"  {sub_key:<30}: {sub_val}")
         else:
-            print(f"  {key}: {value}")
-    
-    print(f"\nGeneration Metrics:")
-    for key, value in metrics['generation'].items():
-        if isinstance(value, float):
-            print(f"  {key}: {value:.4f}")
-        else:
-            print(f"  {key}: {value}")
-    
-    # Print timing information
-    if 'timing' in metrics:
-        print(f"\nTiming:")
-        print(f"  Index Build: {build_time:.2f}s")
-        print(f"  Component Init: {init_time:.2f}s")
-        print(f"  Phase 1 (Retrieval): {metrics['timing']['phase1']:.2f}s")
-        print(f"  Phase 2 (Generation): {metrics['timing']['phase2']:.2f}s")
-        print(f"  Total Evaluation: {metrics['timing']['total']:.2f}s")
-    
-    main_total = time.time() - main_start
-    print(f"\n  Total Runtime: {main_total:.2f}s")
+            print(f"{key:<32}: {value:.4f}" if isinstance(value, float) else f"{key:<32}: {value}")
+    print(f"\n{'='*50}\n")
     
     return metrics
 
@@ -181,131 +145,78 @@ def compare_techniques(techniques: list = None, eval_subset: int = 20):
     
     Optimization: Build index and initialize generator ONCE, then swap technique configs.
     This saves significant time vs rebuilding for each technique.
-    
-    Args:
-        techniques: List of technique names to compare
-        eval_subset: Number of test questions per technique
     """
-    import time
-    compare_start = time.time()
-    
     if techniques is None:
         techniques = ['standard', 'multi_query', 'rag_fusion', 'step_back', 'hyde', 'query_decomposition', 'query_rewriting', 'query_expansion']
     
-    print(f"\n{'='*80}")
-    print("COMPARING QUERY TECHNIQUES")
-    print(f"{'='*80}\n")
+    logger.info(f"COMPARING QUERY TECHNIQUES: {', '.join(techniques)}")
     
-    # ===== SHARED SETUP (done once) =====
-    print("SHARED SETUP (done once for all techniques):")
-    setup_start = time.time()
-    
-    # Build index once with a base config
-    config = AdvancedConfig()
-    config.EVAL_SUBSET_SIZE = eval_subset
-    
-    pipeline = AdvancedRAGPipeline(config)
-    
-    print(f"\nBuilding index...")
-    build_start = time.time()
-    pipeline.build_index(force_rebuild=False)
-    build_time = time.time() - build_start
-    print(f"  [OK] Index built in {build_time:.2f}s")
-    
-    print(f"\nInitializing components (generator + VLM + query technique)...")
-    gen_start = time.time()
-    pipeline.initialize_components()
-    gen_time = time.time() - gen_start
-    print(f"  [OK] Components initialized in {gen_time:.2f}s")
+    metrics = {'timing': {}}
 
-    # Load test data once
-    print(f"\nLoading test data...")
-    train_data = load_train_data(config.TRAIN_JSONL)
-    print(f"  [OK] Loaded {len(train_data)} questions (all types)")
-    
-    setup_time = time.time() - setup_start
-    print(f"\nShared setup completed in {setup_time:.2f}s\n")
-    
-    # ===== TECHNIQUE EVALUATION (swaps technique config only) =====
-    results = {}
-    
-    for technique in techniques:
-        print(f"\n{'='*80}")
-        print(f"Evaluating technique: {technique.upper()}")
-        print(f"{'='*80}")
-        
-        try:
-            # Create technique-specific config
-            tech_config = get_config(technique)
-            tech_config.EVAL_SUBSET_SIZE = eval_subset
+    @contextmanager
+    def time_phase(name):
+        start = time.time()
+        yield
+        metrics['timing'][name] = time.time() - start
+
+    with time_phase('Total Compare Runtime'):
+        with time_phase('Shared Setup'):
+            config = AdvancedConfig()
+            config.EVAL_SUBSET_SIZE = eval_subset
+            pipeline = AdvancedRAGPipeline(config)
             
-            # Update pipeline config and reinitialize ONLY the query technique
-            pipeline.config = tech_config
+            logger.info("Building Index (Shared)...")
+            pipeline.build_index(force_rebuild=False)
+            
+            logger.info("Initializing Components (Shared)...")
             pipeline.initialize_components()
             
-            # Run evaluation
-            metrics = pipeline.evaluate(train_data, use_technique=True)
-            results[technique] = metrics
-            
-            # Print quick results for this technique
-            if metrics and 'retrieval' in metrics:
-                ret = metrics['retrieval']
-                print(f"\n  Retrieval - P@1: {ret.get('precision@1', 0):.4f}, R@5: {ret.get('recall@5', 0):.4f}, MRR: {ret.get('mrr', 0):.4f}")
-            if metrics and 'generation' in metrics:
-                gen = metrics['generation']
-                print(f"  Generation - Token F1: {gen.get('token_f1', 0):.4f}, BLEU: {gen.get('bleu', 0):.4f}")
-            if metrics and 'timing' in metrics:
-                print(f"  Timing - Total: {metrics['timing']['total']:.2f}s (P1: {metrics['timing']['phase1']:.2f}s, P2: {metrics['timing']['phase2']:.2f}s)")
-        
-        except Exception as e:
-            print(f"ERROR: {technique} failed - {e}")
-            results[technique] = None
-    
+            logger.info("Loading Test Data...")
+            train_data = load_train_data(config.TRAIN_JSONL)
+
+        results = {}
+        for technique in techniques:
+            logger.info(f"--- Evaluating Technique: {technique.upper()} ---")
+            try:
+                tech_config = get_config(technique)
+                tech_config.EVAL_SUBSET_SIZE = eval_subset
+
+                pipeline.config = tech_config
+                pipeline.initialize_components()
+
+                tech_metrics = pipeline.evaluate(train_data[:eval_subset], use_technique=True)
+                results[technique] = tech_metrics
+                
+                # Print quick snapshot
+                if tech_metrics and 'retrieval' in tech_metrics:
+                    ret = tech_metrics['retrieval']
+                    logger.info(f"[{technique.upper()}] P@1: {ret.get('precision@1', 0):.4f} | R@5: {ret.get('recall@5', 0):.4f} | MRR: {ret.get('mrr', 0):.4f}")
+            except Exception as e:
+                logger.error(f"ERROR: {technique} failed - {e}")
+                results[technique] = None
+
     # ===== SUMMARY COMPARISON =====
-    print(f"\n\n{'='*80}")
-    print("COMPARISON SUMMARY")
-    print(f"{'='*80}\n")
+    print(f"\n\n{'='*90}\n                   COMPARISON SUMMARY\n{'='*90}")
     
-    print("RETRIEVAL METRICS:")
-    print(f"{'Technique':<20} {'P@1':<10} {'P@3':<10} {'P@5':<10} {'R@1':<10} {'R@3':<10} {'R@5':<10} {'MRR':<10}")
+    print(f"\n{'RETRIEVAL METRICS':<20} | {'P@1':<8} | {'P@3':<8} | {'P@5':<8} | {'R@1':<8} | {'R@3':<8} | {'R@5':<8} | {'MRR':<8}")
     print("-" * 90)
+    for tech, met in results.items():
+        if met and 'retrieval' in met:
+            r = met['retrieval']
+            print(f"{tech:<20} | {r.get('precision@1',0):<8.4f} | {r.get('precision@3',0):<8.4f} | {r.get('precision@5',0):<8.4f} | {r.get('recall@1',0):<8.4f} | {r.get('recall@3',0):<8.4f} | {r.get('recall@5',0):<8.4f} | {r.get('mrr',0):<8.4f}")
     
-    for technique, metrics in results.items():
-        if metrics and 'retrieval' in metrics:
-            ret = metrics['retrieval']
-            p1 = ret.get('precision@1', 0)
-            p3 = ret.get('precision@3', 0)
-            p5 = ret.get('precision@5', 0)
-            r1 = ret.get('recall@1', 0)
-            r3 = ret.get('recall@3', 0)
-            r5 = ret.get('recall@5', 0)
-            mrr = ret.get('mrr', 0)
-            print(f"{technique:<20} {p1:<10.4f} {p3:<10.4f} {p5:<10.4f} {r1:<10.4f} {r3:<10.4f} {r5:<10.4f} {mrr:<10.4f}")
-    
-    print(f"\nGENERATION METRICS:")
-    print(f"{'Technique':<20} {'Token F1':<15} {'BLEU':<15} {'ROUGE-L':<15} {'Exact Match':<15}")
+    print(f"\n{'GENERATION METRICS':<20} | {'Token F1':<12} | {'BLEU':<12} | {'ROUGE-L':<12} | {'Exact Match':<12}")
     print("-" * 80)
+    for tech, met in results.items():
+        if met and 'generation' in met:
+            g = met['generation']
+            print(f"{tech:<20} | {g.get('token_f1',0):<12.4f} | {g.get('bleu',0):<12.4f} | {g.get('rouge_l',0):<12.4f} | {g.get('exact_match',0):<12.4f}")
     
-    for technique, metrics in results.items():
-        if metrics and 'generation' in metrics:
-            gen = metrics['generation']
-            f1 = gen.get('token_f1', 0)
-            bleu = gen.get('bleu', 0)
-            rouge = gen.get('rouge_l', 0)
-            exact = gen.get('exact_match', 0)
-            print(f"{technique:<20} {f1:<15.4f} {bleu:<15.4f} {rouge:<15.4f} {exact:<15.4f}")
-    
-    # Print timing summary
-    compare_total = time.time() - compare_start
     total_eval_time = sum([r['timing']['total'] for r in results.values() if r and 'timing' in r], 0)
-    avg_eval_time = total_eval_time / len([r for r in results.values() if r and 'timing' in r])
+    valid_evals = len([r for r in results.values() if r and 'timing' in r])
     
-    print(f"\n\nTIMING SUMMARY:")
-    print(f"{'='*80}")
-    print(f"  Shared setup (index + generator + data): {setup_time:.2f}s")
-    print(f"  Average per technique evaluation: {avg_eval_time:.2f}s")
-    print(f"  Total evaluations ({len(techniques)} techniques): {total_eval_time:.2f}s")
-    print(f"  Total runtime: {compare_total:.2f}s")
+    print(f"\n{'TIMING SUMMARY':<20} | SETUP: {metrics['timing'].get('Shared Setup', 0):.2f}s | TOTAL (ALL EVALS): {metrics['timing'].get('Total Compare Runtime', 0):.2f}s | AVG EVAL: {(total_eval_time/max(valid_evals, 1)):.2f}s")
+    print(f"{'='*90}\n")
     
     return results
 
@@ -313,12 +224,18 @@ def compare_techniques(techniques: list = None, eval_subset: int = 20):
 if __name__ == "__main__":
     import argparse
     
-    parser = argparse.ArgumentParser(description="Advanced RAG Pipeline with Query Techniques")
+    parser = argparse.ArgumentParser(description="Advanced RAG Pipeline with Query Techniques and Prompting Strategies")
     parser.add_argument(
         '--technique',
         type=str,
         default='standard',
         help='Query technique to use (standard, multi_query, rag_fusion, step_back, hyde, query_decomposition, query_rewriting, query_expansion)'
+    )
+    parser.add_argument(
+        '--prompting-strategy',
+        type=str,
+        default='standard',
+        help='Prompting strategy for answer generation (standard, role, cot, ensemble)'
     )
     parser.add_argument(
         '--eval-subset',
@@ -342,4 +259,4 @@ if __name__ == "__main__":
     if args.compare:
         compare_techniques(eval_subset=args.eval_subset)
     else:
-        main(technique=args.technique, eval_subset=args.eval_subset, force_rebuild=args.force_rebuild)
+        main(technique=args.technique, prompting_strategy=args.prompting_strategy, eval_subset=args.eval_subset, force_rebuild=args.force_rebuild)

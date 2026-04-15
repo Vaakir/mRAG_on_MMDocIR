@@ -10,9 +10,18 @@ Date,Name,Start,End,Tag,WorkingOn
 07.04.2026,vaakir,10:30,12:30,System 1,Refactor + Baseline pipeline fix
 07.04.2026,vaakir,12:30,14:00,System 2,Refactor + Advanced pipeline fix
 07.04.2026,vaakir,14:00,16:00,Planning,Mob programming/full code walkthrough + Refactor + Clarifying remaining tasks in group
+08.04.2026,vaakir,10:00,13:00,Fix,Debugging system 1 and 2 run issues
+08.04.2026,vaakir,13:00,17:00,Refactor,Config files merged inheritance added across many classes standardizing some code
+13.04.2026,vaakir,09:15,16:15,Refactor,Being able to run all experiements from one file + Refactor + Caching of API calls
+15.04.2026,vaakir,08:45,16:30,Refactor,Fixed Caching of API calls
+
 
 25.03.2026,BaalCat,12:15,14:00,Planning,Planning filestructure etc
 26.03.2026,BaalCat,07:45,15:30,Reading Theory & Coding,"Theory about RAG, Vector Databases and related, Implementing First Draft of Vector DB with simple test"
+27.03.2026,BaalCat,12:15,16:00,System 1,Helping GabIsr with problem solving for system 1 pipeline and LLM calls.
+07.04.2026,BaalCat,14:00,16:00,Planning,Mob programming/full code walkthrough + working on prompt strategies code
+09.04.2026,BaalCat,12:00,16:00,System 2,Reading paper on ensemble/self-consistency to implement it in prompt strategies.
+09.04.2026,BaalCat,18.00,23.00,System 2,Looking over prompt strategy code + removing dead/unneeded code + updating code after pull from main.
 
 25.03.2026,GabIsr,12:15,14:00,Planning,Planning filestructure etc
 25.03.2026,GabIsr,20:30,23:15,Reading & Exploration,"Reading about dataset structure, and potential tools/libraries/frameworks that we can use for the project" 

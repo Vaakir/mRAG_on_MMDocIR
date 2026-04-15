@@ -9,7 +9,7 @@ from sentence_transformers import SentenceTransformer
 logger = logging.getLogger(__name__)
 
 
-class TextEmbedder:
+class JinaTextEmbedder:
     """Wrapper for Jina CLIP v2 embedding model (text + image, shared vector space)."""
 
     def __init__(self, model_name: str = "jinaai/jina-clip-v2"):
@@ -55,7 +55,7 @@ class TextEmbedder:
 
 def create_chunk_embeddings(
     chunks: List[Dict[str, Any]],
-    embedder: TextEmbedder
+    embedder: JinaTextEmbedder
 ) -> np.ndarray:
     """Create embeddings for all chunks."""
     texts = [chunk["text"] for chunk in chunks]

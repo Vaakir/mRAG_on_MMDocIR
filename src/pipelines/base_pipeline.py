@@ -1,13 +1,18 @@
 import logging
 import time
+import sqlite3
+import json
 from pathlib import Path
 from typing import Dict, Any, List, Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from data.chunk_loader import load_preprocessed_chunks, print_chunk_statistics
 from indexing.embedder import TextEmbedder, create_chunk_embeddings
 from indexing.vector_database import QdrantVectorDB
 from indexing.hybrid_retriever import HybridRetriever
 from generation.generator import BaselineGenerator
+from evaluation.retrieval_metrics import evaluate_retrieval
+from evaluation.generation_metrics import evaluate_generation
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -31,7 +36,7 @@ class BaseRAGPipeline:
         self.generator: Optional[BaselineGenerator] = None
         self.chunks: Optional[List[Dict]] = None
 
-    def build_index(self, force_rebuild: bool = True):
+    def build_index(self, force_rebuild: bool = False):
         """
         Build or load the document index using Qdrant.
         
@@ -180,3 +185,73 @@ class BaseRAGPipeline:
         query_embedding = self.embedder.embed_query(question)
         return self.vector_db.retrieve(query_embedding=query_embedding, top_k=top_k,
                                        allowed_types=getattr(self.config, "ALLOWED_CHUNK_TYPES", None))
+
+    def evaluate(self, test_data: List[Dict[str, Any]], **kwargs) -> Dict[str, Any]:
+        """
+        Evaluate the pipeline on test data in parallel using multithreading.
+        """
+        # Check subset limits from config
+        subset_size = getattr(self.config, 'EVAL_SUBSET_SIZE', len(test_data))
+        test_subset = test_data[:subset_size]
+        
+        logger.info(f"Evaluating on {len(test_subset)} test queries using multithreading (kwargs: {kwargs})...\n")
+        
+        eval_total_start = time.time()
+        
+        # Pre-allocate lists to maintain order matching test_subset
+        all_retrieved = [None] * len(test_subset)
+        all_predictions = [None] * len(test_subset)
+        all_ground_truths = [None] * len(test_subset)
+        
+        # Use GENERATION_WORKERS as the primary concurrency bottleneck limiter
+        workers = getattr(self.config, 'GENERATION_WORKERS', 2)
+        
+        # ===== PHASE 1: PARALLEL RETRIEVAL & GENERATION =====
+        phase1_start = time.time()
+        
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            # Submit all questions to the executor using run_query
+            futures = {
+                executor.submit(self.run_query, record["question"], **kwargs): (i, record)
+                for i, record in enumerate(test_subset)
+            }
+            
+            completed = 0
+            for future in as_completed(futures):
+                i, record = futures[future]
+                result = future.result()
+                
+                # Store results at correct original index
+                all_retrieved[i] = result['retrieved_docs']
+                all_predictions[i] = result['answer']
+                all_ground_truths[i] = record['answer']
+                
+                completed += 1
+                logger.info(f"Processed query {completed}/{len(test_subset)}")
+                logger.info(f"Question: {record['question']}")
+                logger.info(f"Ground Truth: {record['answer']}")
+                logger.info(f"Generated Answer: {result['answer']}\n")
+        
+        phase1_time = time.time() - phase1_start
+        logger.info(f"Phase 1 (Parallel Retrieval + Generation): {phase1_time:.2f}s")
+        
+        # ===== PHASE 2: METRIC COMPUTATION =====
+        phase2_start = time.time()
+        retrieval_metrics = evaluate_retrieval(all_retrieved, test_subset)
+        generation_metrics = evaluate_generation(all_predictions, all_ground_truths)
+        phase2_time = time.time() - phase2_start
+        logger.info(f"Phase 2 (Metric Computation): {phase2_time:.2f}s")
+        
+        eval_total_time = time.time() - eval_total_start
+        
+        all_metrics = {
+            'retrieval': retrieval_metrics,
+            'generation': generation_metrics,
+            'timing': {
+                'phase1': phase1_time,
+                'phase2': phase2_time,
+                'total': eval_total_time
+            }
+        }
+        
+        return all_metrics

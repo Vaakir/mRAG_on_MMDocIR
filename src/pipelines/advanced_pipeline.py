@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from generation.prompts import get_prompt_strategy
 from config.config import AdvancedConfig
 from pipelines.base_pipeline import BaseRAGPipeline
 from preprocessing.image_processor import load_page_image_chunks, load_figure_chunks, load_evidence_chunks
@@ -34,6 +35,8 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
     def __init__(self, config: AdvancedConfig):
         super().__init__(config)
         self.query_technique = None
+        self.prompt_strategy = None
+        
         self.multimodal_retriever: Optional[MultimodalRetriever] = None
         self.vlm: Optional[VisionGenerator] = None
 
@@ -195,7 +198,8 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
     # ------------------------------------------------------------------
 
     def initialize_components(self):
-        """Init generator, query technique, and multimodal retriever."""
+        """Init generator (VLM), prompt strategy, query technique, and multimodal retriever."""
+        # Use VisionGenerator instead of base BaselineGenerator
         logger.info(f"Initialising generator: {self.config.LLM_MODEL}")
         self.generator = VisionGenerator(
             base_url=self.config.OLLAMA_BASE_URL,
@@ -203,6 +207,19 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
         )
         self.vlm = self.generator
 
+        # Prompt strategy
+        logger.info(f"Initializing prompting strategy: {self.config.PROMPTING_STRATEGY}")
+        strategy_config = self.config.PROMPTING_STRATEGY_CONFIG.copy()
+        if (self.config.PROMPTING_STRATEGY == 'ensemble' and
+            strategy_config.get('aggregation_method') == 'embedding_similarity'):
+            strategy_config['embedder'] = self.embedder
+        self.prompt_strategy = get_prompt_strategy(
+            self.config.PROMPTING_STRATEGY,
+            self.generator,
+            strategy_config,
+        )
+
+        # Query technique
         logger.info(f"Initialising query technique: {self.config.QUERY_TECHNIQUE}")
         self.query_technique = get_query_technique(
             self.config.QUERY_TECHNIQUE,
@@ -212,6 +229,7 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
             self.config.QUERY_TECHNIQUE_CONFIG,
         )
 
+        # Multimodal retriever
         if self.config.USE_MULTIMODAL:
             logger.info("Initialising multimodal retriever...")
             self.multimodal_retriever = MultimodalRetriever(
@@ -219,7 +237,7 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
                 embedder=self.embedder,
                 vector_db=self.vector_db,
                 generator=self.generator,
-                max_page_images=self.config.QUERY_TECHNIQUE_CONFIG.get("max_page_images", 2),
+                max_page_images=self.config.QUERY_TECHNIQUE_CONFIG.get("max_page_images", 1),
             )
 
     # ------------------------------------------------------------------
@@ -242,10 +260,13 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
     MAX_VLM_IMAGES = 2  # cap images sent to VLM to avoid OOM
 
     def _generate(self, question: str, retrieved: List[Dict[str, Any]]) -> str:
-        """Route to VLM if page images or figures were retrieved, otherwise text LLM."""
+        """Route to VLM if page images or figures were retrieved, otherwise prompt strategy."""
         image_types = {"page_image", "figure", "evidence"}
         image_results = [r for r in retrieved if r.get("payload", {}).get("type") in image_types]
         text_results  = [r for r in retrieved if r.get("payload", {}).get("type") not in image_types]
+
+        # Get system prompt from prompt strategy (applies to both VLM and text paths)
+        system_prompt = self.prompt_strategy.get_system_prompt() if self.prompt_strategy else None
 
         if image_results and self.vlm is not None:
             image_paths = []
@@ -264,19 +285,24 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
                 f"[Document {i+1}]:\n{r['text']}" for i, r in enumerate(text_results)
             )
 
-            # Try VLM, fall back to text-only if it fails
+            # Try VLM with prompt strategy's system prompt, fall back to text-only if it fails
             try:
-                answer = self.vlm.generate_with_images(question, image_paths, text_context)
+                vlm_kwargs = {}
+                if system_prompt:
+                    vlm_kwargs["system_prompt"] = system_prompt
+                answer = self.vlm.generate_with_images(question, image_paths, text_context, **vlm_kwargs)
                 if not answer.startswith("Error generating response:"):
                     return answer
                 logger.warning(f"VLM returned error, falling back to text-only generation")
             except Exception as e:
                 logger.warning(f"VLM failed ({e}), falling back to text-only generation")
 
-        # Text-only fallback — use all retrieved chunks as text context
+        # Text-only fallback — use prompt strategy
         context = "\n\n".join(
             f"[Document {i+1}]:\n{r['text']}" for i, r in enumerate(retrieved)
         )
+        if self.prompt_strategy:
+            return self.prompt_strategy.generate(question, context)
         return self.generator.generate(question, context)
 
     # ------------------------------------------------------------------

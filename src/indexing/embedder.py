@@ -1,6 +1,7 @@
 # src/indexing/embedder.py
 import threading
 import torch
+import threading
 from typing import List, Dict, Any
 import numpy as np
 import logging
@@ -39,12 +40,17 @@ class TextEmbedder:
 
         # Process texts in batches to avoid memory issues
         for i in tqdm(range(0, len(texts), batch_size), desc="Encoding texts"):
-            batch_texts = texts[i:i + batch_size]
-            embeddings = self.model.encode(
-                batch_texts,
-                prompt_name="document",
-                batch_size=8,
-            )
+            # Normalize text to lowercase for consistent tokenization
+            batch_texts = [text.lower() for text in texts[i:i + batch_size]]
+            
+            # Thread-safe encoding
+            with self.encode_lock:
+                embeddings = self.model.encode(
+                    batch_texts,
+                    prompt_name="document",
+                    batch_size=8,
+                    normalize_embeddings=True
+                )
             all_embeddings.append(embeddings)
 
     #-------------------

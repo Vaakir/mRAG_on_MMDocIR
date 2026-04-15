@@ -1,4 +1,4 @@
-# src/config/advanced_config.py
+# src/config/config.py
 # Configuration for the all systems to share a single source of truth
 
 from pathlib import Path
@@ -23,7 +23,9 @@ PAGE_IMAGES_TEST_DIR = DATA_DIR / "test" / "page_images_test"
 IMAGES_TEST_DIR = DATA_DIR / "test" / "images_test"
 
 CACHE_DIR = PROJECT_ROOT / "cache"
-PREPROCESSED_CHUNKS_FILE = SRC_DIR / "data" / "preprocessed" / "chunks_semantic.json"
+CACHE_DB_PATH = CACHE_DIR / "query_cache.db"
+PREPROCESSED_CHUNKS_FILE = SRC_DIR / "data" / "preprocessed" / "chunks_fixed_size.json"
+RESULTS_CSV = PROJECT_ROOT / "experiments_results.csv"
 
 
 @dataclass
@@ -43,6 +45,8 @@ class BaselineConfig:
     TEST_JSONL: Path = TEST_JSONL
 
     CACHE_DIR: Path = CACHE_DIR
+    CACHE_DB_PATH: Path = CACHE_DB_PATH
+    RESULTS_CSV: Path = RESULTS_CSV
 
     PREPROCESSED_CHUNKS_FILE: str = str(PREPROCESSED_CHUNKS_FILE)
 
@@ -101,9 +105,15 @@ class AdvancedConfig(BaselineConfig):
     Configuration for the Advanced RAG Pipeline.
     """
 
+    
+    
     # ===== ADVANCED APP OVERRIDES =====
+    #override the chunk file to use the semantic chunks instead of the fixed-size ones
+    PREPROCESSED_CHUNKS_FILE = SRC_DIR / "data" / "preprocessed" / "chunks_semantic.json"
+    PREPROCESSED_CHUNKS_FILE: str = str(PREPROCESSED_CHUNKS_FILE)
+
     EMBEDDING_MODEL: str = "jinaai/jina-clip-v2"
-    """Embedding model — must be multimodal (CLIP) to support image indexing"""
+    """Embedding model name from Hugging Face"""
 
     VECTOR_DB_COLLECTION: str = "advanced_multimodal"
     """Separate collection from baseline so the two don't interfere"""
@@ -139,6 +149,40 @@ class AdvancedConfig(BaselineConfig):
             "max_page_images": 1,
         }
     )
+
+    # ===== PROMPTING STRATEGY SETTINGS =====
+    PROMPTING_STRATEGY: str = "standard"
+    """
+    Prompting strategy for answer generation:
+    - 'standard': Direct extraction without special prompting
+    - 'few_shot': Provide multiple examples (2-5), then ask question
+    - 'role': Assign expert role to LLM (financial_analyst, researcher, etc.)
+    - 'cot': Chain-of-Thought - explicit step-by-step reasoning
+    - 'ensemble': Multiple strategies with voting/consensus
+    """
+    
+    PROMPTING_STRATEGY_CONFIG: Dict[str, Any] = field(default_factory=lambda: {
+        # Role strategy
+        'role_type': 'financial_analyst',
+        
+        # CoT strategy
+        'show_reasoning': False,  # set to False to hide reasoning
+        
+        # Ensemble strategy
+        'mode': 'multi_prompt',  # 'multi_prompt' or 'self_consistency'
+        'ensemble_size': 3,
+        'aggregation_method': 'embedding_similarity',  # 'judge', 'combine', 'embedding_similarity'
+        'strategies': ['standard', 'cot', 'few_shot', 'financial_analyst_role'],
+        'include_strategy_metadata': False,
+        'verbose_logging': False,  # Enable detailed ensemble logging
+        'temperatures': {
+            'standard': 0.5,
+            'cot': 0.6,
+            'few_shot': 0.5,
+            'financial_analyst_role': 0.6,
+        }
+    })
+    """Configuration dict for the selected prompting strategy"""
 
 
 # Preset configurations for quick switching

@@ -9,7 +9,7 @@ from sentence_transformers import SentenceTransformer
 logger = logging.getLogger(__name__)
 
 
-class TextEmbedder:
+class BgeTextEmbedder:
     """Wrapper for sentence-transformers text embedding model (baseline)."""
 
     # BGE models require a query prefix for retrieval tasks
@@ -52,7 +52,7 @@ class TextEmbedder:
 
 def create_chunk_embeddings(
     chunks: List[Dict[str, Any]],
-    embedder: TextEmbedder
+    embedder: BgeTextEmbedder
 ) -> np.ndarray:
     """Create embeddings for all chunks."""
     texts = [chunk["text"] for chunk in chunks]
