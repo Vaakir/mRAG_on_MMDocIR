@@ -6,10 +6,17 @@ with the Ollama server, following the pattern from the generative AI course.
 """
 
 import os
+import re
+import base64
 import logging
+import sqlite3
+import json
+import hashlib
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 from dotenv import load_dotenv
+
+from config.config import CACHE_DB_PATH
 
 try:
     from ollama import Client, ResponseError
@@ -25,11 +32,17 @@ load_dotenv(dotenv_path=env_path)
 logger = logging.getLogger(__name__)
 
 # -------------------------------------------------------------------
+_THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
+
 def normalize_ws(text: str) -> str:
     """Normalize whitespace in text (collapse multiple spaces/newlines)."""
     if not text:
         return text
     return " ".join(text.split())
+
+def strip_thinking(text: str) -> str:
+    """Remove <think>...</think> reasoning block that qwen3 models emit."""
+    return normalize_ws(_THINK_RE.sub("", text))
 # -------------------------------------------------------------------
 # Baseline prompt template for the system role
 SYSTEM_PROMPT2 = """You are a helpful assistant that answers questions based on the provided context.
@@ -40,6 +53,8 @@ Instructions:
   - Identify all relevant items in the context.
   - Apply the required condition step by step.
   - Ensure the final count is correct.
+  - But also be conscious of not hallucinating items that are not in the context.
+  - For counting questions, output only the final number and don't over think it.
 - If the answer is partially available, explain what is missing.
 - If the answer cannot be found, say: "I cannot find the answer in the provided context."
 - Be concise but ensure accuracy."""
@@ -55,6 +70,14 @@ Strict Instructions (NON-NEGOTIABLE):
 - Do not rely only on explicit statements. If the answer can be derived from the context through calculation (e.g., growth rate, difference, ratio, count), compute it before answering.
 
 Be direct. No padding. No explanations unless specifically asked."""
+
+VISION_PROMPT = """Answer the question using the image(s) provided.
+Output ONLY the direct answer. No explanation, no reasoning, no preamble, no "Based on...".
+
+- Number question → output the number only.
+- Yes/no question → output "Yes" or "No" only.
+- List question → output ["item1", "item2"] only.
+- Single answer → output the answer only."""
 # -------------------------------------------------------------------
 class BaselineGenerator:
     """LLM-based answer generator using Ollama via the ollama Python library."""
@@ -95,9 +118,55 @@ class BaselineGenerator:
         
         self._client = Client( # Initialize the Ollama client with base URL and headers
             host=self.base_url, # Base URL of the Ollama server
-            headers=headers if self.api_key else None  # Include headers only if API key is provided
+            headers=headers if self.api_key else None,  # Include headers only if API key is provided
+            timeout=300,  # 5 min — image calls + model reload can take a long time
         )
         logger.info(f"Initialized Ollama client for model: {self.model}")
+        
+        # Initialize Cache Database
+        self._init_cache_db()
+
+    def _init_cache_db(self):
+        """Initialize SQLite database for caching generated answers."""
+        db_path = Path(CACHE_DB_PATH)
+        
+        # Ensure parent directory exists
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        self.cache_conn = sqlite3.connect(str(db_path), check_same_thread=False)
+        self.cache_conn.execute('''
+            CREATE TABLE IF NOT EXISTS generator_cache (
+                cache_key TEXT PRIMARY KEY,
+                model TEXT,
+                messages_json TEXT,
+                answer TEXT
+            )
+        ''')
+        self.cache_conn.commit()
+
+    def _get_cache_key(self, messages_json: str) -> str:
+        """Generate a unique cache key based on the model and the exact messages."""
+        combined = f"{self.model}|{messages_json}"
+        return hashlib.sha256(combined.encode('utf-8')).hexdigest()
+
+    def _get_cached_answer(self, cache_key: str) -> Optional[str]:
+        """Retrieve a cached answer for an exact key match."""
+        cursor = self.cache_conn.cursor()
+        cursor.execute("SELECT answer FROM generator_cache WHERE cache_key = ?", (cache_key,))
+        row = cursor.fetchone()
+        return row[0] if row else None
+
+    def _cache_answer(self, cache_key: str, messages_json: str, answer: str):
+        """Save the exact request messages and the generated answer to the database."""
+        try:
+            with self.cache_conn:
+                self.cache_conn.execute(
+                    "INSERT OR REPLACE INTO generator_cache (cache_key, model, messages_json, answer) VALUES (?, ?, ?, ?)",
+                    (cache_key, self.model, messages_json, answer)
+                )
+        except Exception as e:
+            logger.warning(f"Failed to cache generated answer: {e}")
+            
     #-------------------
     def _pull_model(self, model_name: str) -> None:
         """
@@ -146,7 +215,7 @@ class BaselineGenerator:
             If the API request fails and cannot be recovered.
         """
         # Default options for generation
-        options = {"temperature": 0.0, "top_p": 0.1} # Default to deterministic output for baseline (want these to be low for accurate extraction)
+        options = {"temperature": 0.0, "top_p": 0.1, "num_predict": 1024} # Default to deterministic output for baseline (want these to be low for accurate extraction)
         options.update(kwargs.pop("options", {})) # Allow overriding options via kwargs
         #-------------------
         def _call_chat() -> Any:
@@ -156,22 +225,34 @@ class BaselineGenerator:
                 messages=messages,
                 options=options,
                 stream=False,
-                think=False,  # Disable reasoning/thinking for faster responses
+                think=True,  # Enable reasoning/thinking for better accuracy
                 **kwargs,
             )
         #-------------------
-        # Try to call chat, with auto-pull if model not found
-        try:
-            resp = _call_chat()
-        except ResponseError as e:
-            # If model not found (404), try to pull it and retry
-            if getattr(e, "status_code", None) == 404:
-                logger.warning(f"Model {self.model} not found on server, attempting to pull...")
-                self._pull_model(self.model)
+        # Try to call chat, with retry on 500 (server swapping models) and auto-pull on 404
+        import time as _time
+        max_retries = 4
+        retry_delay = 30  # seconds — gives server time to unload previous model
+        last_exc = None
+        for attempt in range(max_retries):
+            try:
                 resp = _call_chat()
-            else:
-                logger.error(f"Ollama API error: {e}")
-                raise
+                last_exc = None
+                break
+            except ResponseError as e:
+                status = getattr(e, "status_code", None)
+                if status == 404:
+                    logger.warning(f"Model {self.model} not found, pulling...")
+                    self._pull_model(self.model)
+                elif status == 500:
+                    logger.warning(f"Server 500 (attempt {attempt+1}/{max_retries}), retrying in {retry_delay}s...")
+                    last_exc = e
+                    _time.sleep(retry_delay)
+                else:
+                    logger.error(f"Ollama API error: {e}")
+                    raise
+        if last_exc is not None:
+            raise last_exc
         
         # Extract content from response
         # The response object has a 'message' attribute with content
@@ -179,14 +260,14 @@ class BaselineGenerator:
         
         if not content:
             raise ResponseError("Empty response from Ollama chat API")
-        
-        return normalize_ws(content)
+
+        return strip_thinking(content)
     #-------------------
     def generate(
         self,
         question: str,
         context: str,
-        system_prompt: str = SYSTEM_PROMPT
+        system_prompt: str = SYSTEM_PROMPT2
     ) -> str:
         """
         Generate an answer given a question and context.
@@ -219,10 +300,22 @@ Question: {question}"""
             {"role": "user", "content": user_message}
         ]
         
+        # Check Cache
+        messages_json = json.dumps(messages, ensure_ascii=False)
+        cache_key = self._get_cache_key(messages_json)
+        cached_answer = self._get_cached_answer(cache_key)
+        if cached_answer:
+            logger.debug(f"Cache hit for generation with question: {question[:50]}...")
+            return cached_answer
+        
         try:
             logger.debug(f"Generating answer for question: {question[:100]}...")
             answer = self.chat(messages) # Call the chat method to get the answer
             logger.debug(f"Generated answer: {answer[:100]}...")
+            
+            # Save into cache
+            self._cache_answer(cache_key, messages_json, answer)
+            
             return answer
         except ResponseError as e:
             logger.error(f"Error generating response: {e}")
@@ -260,3 +353,172 @@ Question: {question}"""
                 logger.error(f"Error generating answer for question {i}: {e}")
                 answers.append(f"Error: {str(e)}")
         return answers
+
+
+# -------------------------------------------------------------------
+def _encode_image(image_path: str, max_side: int = 1120) -> str:
+    """
+    Read an image, resize so the longest side ≤ max_side (preserving aspect
+    ratio), then return base64-encoded JPEG bytes.
+
+    1120 px is the native tile size qwen3-vl uses internally; sending larger
+    images just bloats the payload without helping quality.
+    """
+    from PIL import Image as _Image
+    import io as _io
+
+    img = _Image.open(image_path).convert("RGB")
+    w, h = img.size
+    if max(w, h) > max_side:
+        scale = max_side / max(w, h)
+        img = img.resize((int(w * scale), int(h * scale)), _Image.LANCZOS)
+
+    buf = _io.BytesIO()
+    img.save(buf, format="JPEG", quality=85)
+    return base64.b64encode(buf.getvalue()).decode("utf-8")
+
+
+class VisionGenerator(BaselineGenerator):
+    """
+    Extends BaselineGenerator with image support for vision-language models
+    (e.g. qwen3-vl:8b).  Images are base64-encoded and passed in the
+    ollama messages 'images' field.
+
+    qwen3-vl:8b does not support think=True reliably (returns empty responses),
+    so this class overrides chat() to always disable thinking.
+    """
+
+    @staticmethod
+    def _inject_no_think(messages: list) -> list:
+        """
+        Prepend /no_think to the last user message content.
+        This is qwen3's documented soft switch to suppress the <think> block.
+        The Ollama think=False parameter is unreliable on some server builds.
+        """
+        messages = [m.copy() for m in messages]
+        for msg in reversed(messages):
+            if msg.get("role") == "user":
+                msg["content"] = "/no_think\n" + msg.get("content", "")
+                break
+        return messages
+
+    def chat(self, messages, think=False, **kwargs):
+        """
+        think=False  → image call: injects /no_think, num_predict=2048
+        think=True   → text call:  thinking enabled,  num_predict=4096
+        """
+        import time as _time
+        from ollama import ResponseError
+        kwargs.pop("think", None)  # discard if caller passed it via kwargs
+
+        if not think:
+            messages = self._inject_no_think(messages)
+
+        options = {"temperature": 0.0, "top_p": 0.1}#, "num_predict": 7200}
+        if not think:
+            options["repeat_penalty"] = 1.1
+        options.update(kwargs.pop("options", {}))
+
+        max_retries = 3
+        retry_delay = 10
+        last_exc = None
+        resp = None
+        for attempt in range(max_retries):
+            try:
+                resp = self._client.chat(
+                    model=self.model,
+                    messages=messages,
+                    options=options,
+                    stream=False,
+                    think=think,
+                    **kwargs,
+                )
+                last_exc = None
+                break
+            except ResponseError as e:
+                status = getattr(e, "status_code", None)
+                if status == 404:
+                    self._pull_model(self.model)
+                elif status == 500:
+                    logger.warning(f"VLM server 500 (attempt {attempt+1}/{max_retries}), retrying in {retry_delay}s...")
+                    last_exc = e
+                    _time.sleep(retry_delay)
+                else:
+                    raise
+            except Exception as e:
+                raise
+
+        if last_exc is not None:
+            raise last_exc
+        logger.info(f"resp: {resp}")
+        content = getattr(getattr(resp, "message", None), "content", "")
+        if not content:
+            raise Exception("Empty response from Ollama chat API")
+        return normalize_ws(content)
+
+    def generate(self, question, context, system_prompt=SYSTEM_PROMPT2, think=True):
+        """Text-only generation — enable thinking for better accuracy."""
+        user_message = f"Context:\n{context}\n\nQuestion: {question}"
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_message},
+        ]
+        try:
+            return self.chat(messages, think=think)
+        except Exception as e:
+            logger.error(f"Error generating response: {e}")
+            return f"Error generating response: {str(e)}"
+
+    def generate_with_images(
+        self,
+        question: str,
+        image_paths: List[str],
+        text_context: str = "",
+        system_prompt: str = VISION_PROMPT,
+    ) -> str:
+        """
+        Generate an answer given a question, one or more image paths, and
+        optional supporting text context.
+
+        Parameters
+        ----------
+        question : str
+        image_paths : list of absolute file paths to images
+        text_context : str
+            Any text chunks retrieved alongside the images (may be empty).
+        system_prompt : str
+        """
+        # Build user message content
+        user_parts = []
+        if text_context:
+            user_parts.append(f"Context:\n{text_context}\n")
+        user_parts.append(f"Question: {question}")
+        user_content = "\n".join(user_parts)
+
+        # Encode images
+        encoded_images = []
+        for path in image_paths:
+            try:
+                encoded_images.append(_encode_image(path))
+            except Exception as e:
+                logger.warning(f"Could not load image {path}: {e}")
+
+        if not encoded_images:
+            # Fall back to text-only generation
+            logger.warning("No images could be loaded; falling back to text generation")
+            return self.generate(question, text_context, system_prompt)
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {
+                "role": "user",
+                "content": user_content,
+                "images": encoded_images,
+            },
+        ]
+
+        try:
+            return self.chat(messages)
+        except Exception as e:
+            logger.error(f"Vision generation error: {e}")
+            return f"Error generating response: {str(e)}"

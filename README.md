@@ -4,60 +4,78 @@
 
 ---
 
-## Filestructure Proposal
+## How to run
+- Run all DAT560project/src> `python run_experiments.py`
+- Run individial DAT560project/src> `python main_baseline.py`
+
+
+## Project Structure
 
 ```text
-src/
-│
-├── data/
-│   ├── loaders.py
-│   ├── pdf_parser.py
-│   ├── image_extractor.py
-│   └── dataset.py
-│
-├── preprocessing/
-│   ├── chunking.py
-│   ├── cleaning.py
-│   └── multimodal_alignment.py
-│
-├── indexing/
-│   ├── embedder.py
-│   ├── vector_store.py
-│   ├── multimodal_index.py
-│   └── build_index.py
-│
-├── retrieval/
-│   ├── retriever.py
-│   ├── multimodal_retriever.py
-│   ├── query_processing.py
-│   └── reranker.py
-│
-├── generation/
-│   ├── generator.py
-│   ├── prompts/
-│   │   ├── baseline.txt
-│   │   ├── cot.txt
-│   │   ├── fewshot.txt
-│   │   └── role.txt
-│   └── llm_wrapper.py
-│
-├── agentic/
-│   ├── agents.py
-│   ├── planner.py
-│   ├── tools.py
-│   └── pipeline.py
-│
-├── evaluation/
-│   ├── retrieval_metrics.py
-│   ├── generation_metrics.py
-│   └── evaluator.py
-│
-├── pipelines/
-│   ├── baseline_pipeline.py
-│   ├── advanced_pipeline.py
-│   └── agentic_pipeline.py
-│
-└── utils/
-    ├── logging.py
-    ├── caching.py
-    └── seed.py
+.
+├── README.md
+├── requirements.txt
+├── requirements2.txt
+├── info/
+│   ├── hours.csv
+│   ├── mRAG.md
+│   └── summary.ipynb
+├── local_qdrant/
+│   └── ...
+└── src/
+    ├── docker-compose.yml
+    ├── main_advanced.py
+    ├── main_baseline.py
+    ├── config/
+    │   ├── __init__.py
+    │   └── config.py
+    ├── data/
+    │   ├── __init__.py
+    │   ├── chunk_loader.py
+    │   └── data_loader.py
+    ├── evaluation/
+    │   ├── __init__.py
+    │   ├── generation_metrics.py
+    │   └── retrieval_metrics.py
+    ├── generation/
+    │   ├── __init__.py
+    │   ├── generator.py
+    │   └── prompts/
+    │       ├── __init__.py
+    │       ├── base.py
+    │       ├── cot.py
+    │       ├── ensemble.py
+    │       ├── few_shot.py
+    │       ├── role.py
+    │       └── standard.py
+    ├── indexing/
+    │   ├── __init__.py
+    │   ├── embedder.py
+    │   ├── embedder_bge_large.py
+    │   ├── embedder_clip.py
+    │   ├── embedder_jina.py
+    │   ├── embedder_old.py
+    │   ├── hybrid_retriever.py
+    │   └── vector_database.py
+    ├── pipelines/
+    │   ├── __init__.py
+    │   ├── advanced_pipeline.py
+    │   ├── base_pipeline.py
+    │   ├── baseline_pipeline.py
+    │   └── preprocessing_pipeline.py
+    ├── preprocessing/
+    │   ├── __init__.py
+    │   ├── pdf_chunker.py
+    │   └── pdf_loader.py
+    └── query_techniques/
+        ├── __init__.py
+        ├── base.py
+        ├── hyde.py
+        ├── multi_query.py
+        ├── query_decomposition.py
+        ├── query_expansion.py
+        ├── query_rewriting.py
+        ├── rag_fusion.py
+        ├── standard.py
+        └── step_back.py
+```

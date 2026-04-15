@@ -1,111 +1,164 @@
 
-# src/data/loaders.py
-# Alternative PDF processor using unstructured library
+# src/preprocessing/pdf_loader.py
+# PDF processor using docling — auto-detects and removes page headers/footers by label
+# Falls back to forced-OCR docling when text extraction produces undecodable font garbage
 
 from pathlib import Path
 from typing import Dict, List, Any
 import logging
-from unstructured.partition.auto import partition
 import json
+import re
 from types import SimpleNamespace
-from concurrent.futures import ProcessPoolExecutor, as_completed
-import multiprocessing
+
+from docling.document_converter import DocumentConverter, PdfFormatOption
+from docling.datamodel.pipeline_options import PdfPipelineOptions, AcceleratorOptions, AcceleratorDevice
+from docling.datamodel.base_models import InputFormat, DocItemLabel
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-# Removed a Consistent spamming warning on this: 
-# WARNING:pdfminer.pdfinterp:Cannot set non-stroke color because expected 4 components but got [0.525]
-logging.getLogger("pdfminer").setLevel(logging.ERROR) 
+
+# /G-encoded glyphs: /G44 → chr(0x44) == 'D'  (plain ASCII hex)
+_GLYPH_RE = re.compile(r"/G([0-9A-Fa-f]{2})")
+# CID refs from other parsers — no font table, cannot decode
+_CID_RE = re.compile(r"\(cid:\d+\)")
+
+SKIP_LABELS = {DocItemLabel.PAGE_FOOTER, DocItemLabel.PAGE_HEADER}
+
+
+def _build_converter() -> DocumentConverter:
+    """Build a DocumentConverter with GPU if available, CPU otherwise."""
+    try:
+        import torch
+        device = AcceleratorDevice.CUDA if torch.cuda.is_available() else AcceleratorDevice.CPU
+    except ImportError:
+        device = AcceleratorDevice.CPU
+
+    pipeline_options = PdfPipelineOptions()
+    pipeline_options.do_ocr = True
+    pipeline_options.accelerator_options = AcceleratorOptions(
+        num_threads=4,
+        device=device,
+    )
+    return DocumentConverter(
+        format_options={
+            InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
+        }
+    )
+
+
+# Module-level singleton — models load once and are reused across all PDFs
+_converter: DocumentConverter = None
+
+
+def _get_converter() -> DocumentConverter:
+    global _converter
+    if _converter is None:
+        logger.info("Initialising docling DocumentConverter...")
+        _converter = _build_converter()
+    return _converter
+
+
+def _docling_label_to_category(label: DocItemLabel) -> str:
+    if label == DocItemLabel.TITLE:
+        return "Title"
+    if label == DocItemLabel.SECTION_HEADER:
+        return "Header"
+    return "NarrativeText"
+
+
+def _decode_glyph_text(text: str) -> str:
+    """Decode /Gxx hex sequences to their ASCII characters."""
+    return _GLYPH_RE.sub(lambda m: chr(int(m.group(1), 16)), text)
+
+
+def _has_cid_corruption(blocks: list) -> bool:
+    """Return True if >20% of blocks still contain undecoded (cid:N) sequences."""
+    if not blocks:
+        return False
+    corrupted = sum(1 for b in blocks if _CID_RE.search(b.get("text", "")))
+    return corrupted / len(blocks) > 0.2
+
+
+def _docling_result_to_blocks(result) -> list:
+    serialized_blocks = []
+    for item, _ in result.document.iterate_items():
+        if item.label in SKIP_LABELS:
+            continue
+
+        # Tables: item.text is None — export as markdown instead
+        if item.label == DocItemLabel.TABLE:
+            try:
+                text = item.export_to_markdown().strip()
+            except Exception:
+                text = item.text.strip() if item.text else ""
+        else:
+            text = item.text.strip() if hasattr(item, "text") and item.text else ""
+
+        if not text:
+            continue
+        text = _decode_glyph_text(text)
+        page_number = item.prov[0].page_no if item.prov else None
+        serialized_blocks.append({
+            "category": _docling_label_to_category(item.label),
+            "text": text,
+            "page_number": page_number,
+        })
+    return serialized_blocks
+
 
 def extract_text_from_pdf(pdf_path: Path) -> Dict[str, Any]:
     """
-    Extract text from a PDF file using unstructured library.
-    Returns dict with pdf_name, full_text, and serialized blocks.
+    Extract text from a PDF using docling.
+    Page headers and footers are excluded automatically by label.
+    /Gxx glyph sequences are decoded in-place as ASCII hex.
+    Returns dict with pdf_name, pdf_path, and serialized blocks.
     """
+    pdf_path = Path(pdf_path)
     try:
-        # Use fast strategy to avoid slow OCR if you only need the text/layout from native PDFs
-        blocks = partition(filename=str(pdf_path), strategy="fast", languages=["eng"])
-        # print("loading", pdf_path)
-        
-        # Serialize immediately! Returning raw unstructured elements over 
-        # multiprocessing queues on Windows causes pickling issues/empty arrays
-        serialized_blocks = []
-        for b in blocks:
-            serialized_blocks.append({
-                "category": b.category,
-                "text": b.text,
-                "page_number": b.metadata.to_dict().get("page_number")
-            })
+        result = _get_converter().convert(str(pdf_path))
+        blocks = _docling_result_to_blocks(result)
+
+        if _has_cid_corruption(blocks):
+            logger.warning(
+                f"{pdf_path.name} still has (cid:) sequences after decoding — "
+                "font table unavailable, text may be partial"
+            )
 
         return {
             "pdf_name": pdf_path.name,
             "pdf_path": str(pdf_path),
-            "blocks": serialized_blocks,
+            "blocks": blocks,
         }
-
     except Exception as e:
         logger.error(f"Error processing {pdf_path}: {e}")
         return None
 
 
 def process_all_pdfs(pdf_dir: Path) -> List[Dict[str, Any]]:
-    """Process all PDFs in a directory using unstructured."""
+    """Process all PDFs in a directory using docling."""
     pdf_files = list(pdf_dir.glob("*.pdf"))
     logger.info(f"Found {len(pdf_files)} PDF files")
 
     all_documents = []
-
     for i, pdf_path in enumerate(pdf_files):
         if i % 10 == 0:
             logger.info(f"Processing PDF {i + 1}/{len(pdf_files)}")
-
         doc = extract_text_from_pdf(pdf_path)
-
         if doc:
             all_documents.append(doc)
 
-        # cutting it short for testing
-        # if i == 3:
-            # return all_documents
-
     logger.info(f"Successfully processed {len(all_documents)} PDFs")
     return all_documents
 
 
-def process_all_pdfs_fast(pdf_dir: Path, max_workers: int = None) -> List[Dict[str, Any]]:
-    """Process all PDFs in a directory using unstructured with Multiprocessing."""
-    pdf_files = list(pdf_dir.glob("*.pdf"))
-    logger.info(f"Found {len(pdf_files)} PDF files")
-
-    if max_workers is None:
-        max_workers = multiprocessing.cpu_count() - 1
-
-    all_documents = []
-    
-    # ProcessPoolExecutor is used to bypass the GIL and utilize multiple CPU cores
-    with ProcessPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(extract_text_from_pdf, p): p for p in pdf_files}
-        
-        for i, future in enumerate(as_completed(futures)):
-            if i % 10 == 0:
-                logger.info(f"Completed {i}/{len(pdf_files)} PDFs")
-            
-            try:
-                doc = future.result()
-                if doc is not None:
-                    all_documents.append(doc)
-            except Exception as e:
-                logger.error(f"Failed to process a PDF: {e}")
-
-    logger.info(f"Successfully processed {len(all_documents)} PDFs")
-    return all_documents
+# Alias expected by the preprocessing pipeline
+process_all_pdfs_fast = process_all_pdfs
 
 
 def save_read_pdf_data(all_documents, path):
-    # Documents are already serialized from `extract_text_from_pdf`, so we can dump them directly
     with open(path, "w", encoding="utf-8") as f:
         json.dump(all_documents, f, ensure_ascii=False, indent=2)
-        
+
 
 def load_read_documents(path):
     with open(path, "r", encoding="utf-8") as f:
@@ -120,13 +173,14 @@ def load_read_documents(path):
         ]
     return docs
 
-if __name__ == "__main__":
-    path = Path("./train/pdfs_train")
 
-    # all_documents = process_all_pdfs(path)
-    # save_read_pdf_data(all_documents)
-    # all_documents = load_read_documents("all_documents.json")
-    
-    all_documents = process_all_pdfs_fast(path)
-    save_read_pdf_data(all_documents, path="all_documents.json")
-    
+if __name__ == "__main__":
+    import sys
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from config.config import BaselineConfig
+
+    cfg = BaselineConfig()
+    logger.info(f"Processing PDFs from: {cfg.PDFS_DIR}")
+    all_documents = process_all_pdfs(cfg.PDFS_DIR)
+    save_read_pdf_data(all_documents, path=cfg.PREPROCESSED_DOCUMENTS_FILE)
+    logger.info(f"Saved {len(all_documents)} documents to {cfg.PREPROCESSED_DOCUMENTS_FILE}")

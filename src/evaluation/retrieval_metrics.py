@@ -86,10 +86,14 @@ def page_recall_at_k(retrieved: List[Dict[str, Any]], relevant_pdf: str, relevan
     
     # Consider only the top-k retrieved results
     for r in retrieved[:k]:
-        payload = r.get("payload", {}) # Get the payload from the retrieved result (contains metadata like pdf_name and page_numbers)
-        chunk_pdf = payload.get("pdf_name", "") # Get the PDF name from the payload (default to empty string if not found)
-        chunk_pages = set(payload.get("page_numbers") or []) # Get the page numbers from the payload and convert to a set (default to empty set if not found)
-        if chunk_pdf == relevant_pdf and chunk_pages & relevant_pages: # Check if the chunk's PDF matches the relevant PDF and if there is any overlap between the chunk's pages and the relevant pages
+        payload = r.get("payload", {})
+        # Normalize: text chunks have pdf_name="X.pdf", page images have doc_name="X"
+        chunk_pdf = (payload.get("pdf_name") or payload.get("doc_name", "")).replace(".pdf", "")
+        # Normalize: text chunks have page_numbers=[1,2], page images have page_num=1
+        chunk_pages = set(payload.get("page_numbers") or [])
+        if "page_num" in payload and payload["page_num"] is not None:
+            chunk_pages.add(payload["page_num"])
+        if chunk_pdf == relevant_pdf and chunk_pages & relevant_pages:
             return 1.0
     
     # If no retrieved chunk in the top-k matches the relevant PDF and overlaps with relevant pages, return 0.0
@@ -235,19 +239,20 @@ def evaluate_retrieval(
 
     # Evaluate each query's retrieval results against the ground truth
     for retrieved, gt in zip(retrieved_results, ground_truth):
-        # PDF-level relevant set
-        relevant_pdf = gt["pdf_path"].replace("pdf_train/", "").replace("pdf_tests/", "") # Extract the relevant PDF name from the ground truth (removing directory prefixes)
-        relevant = {relevant_pdf} # Make a set of relevant PDF names (for precision/recall)
+        # PDF-level relevant set (normalize to stem — no .pdf extension)
+        relevant_pdf_raw = gt["pdf_path"].replace("pdf_train/", "").replace("pdf_tests/", "")
+        relevant_pdf = relevant_pdf_raw.replace(".pdf", "")  # e.g. "DSA-278777"
+        relevant = {relevant_pdf}
 
         # Page-level relevant set (ground truth page_ids, 1-indexed)
-        relevant_pages = set(gt.get("page_ids") or []) # Make a set of relevant page IDs (for page recall)
+        relevant_pages = set(gt.get("page_ids") or [])
 
-        # Retrieved PDF names (for existing precision/recall)
-        # Deprecated: (non-deduplicated - includes duplicate PDFs from multiple chunks, may inflate metrics):
-        # retrieved_docs = [r["payload"]["pdf_name"] for r in retrieved]
-        
-        # Deduplicated: doc-level evaluation, preserves order of first occurrence:
-        retrieved_docs = list(dict.fromkeys([r["payload"]["pdf_name"] for r in retrieved]))
+        # Retrieved document names, normalized to stem (no .pdf)
+        # Text chunks have pdf_name="X.pdf", page images have doc_name="X"
+        retrieved_docs = list(dict.fromkeys([
+            (r["payload"].get("pdf_name") or r["payload"].get("doc_name", "unknown")).replace(".pdf", "")
+            for r in retrieved
+        ]))
 
         # Calculate MAP and MRR for this query
         map_scores.append(mean_average_precision(retrieved_docs, relevant)) # Calculate and store the MAP score for this query

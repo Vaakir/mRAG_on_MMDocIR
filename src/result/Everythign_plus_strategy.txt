@@ -1,0 +1,608 @@
+(dat540) bebs@MacBookPro DAT560project % python src/main_advanced.py --technique standard
+
+================================================================================
+ADVANCED RAG PIPELINE - Query Technique: STANDARD
+================================================================================
+
+Configuration:
+  Embedding Model: jinaai/jina-clip-v2
+  LLM Model: gorina10.qwen3.5:122b
+  Vector DB: advanced_multimodal
+  Query Technique: standard
+  Retrieved Top-K: 5
+  Technique Variants: 3
+
+================================================================================
+BUILDING INDEX
+================================================================================
+INFO:pipelines.advanced_pipeline:Building multimodal index with AdvancedConfig...
+INFO:pipelines.advanced_pipeline:Initialising embedder: jinaai/jina-clip-v2
+INFO:indexing.embedder:Loading embedding model: jinaai/jina-clip-v2
+INFO:sentence_transformers.SentenceTransformer:Load pretrained SentenceTransformer: jinaai/jina-clip-v2
+`torch_dtype` is deprecated! Use `dtype` instead!
+INFO:transformers_modules.jinaai.jina_hyphen_clip_hyphen_implementation.39e6a55ae971b59bea6e44675d237c99762e7ee2.configuration_clip:`text_config` is `None`. Initializing the `JinaCLIPTextConfig` with default values.
+INFO:transformers_modules.jinaai.jina_hyphen_clip_hyphen_implementation.39e6a55ae971b59bea6e44675d237c99762e7ee2.configuration_clip:`vision_config` is `None`. initializing the `JinaCLIPVisionConfig` with default values.
+`torch_dtype` is deprecated! Use `dtype` instead!
+/Users/bebs/.cache/huggingface/modules/transformers_modules/jinaai/jina_hyphen_clip_hyphen_implementation/39e6a55ae971b59bea6e44675d237c99762e7ee2/modeling_clip.py:137: UserWarning: Flash attention requires CUDA, disabling
+  warnings.warn('Flash attention requires CUDA, disabling')
+/Users/bebs/.cache/huggingface/modules/transformers_modules/jinaai/jina_hyphen_clip_hyphen_implementation/39e6a55ae971b59bea6e44675d237c99762e7ee2/modeling_clip.py:172: UserWarning: xFormers requires CUDA, disabling
+  warnings.warn('xFormers requires CUDA, disabling')
+Using a slow image processor as `use_fast` is unset and a slow processor was saved with this model. `use_fast=True` will be the default behavior in v4.52, even if the model was saved with a slow processor. This will result in minor differences in outputs. You'll still be able to use a slow processor with `use_fast=False`.
+INFO:sentence_transformers.SentenceTransformer:1 prompt is loaded, with the key: retrieval.query
+
+[OK] Embedding model loaded. Dimension: 1024
+Initializing local Qdrant at /Users/bebs/Documents/School/DAT 560/DAT560project/local_qdrant...
+
+[OK] Local Qdrant initialized
+INFO:pipelines.advanced_pipeline:Existing collection has 11839 documents
+INFO:pipelines.advanced_pipeline:Loading existing multimodal index...
+INFO:data.chunk_loader:Loading pre-processed chunks from /Users/bebs/Documents/School/DAT 560/DAT560project/src/data/preprocessed/chunks_semantic.json
+INFO:data.chunk_loader:Loaded 127 documents from JSON
+INFO:data.chunk_loader:✓ Extracted 5311 chunks from 127 documents
+INFO:data.chunk_loader:  Average chunks per document: 41.8
+INFO:pipelines.base_pipeline:Building hybrid BM25 + dense retriever...
+INFO:indexing.hybrid_retriever:Building BM25 index over 5311 chunks...
+INFO:indexing.hybrid_retriever:BM25 index built.
+INFO:pipelines.advanced_pipeline:Index loaded in 27.45s
+
+Index build completed in 27.45s
+
+================================================================================
+INITIALIZING COMPONENTS
+================================================================================
+INFO:pipelines.advanced_pipeline:Initialising generator: gorina10.qwen3.5:122b
+INFO:generation.generator:Loaded API key: sk-f937f3b...
+INFO:generation.generator:Initialized Ollama client for model: gorina10.qwen3.5:122b
+INFO:pipelines.advanced_pipeline:Initialising query technique: standard
+INFO:pipelines.advanced_pipeline:Initialising multimodal retriever...
+
+Components initialized in 0.04s
+
+Loading test data...
+Loaded 600 questions (all types)
+
+================================================================================
+SINGLE QUERY TEST
+================================================================================
+  [retrieval] Question: How many parts has the prefix N in the packages?
+  [retrieval] Classifying: visual or text?
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:42:39.665321107Z' done=True done_reason='stop' total_duration=12139176754 load_duration=11657508108 prompt_eval_count=202 prompt_eval_duration=285628949 eval_count=6 eval_duration=88086609 message=Message(role='assistant', content='{"visual": false}', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+  [retrieval] LLM: {"visual": false}
+  [retrieval] → TEXT
+  [retrieval] Text retrieval (top_k=5)...
+Batches: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:03<00:00,  3.09s/it]
+  [retrieval] Got 5 text results
+  [retrieval] TEXT → page image lookup from metadata
+  [retrieval]   Looking up 2 pages: [('obs-productdesc-en', 47), ('obs-productdesc-en', 48)]
+  [retrieval]   Found: obs-productdesc-en page 47
+  [retrieval]   Found: obs-productdesc-en page 48
+  [retrieval] Returning 5 text + 2 images
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 500 Internal Server Error"
+WARNING:generation.generator:VLM server 500 (attempt 1/3), retrying in 10s...
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 500 Internal Server Error"
+WARNING:generation.generator:VLM server 500 (attempt 2/3), retrying in 10s...
+ERROR:generation.generator:Vision generation error: [Errno 60] Operation timed out
+
+Question: How many parts has the prefix N in the packages?
+Ground Truth: 2
+
+Retrieved 7 documents:
+  [1] [Document: obs-productdesc-en.pdf]
+s are recommended for naming objects so that requests are evenly ...
+  [2] How many parts has the prefix N in the packages?
+  [3] How many items are included in the package?
+
+Generated Answer:
+Error generating response: [Errno 60] Operation timed out
+
+================================================================================
+RUNNING EVALUATION (All Question Types)
+================================================================================
+INFO:pipelines.advanced_pipeline:Evaluating 20 questions...
+  [retrieval] Question: How many parts has the prefix N in the packages?
+  [retrieval] Classifying: visual or text?
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:43:23.668747567Z' done=True done_reason='stop' total_duration=566535392 load_duration=164798285 prompt_eval_count=202 prompt_eval_duration=298462502 eval_count=6 eval_duration=94508350 message=Message(role='assistant', content='{"visual": false}', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+  [retrieval] LLM: {"visual": false}
+  [retrieval] → TEXT
+  [retrieval] Text retrieval (top_k=5)...
+Batches: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:03<00:00,  3.87s/it]
+  [retrieval] Got 5 text results
+  [retrieval] TEXT → page image lookup from metadata
+  [retrieval]   Looking up 2 pages: [('obs-productdesc-en', 47), ('obs-productdesc-en', 48)]
+  [retrieval]   Found: obs-productdesc-en page 47
+  [retrieval]   Found: obs-productdesc-en page 48
+  [retrieval] Returning 5 text + 2 images
+  [retrieval] Question: What DNA repair mechanisms does Figure 11 demonstrate?
+  [retrieval] Classifying: visual or text?
+INFO:pipelines.advanced_pipeline:  Retrieved 1/20
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:43:29.629352424Z' done=True done_reason='stop' total_duration=616182278 load_duration=234318276 prompt_eval_count=202 prompt_eval_duration=294087036 eval_count=6 eval_duration=81948284 message=Message(role='assistant', content='{"visual": true}', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+  [retrieval] LLM: {"visual": true}
+  [retrieval] → VISUAL
+  [retrieval] Text retrieval (top_k=5)...
+Batches: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:06<00:00,  6.31s/it]
+  [retrieval] Got 5 text results
+  [retrieval] VISUAL → image search with original query
+Batches: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:06<00:00,  6.81s/it]
+  [retrieval]   image: doc=f1f5242528411b262be447e61e2eb10f  page=17  score=0.390
+  [retrieval]   image: doc=f1f5242528411b262be447e61e2eb10f  page=16  score=0.372
+  [retrieval] Returning 5 text + 2 images
+  [retrieval] Question: How many % of Rep/Lean Rep people think cases have risen primally because of more testing and how many % of Rep/Lean Rep
+INFO:pipelines.advanced_pipeline:  Retrieved 2/20
+  [retrieval] Classifying: visual or text?
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:43:52.549718191Z' done=True done_reason='stop' total_duration=607403273 load_duration=202068076 prompt_eval_count=236 prompt_eval_duration=320275736 eval_count=6 eval_duration=78284346 message=Message(role='assistant', content='{"visual": false}', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+  [retrieval] LLM: {"visual": false}
+  [retrieval] → TEXT
+  [retrieval] Text retrieval (top_k=5)...
+Batches: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.20s/it]
+  [retrieval] Got 5 text results
+  [retrieval] TEXT → page image lookup from metadata
+  [retrieval]   Looking up 2 pages: [('PP_2020.08.06_COVID-19-Restrictions_FINAL-1', 6), ('PP_2020.08.06_COVID-19-Restrictions_FINAL-1', 7)]
+  [retrieval]   Found: PP_2020.08.06_COVID-19-Restrictions_FINAL-1 page 6
+  [retrieval]   Found: PP_2020.08.06_COVID-19-Restrictions_FINAL-1 page 7
+  [retrieval] Returning 5 text + 2 images
+  [retrieval] Question: For first two gases that causes greenhouse effect, list their proportions of the exhaust gas from Gasoline-engine. 
+  [retrieval] Classifying: visual or text?
+INFO:pipelines.advanced_pipeline:  Retrieved 3/20
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:43:59.082466139Z' done=True done_reason='stop' total_duration=556858727 load_duration=182663088 prompt_eval_count=212 prompt_eval_duration=284965690 eval_count=6 eval_duration=83779039 message=Message(role='assistant', content='{"visual": false}', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+  [retrieval] LLM: {"visual": false}
+  [retrieval] → TEXT
+  [retrieval] Text retrieval (top_k=5)...
+Batches: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:01<00:00,  1.40s/it]
+  [retrieval] Got 5 text results
+  [retrieval] TEXT → page image lookup from metadata
+  [retrieval]   Looking up 2 pages: [('dr-vorapptchapter1emissionsources-121120210508-phpapp02_95', 44), ('dr-vorapptchapter1emissionsources-121120210508-phpapp02_95', 45)]
+  [retrieval]   Found: dr-vorapptchapter1emissionsources-121120210508-phpapp02_95 page 44
+  [retrieval]   Found: dr-vorapptchapter1emissionsources-121120210508-phpapp02_95 page 45
+  [retrieval] Returning 5 text + 2 images
+  [retrieval] Question: How many line plots are shown in the paper?
+INFO:pipelines.advanced_pipeline:  Retrieved 4/20
+  [retrieval] Classifying: visual or text?
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:44:02.167181646Z' done=True done_reason='stop' total_duration=555393205 load_duration=181707452 prompt_eval_count=201 prompt_eval_duration=278433214 eval_count=6 eval_duration=82872842 message=Message(role='assistant', content='{"visual": true}', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+  [retrieval] LLM: {"visual": true}
+  [retrieval] → VISUAL
+  [retrieval] Text retrieval (top_k=5)...
+Batches: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:01<00:00,  1.66s/it]
+  [retrieval] Got 5 text results
+  [retrieval] VISUAL → image search with original query
+Batches: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:01<00:00,  1.46s/it]
+  [retrieval]   image: doc=PH_2016.06.08_Economy-Final  page=8  score=0.313
+  [retrieval]   image: doc=2309.17421v2  page=23  score=0.305
+  [retrieval] Returning 5 text + 2 images
+  [retrieval] Question: What year is printed on the t-shirt the man is wearing in the photograph in which he is holding a serving plate full of 
+  [retrieval] Classifying: visual or text?
+INFO:pipelines.advanced_pipeline:  Retrieved 5/20
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:44:06.784442739Z' done=True done_reason='stop' total_duration=650569196 load_duration=226748741 prompt_eval_count=233 prompt_eval_duration=320479629 eval_count=6 eval_duration=90735142 message=Message(role='assistant', content='{"visual": true}', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+  [retrieval] LLM: {"visual": true}
+  [retrieval] → VISUAL
+  [retrieval] Text retrieval (top_k=5)...
+Batches: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:01<00:00,  1.78s/it]
+  [retrieval] Got 5 text results
+  [retrieval] VISUAL → image search with original query
+Batches: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:01<00:00,  1.53s/it]
+  [retrieval]   image: doc=competitiveoutcomes-091006065143-phpapp01_95  page=4  score=0.279
+  [retrieval]   image: doc=PG_2021.03.04_US-Views-on-China_FINAL  page=9  score=0.271
+  [retrieval] Returning 5 text + 2 images
+  [retrieval] Question: How many more emojis does the right subfig have than the left subfig in Figure 9?
+  [retrieval] Classifying: visual or text?
+INFO:pipelines.advanced_pipeline:  Retrieved 6/20
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:44:11.667368799Z' done=True done_reason='stop' total_duration=575616865 load_duration=177900074 prompt_eval_count=211 prompt_eval_duration=299138699 eval_count=6 eval_duration=89725778 message=Message(role='assistant', content='{"visual": true}', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+  [retrieval] LLM: {"visual": true}
+  [retrieval] → VISUAL
+  [retrieval] Text retrieval (top_k=5)...
+Batches: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:01<00:00,  1.68s/it]
+  [retrieval] Got 5 text results
+  [retrieval] VISUAL → image search with original query
+Batches: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:01<00:00,  1.45s/it]
+  [retrieval]   image: doc=2309.17421v2  page=64  score=0.290
+  [retrieval]   image: doc=catvsdogdlpycon15se-150512122612-lva1-app6891_95  page=27  score=0.290
+  [retrieval] Returning 5 text + 2 images
+  [retrieval] Question: Which figures include line plots in the paper?
+  [retrieval] Classifying: visual or text?
+INFO:pipelines.advanced_pipeline:  Retrieved 7/20
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:44:16.289852215Z' done=True done_reason='stop' total_duration=584636910 load_duration=191258875 prompt_eval_count=200 prompt_eval_duration=291069232 eval_count=6 eval_duration=93544961 message=Message(role='assistant', content='{"visual": true}', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+  [retrieval] LLM: {"visual": true}
+  [retrieval] → VISUAL
+  [retrieval] Text retrieval (top_k=5)...
+Batches: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:01<00:00,  1.12s/it]
+  [retrieval] Got 5 text results
+  [retrieval] VISUAL → image search with original query
+Batches: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:01<00:00,  1.50s/it]
+  [retrieval]   image: doc=2309.17421v2  page=23  score=0.306
+  [retrieval]   image: doc=2401.18059v1  page=14  score=0.303
+  [retrieval] Returning 5 text + 2 images
+  [retrieval] Question: Which category has the most increase from 2005 to 2010 for time spent on weedends?
+  [retrieval] Classifying: visual or text?
+INFO:pipelines.advanced_pipeline:  Retrieved 8/20
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:44:20.792403043Z' done=True done_reason='stop' total_duration=554710296 load_duration=174463072 prompt_eval_count=216 prompt_eval_duration=295324471 eval_count=6 eval_duration=78605057 message=Message(role='assistant', content='{"visual": true}', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+  [retrieval] LLM: {"visual": true}
+  [retrieval] → VISUAL
+  [retrieval] Text retrieval (top_k=5)...
+Batches: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:01<00:00,  1.53s/it]
+  [retrieval] Got 5 text results
+  [retrieval] VISUAL → image search with original query
+Batches: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:01<00:00,  1.40s/it]
+  [retrieval]   image: doc=0e94b4197b10096b1f4c699701570fbf  page=13  score=0.308
+  [retrieval]   image: doc=csewt7zsecmmbzjufbyx-signature-24d91a254426c21c3079384270e1f138dc43a271cfe15d6d520d68205855b2a3-poli-150306115347-conversion-gate01  page=25  score=0.273
+  [retrieval] Returning 5 text + 2 images
+  [retrieval] Question: How many hand drawn cartoons are included in the slides to illustrate the idea?
+  [retrieval] Classifying: visual or text?
+INFO:pipelines.advanced_pipeline:  Retrieved 9/20
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:44:25.163834178Z' done=True done_reason='stop' total_duration=555894281 load_duration=178962910 prompt_eval_count=206 prompt_eval_duration=290956044 eval_count=6 eval_duration=79623212 message=Message(role='assistant', content='{"visual": true}', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+  [retrieval] LLM: {"visual": true}
+  [retrieval] → VISUAL
+  [retrieval] Text retrieval (top_k=5)...
+Batches: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:01<00:00,  1.52s/it]
+  [retrieval] Got 5 text results
+  [retrieval] VISUAL → image search with original query
+Batches: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:01<00:00,  1.42s/it]
+  [retrieval]   image: doc=2309.17421v2  page=43  score=0.315
+  [retrieval]   image: doc=ddoseattle-150627210357-lva1-app6891_95  page=24  score=0.287
+  [retrieval] Returning 5 text + 2 images
+  [retrieval] Question: In the figure that has a tree shape, what is the name of the branch that has the least leafs?
+INFO:pipelines.advanced_pipeline:  Retrieved 10/20
+  [retrieval] Classifying: visual or text?
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:44:29.690353249Z' done=True done_reason='stop' total_duration=553593635 load_duration=170410704 prompt_eval_count=214 prompt_eval_duration=280884936 eval_count=6 eval_duration=94741122 message=Message(role='assistant', content='{"visual": true}', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+  [retrieval] LLM: {"visual": true}
+  [retrieval] → VISUAL
+  [retrieval] Text retrieval (top_k=5)...
+Batches: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:02<00:00,  2.27s/it]
+  [retrieval] Got 5 text results
+  [retrieval] VISUAL → image search with original query
+Batches: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:01<00:00,  1.27s/it]
+  [retrieval]   image: doc=dr-vorapptchapter1emissionsources-121120210508-phpapp02_95  page=12  score=0.250
+  [retrieval]   image: doc=transform-software-delivery-with-valueedge-brochure  page=1  score=0.249
+  [retrieval] Returning 5 text + 2 images
+  [retrieval] Question: what is total debt of COSTCO in FY 2021?Answer in millions.
+  [retrieval] Classifying: visual or text?
+INFO:pipelines.advanced_pipeline:  Retrieved 11/20
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:44:35.758689645Z' done=True done_reason='stop' total_duration=549876916 load_duration=178477643 prompt_eval_count=210 prompt_eval_duration=279926963 eval_count=6 eval_duration=85058054 message=Message(role='assistant', content='{"visual": false}', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+  [retrieval] LLM: {"visual": false}
+  [retrieval] → TEXT
+  [retrieval] Text retrieval (top_k=5)...
+Batches: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.11s/it]
+  [retrieval] Got 5 text results
+  [retrieval] TEXT → page image lookup from metadata
+  [retrieval]   Looking up 2 pages: [('COSTCO_2021_10K', 40), ('COSTCO_2021_10K', 41)]
+  [retrieval]   Found: COSTCO_2021_10K page 40
+  [retrieval]   Found: COSTCO_2021_10K page 41
+  [retrieval] Returning 5 text + 2 images
+  [retrieval] Question: how many LEARNING OUTCOMES should be ANSWERed in UNIT 8? 
+  [retrieval] Classifying: visual or text?
+INFO:pipelines.advanced_pipeline:  Retrieved 12/20
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:44:43.400665751Z' done=True done_reason='stop' total_duration=614740306 load_duration=232458677 prompt_eval_count=208 prompt_eval_duration=290002712 eval_count=6 eval_duration=85019303 message=Message(role='assistant', content='{"visual": false}', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+  [retrieval] LLM: {"visual": false}
+  [retrieval] → TEXT
+  [retrieval] Text retrieval (top_k=5)...
+Batches: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.04s/it]
+  [retrieval] Got 5 text results
+  [retrieval] TEXT → page image lookup from metadata
+  [retrieval]   Looking up 2 pages: [('f8d3a162ab9507e021d83dd109118b60', 6), ('f8d3a162ab9507e021d83dd109118b60', 7)]
+  [retrieval]   Found: f8d3a162ab9507e021d83dd109118b60 page 6
+  [retrieval]   Found: f8d3a162ab9507e021d83dd109118b60 page 7
+  [retrieval] Returning 5 text + 2 images
+  [retrieval] Question: What are the personality scores of the data sample with extreme personality cases, in which the personality vector color
+INFO:pipelines.advanced_pipeline:  Retrieved 13/20
+  [retrieval] Classifying: visual or text?
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:44:49.680670974Z' done=True done_reason='stop' total_duration=582404324 load_duration=168967174 prompt_eval_count=239 prompt_eval_duration=325536051 eval_count=6 eval_duration=81524002 message=Message(role='assistant', content='{"visual": true}', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+  [retrieval] LLM: {"visual": true}
+  [retrieval] → VISUAL
+  [retrieval] Text retrieval (top_k=5)...
+Batches: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:06<00:00,  6.91s/it]
+  [retrieval] Got 5 text results
+  [retrieval] VISUAL → image search with original query
+Batches: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.63s/it]
+  [retrieval]   image: doc=2303.05039v2  page=4  score=0.314
+  [retrieval]   image: doc=2307.09288v2  page=56  score=0.310
+  [retrieval] Returning 5 text + 2 images
+  [retrieval] Question: How many "WC"s are shown in the last page's map?
+  [retrieval] Classifying: visual or text?
+INFO:pipelines.advanced_pipeline:  Retrieved 14/20
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:45:06.184770563Z' done=True done_reason='stop' total_duration=561910235 load_duration=184539815 prompt_eval_count=205 prompt_eval_duration=291854177 eval_count=6 eval_duration=79223094 message=Message(role='assistant', content='{"visual": true}', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+  [retrieval] LLM: {"visual": true}
+  [retrieval] → VISUAL
+  [retrieval] Text retrieval (top_k=5)...
+Batches: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.14s/it]
+  [retrieval] Got 5 text results
+  [retrieval] VISUAL → image search with original query
+Batches: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:02<00:00,  2.95s/it]
+  [retrieval]   image: doc=san-francisco-11-contents  page=34  score=0.372
+  [retrieval]   image: doc=san-francisco-11-contents  page=7  score=0.368
+  [retrieval] Returning 5 text + 2 images
+  [retrieval] Question: According to the definition in the paper, how many directed edges are there in a chain-type causal graph?
+  [retrieval] Classifying: visual or text?
+INFO:pipelines.advanced_pipeline:  Retrieved 15/20
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:45:15.349529959Z' done=True done_reason='stop' total_duration=539832131 load_duration=165723093 prompt_eval_count=212 prompt_eval_duration=284678955 eval_count=6 eval_duration=83545873 message=Message(role='assistant', content='{"visual": false}', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+  [retrieval] LLM: {"visual": false}
+  [retrieval] → TEXT
+  [retrieval] Text retrieval (top_k=5)...
+Batches: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:02<00:00,  2.37s/it]
+  [retrieval] Got 5 text results
+  [retrieval] TEXT → page image lookup from metadata
+  [retrieval]   Looking up 2 pages: [('2312.04350v3', 23), ('2312.04350v3', 5)]
+  [retrieval]   Found: 2312.04350v3 page 23
+  [retrieval]   Found: 2312.04350v3 page 5
+  [retrieval] Returning 5 text + 2 images
+  [retrieval] Question: How many figures illustrated the structure of fuel injectors?
+  [retrieval] Classifying: visual or text?
+INFO:pipelines.advanced_pipeline:  Retrieved 16/20
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:45:19.714210878Z' done=True done_reason='stop' total_duration=578317325 load_duration=200469956 prompt_eval_count=202 prompt_eval_duration=290988224 eval_count=6 eval_duration=80384497 message=Message(role='assistant', content='{"visual": true}', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+  [retrieval] LLM: {"visual": true}
+  [retrieval] → VISUAL
+  [retrieval] Text retrieval (top_k=5)...
+Batches: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:02<00:00,  2.28s/it]
+  [retrieval] Got 5 text results
+  [retrieval] VISUAL → image search with original query
+Batches: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:01<00:00,  1.18s/it]
+  [retrieval]   image: doc=efis-140411041451-phpapp01_95  page=7  score=0.421
+  [retrieval]   image: doc=efis-140411041451-phpapp01_95  page=11  score=0.418
+  [retrieval] Returning 5 text + 2 images
+  [retrieval] Question: By what percentage has gross profit increased in Q1 of 2023 compared to Q1 of 2022?
+  [retrieval] Classifying: visual or text?
+INFO:pipelines.advanced_pipeline:  Retrieved 17/20
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:45:24.55468826Z' done=True done_reason='stop' total_duration=596480365 load_duration=202126348 prompt_eval_count=218 prompt_eval_duration=300212958 eval_count=6 eval_duration=84801297 message=Message(role='assistant', content='{"visual": false}', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+  [retrieval] LLM: {"visual": false}
+  [retrieval] → TEXT
+  [retrieval] Text retrieval (top_k=5)...
+Batches: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:01<00:00,  1.50s/it]
+  [retrieval] Got 5 text results
+  [retrieval] TEXT → page image lookup from metadata
+  [retrieval]   Looking up 2 pages: [('COSTCO_2021_10K', 26), ('COSTCO_2021_10K', 27)]
+  [retrieval]   Found: COSTCO_2021_10K page 26
+  [retrieval]   Found: COSTCO_2021_10K page 27
+  [retrieval] Returning 5 text + 2 images
+  [retrieval] Question: What multiple of the 2014 e-commerce sales was achieved in 2018?
+  [retrieval] Classifying: visual or text?
+INFO:pipelines.advanced_pipeline:  Retrieved 18/20
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:45:27.916302511Z' done=True done_reason='stop' total_duration=558913407 load_duration=165889053 prompt_eval_count=212 prompt_eval_duration=299633241 eval_count=6 eval_duration=86674896 message=Message(role='assistant', content='{"visual": false}', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+  [retrieval] LLM: {"visual": false}
+  [retrieval] → TEXT
+  [retrieval] Text retrieval (top_k=5)...
+Batches: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:01<00:00,  1.62s/it]
+  [retrieval] Got 5 text results
+  [retrieval] TEXT → page image lookup from metadata
+  [retrieval]   Looking up 2 pages: [('ACTIVISIONBLIZZARD_2019_10K', 43), ('ACTIVISIONBLIZZARD_2019_10K', 44)]
+  [retrieval]   Found: ACTIVISIONBLIZZARD_2019_10K page 43
+  [retrieval]   Found: ACTIVISIONBLIZZARD_2019_10K page 44
+  [retrieval] Returning 5 text + 2 images
+  [retrieval] Question: How many charts are shown in the first 10 pages of the document? 
+  [retrieval] Classifying: visual or text?
+INFO:pipelines.advanced_pipeline:  Retrieved 19/20
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:45:31.214758452Z' done=True done_reason='stop' total_duration=563816334 load_duration=186173030 prompt_eval_count=207 prompt_eval_duration=292056880 eval_count=6 eval_duration=79283524 message=Message(role='assistant', content='{"visual": true}', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+  [retrieval] LLM: {"visual": true}
+  [retrieval] → VISUAL
+  [retrieval] Text retrieval (top_k=5)...
+Batches: 100%|███████████████████████████████████████████████████████████████████████████████████████████████Batches: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:04<00:00,  4.33s/it]
+  [retrieval] Got 5 text results
+  [retrieval] VISUAL → image search with original query
+Batches: 100%|█████████████████████████████████████████████████████████████████| 1/1 [00:03<00:00,  3.60s/it]
+  [retrieval]   image: doc=mi_phone  page=2  score=0.289
+  [retrieval]   image: doc=bigdatatrends-120723191058-phpapp02_95  page=47  score=0.287
+  [retrieval] Returning 5 text + 2 images
+INFO:pipelines.advanced_pipeline:  Retrieved 20/20
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 500 Internal Server Error"
+WARNING:generation.generator:VLM server 500 (attempt 1/3), retrying in 10s...
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 500 Internal Server Error"
+WARNING:generation.generator:VLM server 500 (attempt 2/3), retrying in 10s...
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 500 Internal Server Error"
+WARNING:generation.generator:VLM server 500 (attempt 3/3), retrying in 10s...
+ERROR:generation.generator:Vision generation error: {"detail":"model runner has unexpectedly stopped, this may be due to resource limitations or an internal error, check ollama server logs for details"} (status code: 500)
+
+--------------------------------------------------------------------------------
+Question: How many parts has the prefix N in the packages?
+Ground Truth: 2
+Generated Answer: Error generating response: {"detail":"model runner has unexpectedly stopped, this may be due to resource limitations or an internal error, check ollama server logs for details"} (status code: 500)
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:46:21.499619477Z' done=True done_reason='stop' total_duration=3641728909 load_duration=187305459 prompt_eval_count=3153 prompt_eval_duration=2822397777 eval_count=29 eval_duration=435402720 message=Message(role='assistant', content='["Base excision repair", "Nucleotide excision repair", "Direct reversal repair", "Mismatch repair", "Recombination repair"]', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+
+--------------------------------------------------------------------------------
+Question: What DNA repair mechanisms does Figure 11 demonstrate?
+Ground Truth: ['Base Excision Repair (BER)', 'Nucleotide Excision Repair (NER)', 'Mismatch Repair (MMR)', 'Direct Reversal Repair', 'Recombinational Repair']
+Generated Answer: ["Base excision repair", "Nucleotide excision repair", "Direct reversal repair", "Mismatch repair", "Recombination repair"]
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:46:25.39051364Z' done=True done_reason='stop' total_duration=3520057244 load_duration=157111503 prompt_eval_count=3719 prompt_eval_duration=3025655782 eval_count=7 eval_duration=101484476 message=Message(role='assistant', content='62, 30', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+
+--------------------------------------------------------------------------------
+Question: How many % of Rep/Lean Rep people think cases have risen primally because of more testing and how many % of Rep/Lean Rep people think the federal government should be primarily responsible for COVID-19 control policy?
+Ground Truth: [62, 30]
+Generated Answer: 62, 30
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:46:28.6405309Z' done=True done_reason='stop' total_duration=2818036381 load_duration=188636703 prompt_eval_count=2657 prompt_eval_duration=2204288043 eval_count=16 eval_duration=237446007 message=Message(role='assistant', content='["CO2 (carbon dioxide)", "NO (nitrous oxide)"]', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+
+--------------------------------------------------------------------------------
+Question: For first two gases that causes greenhouse effect, list their proportions of the exhaust gas from Gasoline-engine. 
+Ground Truth: ['13.7%', '0.1%']
+Generated Answer: ["CO2 (carbon dioxide)", "NO (nitrous oxide)"]
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:46:39.594662413Z' done=True done_reason='stop' total_duration=9738685965 load_duration=183766008 prompt_eval_count=3732 prompt_eval_duration=3493271666 eval_count=339 eval_duration=5159152765 message=Message(role='assistant', content='Based on the provided documents, there are a total of **7** line plots shown.\n\nHere is a breakdown of where they appear:\n- **Document 1 (2023.acl-long.386.pdf):** This document contains the ACL 2023 Responsible NLP Checklist and does not include any line plots.\n- **Document 2 (fd76bbefe469561966e5387aa709c482.pdf):** This document is an excerpt from a geological paper and does not contain any line plots.\n- **Image Set:** The collection of images provided with the prompt displays 7 distinct line plots:\n    - Image 1: "% of voters who say there was ___ than in past elections" (More/less mudslinging)\n    - Image 2: Voter satisfaction ("Very/Fairly satisfied" vs. "Not very/Not at all satisfied")\n    - Image 3: A plot with two lines, one for general voters and one for those who voted for the losing candidate.\n    - Image 4: "% of voters who say there was ..." (More/less mudslinging than usual)\n    - Image 5: "Less than usual" vs. "More than usual"\n    - Image 6: "Learned enough" vs. "Did not learn enough"\n    - Image 7: "Very/somewhat helpful" vs. "Not too/Not at all helpful"\n    - Image 8: "Latino perceptions of personal finances rebound strongly since the recession"', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+
+--------------------------------------------------------------------------------
+Question: How many line plots are shown in the paper?
+Ground Truth: 1
+Generated Answer: Based on the provided documents, there are a total of **7** line plots shown. Here is a breakdown of where they appear: - **Document 1 (2023.acl-long.386.pdf):** This document contains the ACL 2023 Responsible NLP Checklist and does not include any line plots. - **Document 2 (fd76bbefe469561966e5387aa709c482.pdf):** This document is an excerpt from a geological paper and does not contain any line plots. - **Image Set:** The collection of images provided with the prompt displays 7 distinct line plots: - Image 1: "% of voters who say there was ___ than in past elections" (More/less mudslinging) - Image 2: Voter satisfaction ("Very/Fairly satisfied" vs. "Not very/Not at all satisfied") - Image 3: A plot with two lines, one for general voters and one for those who voted for the losing candidate. - Image 4: "% of voters who say there was ..." (More/less mudslinging than usual) - Image 5: "Less than usual" vs. "More than usual" - Image 6: "Learned enough" vs. "Did not learn enough" - Image 7: "Very/somewhat helpful" vs. "Not too/Not at all helpful" - Image 8: "Latino perceptions of personal finances rebound strongly since the recession"
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:46:44.282218879Z' done=True done_reason='stop' total_duration=4056778270 load_duration=187010953 prompt_eval_count=4092 prompt_eval_duration=3527281761 eval_count=5 eval_duration=67300899 message=Message(role='assistant', content='2007', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+
+--------------------------------------------------------------------------------
+Question: What year is printed on the t-shirt the man is wearing in the photograph in which he is holding a serving plate full of what gives a utility of +10 from consuming 1 assuming standard consumption economics?
+Ground Truth: 2007
+Generated Answer: 2007
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:46:48.63704634Z' done=True done_reason='stop' total_duration=3866785831 load_duration=155441033 prompt_eval_count=3772 prompt_eval_duration=3323471741 eval_count=2 eval_duration=22336607 message=Message(role='assistant', content='2', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+
+--------------------------------------------------------------------------------
+Question: How many more emojis does the right subfig have than the left subfig in Figure 9?
+Ground Truth: 15
+Generated Answer: 2
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:46:53.711112032Z' done=True done_reason='stop' total_duration=3905349016 load_duration=176194049 prompt_eval_count=3624 prompt_eval_duration=3129493271 eval_count=12 eval_duration=187125592 message=Message(role='assistant', content='["Figure 25", "Figure 5"]', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+
+--------------------------------------------------------------------------------
+Question: Which figures include line plots in the paper?
+Ground Truth: ['Figure 5', 'Figure 6']
+Generated Answer: ["Figure 25", "Figure 5"]
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:47:08.289735505Z' done=True done_reason='stop' total_duration=13689097911 load_duration=169616552 prompt_eval_count=4096 prompt_eval_duration=3453011273 eval_count=527 eval_duration=9373439780 message=Message(role='assistant', content='Based on the "Time spent on weekends" infographic provided in the first image, we can compare the percentages for each category between the years 2005 and 2010 to determine which had the most increase.\n\nHere is a breakdown of the changes:\n\n- **Watching TV:** Decreased from $35\\%$ in 2005 to $21\\%$ in 2010.\n- **Working weekends:** Increased from $0\\%$ in 2005 to $21\\%$ in 2010. (Increase of $21$ percentage points)\n- **Sleeping:** Increased from $17\\%$ in 2005 to $22\\%$ in 2010. (Increase of $5$ percentage points)\n- **Eating out:** Increased from $10\\%$ in 2005 to $17\\%$ in 2010. (Increase of $7$ percentage points)\n- **Shopping:** Increased from $10\\%$ in 2005 to $10\\%$ in 2010. (No change)\n- **Fitness:** Increased from $5\\%$ in 2005 to $6\\%$ in 2010. (Increase of $1$ percentage point)\n- **Hobbies:** Increased from $2\\%$ in 2005 to $4\\%$ in 2010. (Increase of $2$ percentage points)\n- **Net surfing:** Increased from $3\\%$ in 2005 to $4\\%$ in 2010. (Increase of $1$ percentage point)\n- **Traveling:** Increased from $5\\%$ in 2005 to $10\\%$ in 2010. (Increase of $5$ percentage points)\n- **Reading:** Increased from $10\\%$ in 2005 to $10\\%$ in 2010. (No change)\n- **Watching kids:** Increased from $20\\%$ in 2005 to $10\\%$ in 2010. (Decrease of $10$ percentage points)\n\nThe category with the largest increase is **Working weekends**, which saw a $21$ percentage point rise.', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+
+--------------------------------------------------------------------------------
+Question: Which category has the most increase from 2005 to 2010 for time spent on weedends?
+Ground Truth: Eating out
+Generated Answer: Based on the "Time spent on weekends" infographic provided in the first image, we can compare the percentages for each category between the years 2005 and 2010 to determine which had the most increase. Here is a breakdown of the changes: - **Watching TV:** Decreased from $35\%$ in 2005 to $21\%$ in 2010. - **Working weekends:** Increased from $0\%$ in 2005 to $21\%$ in 2010. (Increase of $21$ percentage points) - **Sleeping:** Increased from $17\%$ in 2005 to $22\%$ in 2010. (Increase of $5$ percentage points) - **Eating out:** Increased from $10\%$ in 2005 to $17\%$ in 2010. (Increase of $7$ percentage points) - **Shopping:** Increased from $10\%$ in 2005 to $10\%$ in 2010. (No change) - **Fitness:** Increased from $5\%$ in 2005 to $6\%$ in 2010. (Increase of $1$ percentage point) - **Hobbies:** Increased from $2\%$ in 2005 to $4\%$ in 2010. (Increase of $2$ percentage points) - **Net surfing:** Increased from $3\%$ in 2005 to $4\%$ in 2010. (Increase of $1$ percentage point) - **Traveling:** Increased from $5\%$ in 2005 to $10\%$ in 2010. (Increase of $5$ percentage points) - **Reading:** Increased from $10\%$ in 2005 to $10\%$ in 2010. (No change) - **Watching kids:** Increased from $20\%$ in 2005 to $10\%$ in 2010. (Decrease of $10$ percentage points) The category with the largest increase is **Working weekends**, which saw a $21$ percentage point rise.
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:47:17.890813218Z' done=True done_reason='stop' total_duration=7756462718 load_duration=198155989 prompt_eval_count=3734 prompt_eval_duration=4720811711 eval_count=128 eval_duration=1929877827 message=Message(role='assistant', content='Based on the provided documents, there is **one** hand-drawn cartoon included to illustrate an idea.\n\nThis cartoon is found in the final image and depicts a hippopotamus in a business meeting, choosing "Option B" over data-driven "Option A." The caption reads: "Let data drive decisions, not the Highest Paid Person\'s Opinion." This illustrates the concept of avoiding bias from authority figures (the "HiPPO" effect) in decision-making.\n\nThe other images are data visualizations (charts and graphs) or examples of memes with AI-generated explanations, not hand-drawn cartoons created for the presentation itself.', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+
+--------------------------------------------------------------------------------
+Question: How many hand drawn cartoons are included in the slides to illustrate the idea?
+Ground Truth: 4
+Generated Answer: Based on the provided documents, there is **one** hand-drawn cartoon included to illustrate an idea. This cartoon is found in the final image and depicts a hippopotamus in a business meeting, choosing "Option B" over data-driven "Option A." The caption reads: "Let data drive decisions, not the Highest Paid Person's Opinion." This illustrates the concept of avoiding bias from authority figures (the "HiPPO" effect) in decision-making. The other images are data visualizations (charts and graphs) or examples of memes with AI-generated explanations, not hand-drawn cartoons created for the presentation itself.
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:47:25.309533288Z' done=True done_reason='stop' total_duration=6422960354 load_duration=139794085 prompt_eval_count=3911 prompt_eval_duration=3319126597 eval_count=165 eval_duration=2456859075 message=Message(role='assistant', content='Based on the provided documents, there is no figure that depicts a tree with named branches and a count of leaves to determine which has the least.\n\nThe documents mention a "tree structure" in the context of the **RAPTOR** retrieval algorithm (Document 1 and 3), where nodes are organized in layers (e.g., granular details vs. thematic summaries). However, these texts do not provide a visual diagram with named branches or leaf counts.\n\nThe second image provided is a hand-drawn illustration titled "THE EARLY DAYS OF AIR POLLUTION" (Image 2). While it features a mountain that resembles a tree shape, it does not have named branches or a clear count of leaves in the botanical sense.\n\nTherefore, the information required to answer the question is not present in the context.', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+
+--------------------------------------------------------------------------------
+Question: In the figure that has a tree shape, what is the name of the branch that has the least leafs?
+Ground Truth: Pre-training
+Generated Answer: Based on the provided documents, there is no figure that depicts a tree with named branches and a count of leaves to determine which has the least. The documents mention a "tree structure" in the context of the **RAPTOR** retrieval algorithm (Document 1 and 3), where nodes are organized in layers (e.g., granular details vs. thematic summaries). However, these texts do not provide a visual diagram with named branches or leaf counts. The second image provided is a hand-drawn illustration titled "THE EARLY DAYS OF AIR POLLUTION" (Image 2). While it features a mountain that resembles a tree shape, it does not have named branches or a clear count of leaves in the botanical sense. Therefore, the information required to answer the question is not present in the context.
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:47:29.353414782Z' done=True done_reason='stop' total_duration=3885868220 load_duration=182086152 prompt_eval_count=4030 prompt_eval_duration=3442320157 eval_count=6 eval_duration=82544103 message=Message(role='assistant', content='7,531', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+
+--------------------------------------------------------------------------------
+Question: what is total debt of COSTCO in FY 2021?Answer in millions.
+Ground Truth: 11407
+Generated Answer: 7,531
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:47:32.219938375Z' done=True done_reason='stop' total_duration=2683617515 load_duration=164465251 prompt_eval_count=2749 prompt_eval_duration=2238253330 eval_count=3 eval_duration=41297062 message=Message(role='assistant', content='10', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+
+--------------------------------------------------------------------------------
+Question: how many LEARNING OUTCOMES should be ANSWERed in UNIT 8? 
+Ground Truth: 10
+Generated Answer: 10
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:47:45.758235487Z' done=True done_reason='stop' total_duration=13296487080 load_duration=168568850 prompt_eval_count=3939 prompt_eval_duration=3130821617 eval_count=518 eval_duration=9530790279 message=Message(role='assistant', content='Based on the provided documents, here is the step-by-step derivation to find the answer:\n\n1.  **Identify the Model and Color:** According to **Document 2** (Section 4.2 and Figure 1 description), the model where the personality vector is predetermined and fixed (hard-coded) is called **NCF + Hard-coded Personality**. The text states: "In this example, the user\'s OCEAN score is {30,70,50,30,20}." While the text description of Figure 1 does not explicitly mention the color "blue," the question refers to the "overall model structure" shown in Figure 1 where specific vectors are visualized. In the context of the example provided in the text for this specific model configuration, the vector is `{30, 70, 50, 30, 20}`.\n\n2.  **Verify the Data Sample:** The question asks for the scores of the "data sample with extreme personality cases." **Document 4** (Section 5.1) mentions that the authors selected users with "extremely high scores" for manual evaluation, but it does not list the specific numerical vectors for those users. However, **Document 2** provides a concrete example of a user\'s OCEAN score used to illustrate the **NCF + Hard-coded** model (which corresponds to the fixed vector structure). The example vector given is `{30, 70, 50, 30, 20}`.\n\n3.  **Extract and Sort the Scores:**\n    *   The scores in the example vector are: 30, 70, 50, 30, 20.\n    *   The question asks for the answer in **ascending order**.\n    *   Sorting the values: 20, 30, 30, 50, 70.\n\n4.  **Format the Output:** The user requested a list format with strings, e.g., `["1", "2"]`.\n\n    *   Sorted values: 20, 30, 30, 50, 70.\n    *   Formatted list: `["20", "30", "30", "50", "70"]`.\n\n**Answer:**\n["20", "30", "30", "50", "70"]', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+
+--------------------------------------------------------------------------------
+Question: What are the personality scores of the data sample with extreme personality cases, in which the personality vector color is blue in the overall model structure? Please write down the answer in list format with ascending order, e.g., ["1","2"]
+Ground Truth: ['71.02', '75.38']
+Generated Answer: Based on the provided documents, here is the step-by-step derivation to find the answer: 1. **Identify the Model and Color:** According to **Document 2** (Section 4.2 and Figure 1 description), the model where the personality vector is predetermined and fixed (hard-coded) is called **NCF + Hard-coded Personality**. The text states: "In this example, the user's OCEAN score is {30,70,50,30,20}." While the text description of Figure 1 does not explicitly mention the color "blue," the question refers to the "overall model structure" shown in Figure 1 where specific vectors are visualized. In the context of the example provided in the text for this specific model configuration, the vector is `{30, 70, 50, 30, 20}`. 2. **Verify the Data Sample:** The question asks for the scores of the "data sample with extreme personality cases." **Document 4** (Section 5.1) mentions that the authors selected users with "extremely high scores" for manual evaluation, but it does not list the specific numerical vectors for those users. However, **Document 2** provides a concrete example of a user's OCEAN score used to illustrate the **NCF + Hard-coded** model (which corresponds to the fixed vector structure). The example vector given is `{30, 70, 50, 30, 20}`. 3. **Extract and Sort the Scores:** * The scores in the example vector are: 30, 70, 50, 30, 20. * The question asks for the answer in **ascending order**. * Sorting the values: 20, 30, 30, 50, 70. 4. **Format the Output:** The user requested a list format with strings, e.g., `["1", "2"]`. * Sorted values: 20, 30, 30, 50, 70. * Formatted list: `["20", "30", "30", "50", "70"]`. **Answer:** ["20", "30", "30", "50", "70"]
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:47:53.078767744Z' done=True done_reason='stop' total_duration=5607052680 load_duration=216456250 prompt_eval_count=3951 prompt_eval_duration=3256173738 eval_count=96 eval_duration=1451379707 message=Message(role='assistant', content='Based on the map provided on the last page (page 289, titled "FISHERMAN\'S WHARF"), there are **2** locations marked with the "WC" symbol.\n\nThey are located at:\n*   **Point 1:** Near the intersection of Jefferson St and Taylor St.\n*   **Point 2:** Near the intersection of Beach St and Taylor St, close to the "Pier 39" area.', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+
+--------------------------------------------------------------------------------
+Question: How many "WC"s are shown in the last page's map?
+Ground Truth: 19
+Generated Answer: Based on the map provided on the last page (page 289, titled "FISHERMAN'S WHARF"), there are **2** locations marked with the "WC" symbol. They are located at: * **Point 1:** Near the intersection of Jefferson St and Taylor St. * **Point 2:** Near the intersection of Beach St and Taylor St, close to the "Pier 39" area.
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:47:57.048946379Z' done=True done_reason='stop' total_duration=3773901952 load_duration=179513567 prompt_eval_count=3845 prompt_eval_duration=3389579535 eval_count=2 eval_duration=21418363 message=Message(role='assistant', content='3', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+
+--------------------------------------------------------------------------------
+Question: According to the definition in the paper, how many directed edges are there in a chain-type causal graph?
+Ground Truth: 2
+Generated Answer: 3
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:47:59.651877552Z' done=True done_reason='stop' total_duration=2470636009 load_duration=206091244 prompt_eval_count=2524 prompt_eval_duration=2002678052 eval_count=4 eval_duration=59167272 message=Message(role='assistant', content='["1"]', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+
+--------------------------------------------------------------------------------
+Question: How many figures illustrated the structure of fuel injectors?
+Ground Truth: 3
+Generated Answer: ["1"]
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:48:04.603275927Z' done=True done_reason='stop' total_duration=4695702570 load_duration=187667847 prompt_eval_count=3701 prompt_eval_duration=2945902804 eval_count=85 eval_duration=1321979894 message=Message(role='assistant', content='The provided documents do not contain any information about Q1 2023 or Q1 2022 financial results. The data in the documents is limited to fiscal years 2019, 2020, and 2021.\n\nTherefore, it is not possible to answer the question based on the given context.\n\nAnswer: Cannot be determined from the provided documents.', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+
+--------------------------------------------------------------------------------
+Question: By what percentage has gross profit increased in Q1 of 2023 compared to Q1 of 2022?
+Ground Truth: 37%
+Generated Answer: The provided documents do not contain any information about Q1 2023 or Q1 2022 financial results. The data in the documents is limited to fiscal years 2019, 2020, and 2021. Therefore, it is not possible to answer the question based on the given context. Answer: Cannot be determined from the provided documents.
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:48:08.644726523Z' done=True done_reason='stop' total_duration=3801100843 load_duration=204981740 prompt_eval_count=2977 prompt_eval_duration=2403804334 eval_count=61 eval_duration=919885644 message=Message(role='assistant', content='The provided documents do not contain any information about e-commerce sales for the year 2014. Therefore, it is impossible to calculate the multiple of 2014 e-commerce sales that was achieved in 2018.\n\nAnswer: Cannot be determined from the given information.', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+
+--------------------------------------------------------------------------------
+Question: What multiple of the 2014 e-commerce sales was achieved in 2018?
+Ground Truth: 3.91
+Generated Answer: The provided documents do not contain any information about e-commerce sales for the year 2014. Therefore, it is impossible to calculate the multiple of 2014 e-commerce sales that was achieved in 2018. Answer: Cannot be determined from the given information.
+INFO:httpx:HTTP Request: POST https://ollama.ux.uis.no/api/chat "HTTP/1.1 200 OK"
+INFO:generation.generator:resp: model='qwen3.5:122b' created_at='2026-04-14T09:48:16.445191104Z' done=True done_reason='stop' total_duration=7060207519 load_duration=217463998 prompt_eval_count=3909 prompt_eval_duration=3549350737 eval_count=166 eval_duration=2513178252 message=Message(role='assistant', content='Based on the provided document, which is a Table of Contents, we can determine the number of charts by examining the listed sections.\n\n- The document lists chapters and their corresponding page numbers.\n- The first 10 pages cover:\n    - Chapter 1: Overview (pages 1-7)\n    - Chapter 2: Get Started (pages 9-10)\n- Within these sections, there are no mentions of any charts, graphs, or figures. The topics covered are general information, battery charging, USB connectivity, and a headset guide.\n- The first section that might contain visual aids like charts is "Chapter 3: Basic Function," which starts on page 11.\n\nTherefore, there are no charts shown in the first 10 pages of the document.', thinking=None, images=None, tool_name=None, tool_calls=None) logprobs=None
+
+--------------------------------------------------------------------------------
+Question: How many charts are shown in the first 10 pages of the document? 
+Ground Truth: 5
+Generated Answer: Based on the provided document, which is a Table of Contents, we can determine the number of charts by examining the listed sections. - The document lists chapters and their corresponding page numbers. - The first 10 pages cover: - Chapter 1: Overview (pages 1-7) - Chapter 2: Get Started (pages 9-10) - Within these sections, there are no mentions of any charts, graphs, or figures. The topics covered are general information, battery charging, USB connectivity, and a headset guide. - The first section that might contain visual aids like charts is "Chapter 3: Basic Function," which starts on page 11. Therefore, there are no charts shown in the first 10 pages of the document.
+INFO:absl:Using default tokenizer.
+INFO:absl:Using default tokenizer.
+INFO:absl:Using default tokenizer.
+INFO:absl:Using default tokenizer.
+INFO:absl:Using default tokenizer.
+INFO:absl:Using default tokenizer.
+INFO:absl:Using default tokenizer.
+INFO:absl:Using default tokenizer.
+INFO:absl:Using default tokenizer.
+INFO:absl:Using default tokenizer.
+INFO:absl:Using default tokenizer.
+INFO:absl:Using default tokenizer.
+INFO:absl:Using default tokenizer.
+INFO:absl:Using default tokenizer.
+INFO:absl:Using default tokenizer.
+INFO:absl:Using default tokenizer.
+INFO:absl:Using default tokenizer.
+INFO:absl:Using default tokenizer.
+INFO:absl:Using default tokenizer.
+INFO:absl:Using default tokenizer.
+INFO:pipelines.advanced_pipeline:Evaluation done in 294.71s
+
+================================================================================
+EVALUATION RESULTS
+================================================================================
+
+Retrieval Metrics:
+  precision@1: 0.7500
+  precision@3: 0.2667
+  precision@5: 0.1700
+  recall@1: 0.7500
+  recall@3: 0.8000
+  recall@5: 0.8500
+  page_recall@1: 0.3000
+  page_recall@3: 0.3500
+  page_recall@5: 0.4000
+  ndcg@1: 0.7500
+  ndcg@3: 0.7815
+  ndcg@5: 0.8031
+  map: 0.7875
+  mrr: 0.7875
+
+Generation Metrics:
+  exact_match: 0.1500
+  contains_match: 0.2500
+  token_f1: 0.2303
+  bleu: 0.0000
+  rouge1: 0.2338
+  rouge2: 0.1005
+  rougeL: 0.2144
+  semantic_similarity: 0.2303
+
+Timing:
+  Index Build: 27.45s
+  Component Init: 0.04s
+  Phase 1 (Retrieval): 138.11s
+  Phase 2 (Generation): 156.54s
+  Total Evaluation: 294.71s
+
+  Total Runtime: 376.56s
+(dat540) bebs@MacBookPro DAT560project % 

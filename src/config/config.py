@@ -1,25 +1,31 @@
-# src/config/advanced_config.py
+# src/config/config.py
 # Configuration for the all systems to share a single source of truth
 
 from pathlib import Path
 from dataclasses import dataclass, field
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 # Define paths outside the dataclass for cleaner referencing
-PROJECT_ROOT = Path(__file__).parent.parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 SRC_DIR = PROJECT_ROOT / "src"
 DATA_DIR = SRC_DIR / "data"
 
-PDFS_DIR = DATA_DIR / "train" / "pdfs_train"
+PDFS_DIR = DATA_DIR / "train" / "pdf_train"
 PREPROCESSED_DATA_DIR = DATA_DIR / "preprocessed"
 PREPROCESSED_DOCUMENTS_FILE = DATA_DIR / "preprocessed" / "all_documents.json"
 
-COLLECTION_DIR = SRC_DIR / "project_collection"
-TRAIN_JSONL = COLLECTION_DIR / "train" / "train.jsonl"
-TEST_JSONL = COLLECTION_DIR / "test" / "test.jsonl"
+TRAIN_JSONL = DATA_DIR / "train" / "train.jsonl"
+TEST_JSONL = DATA_DIR / "test" / "test.jsonl"
+
+PAGE_IMAGES_TRAIN_DIR = DATA_DIR / "train" / "page_images_train"
+IMAGES_TRAIN_DIR = DATA_DIR / "train" / "images_train"
+PAGE_IMAGES_TEST_DIR = DATA_DIR / "test" / "page_images_test"
+IMAGES_TEST_DIR = DATA_DIR / "test" / "images_test"
 
 CACHE_DIR = PROJECT_ROOT / "cache"
+CACHE_DB_PATH = CACHE_DIR / "query_cache.db"
 PREPROCESSED_CHUNKS_FILE = SRC_DIR / "data" / "preprocessed" / "chunks_fixed_size.json"
+RESULTS_CSV = PROJECT_ROOT / "experiments_results.csv"
 
 
 @dataclass
@@ -39,6 +45,8 @@ class BaselineConfig:
     TEST_JSONL: Path = TEST_JSONL
 
     CACHE_DIR: Path = CACHE_DIR
+    CACHE_DB_PATH: Path = CACHE_DB_PATH
+    RESULTS_CSV: Path = RESULTS_CSV
 
     PREPROCESSED_CHUNKS_FILE: str = str(PREPROCESSED_CHUNKS_FILE)
 
@@ -66,9 +74,10 @@ class BaselineConfig:
 
     # ===== CHUNKING SETTINGS =====
     USE_PREPROCESSED_CHUNKS: bool = True
-    CHUNKING_STRATEGY: str = "fixed_size"
+    CHUNKING_STRATEGY: str = "semantic"
     CHUNK_SIZE: int = 1000
     CHUNK_OVERLAP: int = 200
+    CONTEXT_WINDOW: int = 0  # adjacent chunks to prepend/append at retrieval time
 
     # ===== EVALUATION SETTINGS =====
     EVAL_SUBSET_SIZE: int = 20
@@ -97,18 +106,48 @@ class AdvancedConfig(BaselineConfig):
     Configuration for the Advanced RAG Pipeline.
     """
 
+    
+    
     # ===== ADVANCED APP OVERRIDES =====
+    #override the chunk file to use the semantic chunks instead of the fixed-size ones
+    PREPROCESSED_CHUNKS_FILE = SRC_DIR / "data" / "preprocessed" / "chunks_semantic.json"
+    PREPROCESSED_CHUNKS_FILE: str = str(PREPROCESSED_CHUNKS_FILE)
+
     EMBEDDING_MODEL: str = "jinaai/jina-clip-v2"
     """Embedding model name from Hugging Face"""
 
-    VECTOR_DB_COLLECTION: str = "baseline_documents_jina"
-    """Collection name in Qdrant"""
+    VECTOR_DB_COLLECTION: str = "advanced_multimodal"
+    """Separate collection from baseline so the two don't interfere"""
+
+    # Use one model for everything — no server model swapping = no OOM crashes
+    LLM_MODEL: str = "gorina10.qwen3.5:122b"
+
+    # ===== MULTIMODAL SETTINGS =====
+    USE_MULTIMODAL: bool = True
+
+    VLM_MODEL: str = "gorina10.qwen3.5:122b"
+    """Vision-language model used when image chunks are retrieved"""
+
+    # Sequential — keeps logs readable and avoids concurrent calls on shared GPU
+    GENERATION_WORKERS: int = 1
+    RETRIEVAL_WORKERS: int = 1
+
+    PAGE_IMAGES_TRAIN_DIR: Path = PAGE_IMAGES_TRAIN_DIR
+    IMAGES_TRAIN_DIR: Path = IMAGES_TRAIN_DIR
+    PAGE_IMAGES_TEST_DIR: Path = PAGE_IMAGES_TEST_DIR
+    IMAGES_TEST_DIR: Path = IMAGES_TEST_DIR
+
+    FIGURES_TRAIN_DIR: Path = DATA_DIR / "train" / "figures_train"
+
+    # ===== RETRIEVAL FILTER =====
+    ALLOWED_CHUNK_TYPES: List[str] = field(default_factory=lambda: ["text", "page_image", "figure", "evidence"])
 
     # ===== QUERY TECHNIQUE SETTINGS =====
     QUERY_TECHNIQUE: str = "standard"
     QUERY_TECHNIQUE_CONFIG: Dict[str, Any] = field(
         default_factory=lambda: {
             "num_variants": 3,
+            "max_page_images": 1,
         }
     )
 
@@ -176,3 +215,5 @@ class HyDEConfig(AdvancedConfig):
     """HyDE (Hypothetical Documents) configuration."""
 
     QUERY_TECHNIQUE: str = "hyde"
+
+
