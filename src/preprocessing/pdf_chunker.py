@@ -1,16 +1,167 @@
 from typing import List, Dict, Any, Tuple
 from pathlib import Path
+from types import SimpleNamespace
 import numpy as np
 import matplotlib.pyplot as plt
 import json
-from .pdf_loader import load_read_documents
+try:
+    from .pdf_loader import load_read_documents
+except ImportError:
+    from pdf_loader import load_read_documents
 
 
 class Chunking:
     HEADING_CATEGORIES = {"Title", "Header"}
 
     def __init__(self, blocks: List):
-        self.blocks = blocks
+        self.blocks = Chunking.normalize_blocks(blocks)
+
+    @staticmethod
+    def normalize_blocks(blocks: List) -> List:
+        """
+        Normalize blocks before chunking:
+
+        1. Merge consecutive Header/Title blocks into one.
+           Rationale: docling sometimes splits a single heading across multiple
+           blocks; merging them preserves the full semantic heading.
+
+        2. Attach orphaned NarrativeText (blocks that appear before any header
+           has been seen) to the next Header/Title block encountered.
+           The combined block keeps the Header category so all chunking methods
+           treat it as a section boundary.
+           Rationale: text at the top of a document (e.g. release dates, intro
+           sentences) has no header context — attaching it to the first header
+           gives it one.
+        """
+        if not blocks:
+            return blocks
+
+        # --- Pass 1: merge consecutive headers ---
+        merged = []
+        for block in blocks:
+            text = block.text.strip() if block.text else ""
+            if not text:
+                continue
+            if (
+                merged
+                and block.category in Chunking.HEADING_CATEGORIES
+                and merged[-1].category in Chunking.HEADING_CATEGORIES
+            ):
+                prev = merged[-1]
+                merged[-1] = SimpleNamespace(
+                    text=prev.text + " " + text,
+                    category=prev.category,
+                    page_number=prev.page_number,
+                )
+            else:
+                merged.append(SimpleNamespace(
+                    text=text,
+                    category=block.category,
+                    page_number=block.page_number,
+                ))
+
+        # --- Pass 2: attach orphaned NarrativeText to the next header ---
+        result = []
+        orphan_buffer = []  # NarrativeText blocks seen before any header
+        seen_header = False
+
+        for block in merged:
+            if block.category in Chunking.HEADING_CATEGORIES:
+                seen_header = True
+                if orphan_buffer:
+                    orphan_text = " ".join(b.text for b in orphan_buffer)
+                    result.append(SimpleNamespace(
+                        text=orphan_text + " " + block.text,
+                        category=block.category,
+                        page_number=orphan_buffer[0].page_number,
+                    ))
+                    orphan_buffer = []
+                else:
+                    result.append(block)
+            else:
+                if not seen_header:
+                    orphan_buffer.append(block)
+                else:
+                    result.append(block)
+
+        # If there was never a header at all, just keep the orphaned text as-is
+        result.extend(orphan_buffer)
+
+        # --- Pass 3: remove repeated running headers ---
+        # Page-level running headers (e.g. "Is the service safe?") repeat every page
+        # of a section. Between repetitions there are sub-headers ("The failure to…")
+        # that overwrite a naive last_seen check, so we keep a small rolling window
+        # of recent header texts and skip any new header that is an exact match or
+        # a prefix-match of something in that window.
+        _WINDOW = 8
+        deduped = []
+        recent_headers: list = []  # most-recent at index -1
+        for block in result:
+            if block.category in Chunking.HEADING_CATEGORIES:
+                is_dupe = any(
+                    block.text == h or h.startswith(block.text)
+                    for h in recent_headers
+                )
+                if is_dupe:
+                    continue
+                recent_headers.append(block.text)
+                if len(recent_headers) > _WINDOW:
+                    recent_headers.pop(0)
+            deduped.append(block)
+
+        return deduped
+
+    @staticmethod
+    def _merge_small_chunks(
+        chunks: List[Dict[str, Any]],
+        min_chars: int = 1200,
+        max_chars: int = 3000,
+    ) -> List[Dict[str, Any]]:
+        """
+        Forward-merge consecutive chunks that are below min_chars.
+        A merge is skipped if it would push the combined text over max_chars.
+        Page numbers are unioned across merged chunks.
+        """
+        result = []
+        i = 0
+        while i < len(chunks):
+            chunk = dict(chunks[i])
+            while chunk["char_len"] < min_chars and i + 1 < len(chunks):
+                nxt = chunks[i + 1]
+                if chunk["char_len"] + 1 + nxt["char_len"] > max_chars:
+                    break
+                merged_text = chunk["text"] + " " + nxt["text"]
+                merged_pages = sorted(
+                    set(chunk.get("page_numbers", []) + nxt.get("page_numbers", []))
+                )
+                chunk = {
+                    **chunk,
+                    "text": merged_text,
+                    "char_len": len(merged_text),
+                    "page_numbers": merged_pages,
+                }
+                i += 1
+            result.append(chunk)
+            i += 1
+        return result
+
+    @staticmethod
+    def _split_oversized(chunks: List[Dict[str, Any]], max_chars: int = 3000) -> List[Dict[str, Any]]:
+        """
+        Split any chunk exceeding max_chars into fixed-size sub-chunks.
+        Preserves all metadata from the original chunk.
+        """
+        result = []
+        for chunk in chunks:
+            if chunk["char_len"] <= max_chars:
+                result.append(chunk)
+                continue
+            text = chunk["text"]
+            meta = {k: v for k, v in chunk.items() if k not in ("text", "char_len")}
+            for i in range(0, len(text), max_chars):
+                sub_text = text[i:i + max_chars]
+                result.append({"text": sub_text, "char_len": len(sub_text), **meta})
+        return result
 
     @staticmethod
     def _make_chunk(
@@ -54,7 +205,7 @@ class Chunking:
         if current_texts:
             page_numbers = {"page_numbers": list(page_numbers["page_numbers"])}
             chunks.append(Chunking._make_chunk(current_texts, page_numbers))
-        return chunks
+        return self._merge_small_chunks(chunks)
 
     def sliding_window(
         self, window_charts: int = 1000, overlap_chars: int = 200
@@ -137,7 +288,7 @@ class Chunking:
                 combined = prev["text"] + " " + " ".join(current_texts)
                 chunks[-1] = {"text": combined, "char_len": len(combined)}
 
-        return chunks
+        return self._merge_small_chunks(self._split_oversized(chunks))
 
     def hierarchical(self) -> List[Dict[str, Any]]:
         """
@@ -217,7 +368,7 @@ class Chunking:
             page_chunk["chunks"] = page_sections
             hierarchical_pages.append(page_chunk)
 
-        return hierarchical_pages
+        return self._split_oversized(hierarchical_pages)
 
     def enhanced_hierarchical(self) -> List[Dict[str, Any]]:
         """
@@ -320,11 +471,11 @@ class Chunking:
             parent_chunk["chunks"] = current_children
             hierarchical_sections.append(parent_chunk)
 
-        return hierarchical_sections
+        return self._split_oversized(hierarchical_sections)
 
 
 def chunk_and_save_pdf_data(
-    all_documents: List[Dict[str, Any]], output_dir: str = "../data"
+    all_documents: List[Dict[str, Any]], output_dir: str = "../data/preprocessed"
 ) -> Dict[str, Any]:
     """
     Applies multiple chunking methods to the documents and saves each method's result to a JSON file.
@@ -387,6 +538,10 @@ def plot_chunk_size_distribution(chunks, label="", alpha=0.5, percentile=99.5):
 
 
 if __name__ == "__main__":
-    # local tests here..
-    all_documents = load_read_documents("../data/all_documents.json")
-    result = chunk_and_save_pdf_data(all_documents)
+    # Paths are relative to this file's location, so this works regardless of
+    # which directory you run the script from.
+    _here = Path(__file__).parent
+    _data_dir = _here.parent / "data" / "preprocessed"
+
+    all_documents = load_read_documents(str(_data_dir / "all_documents.json"))
+    result = chunk_and_save_pdf_data(all_documents, output_dir=str(_data_dir))

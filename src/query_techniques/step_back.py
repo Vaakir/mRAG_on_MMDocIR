@@ -1,5 +1,8 @@
 from typing import Any, Dict, List
 from .base import QueryTechnique
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class StepBackRetrieval(QueryTechnique):
@@ -48,19 +51,29 @@ class StepBackRetrieval(QueryTechnique):
             Simplified step-back version of the question
         """
         response = self.generator.chat([
-            {
-                "role": "system",
-                "content": "You are a question abstraction expert. Generate a simpler, more general version of the given question that focuses on the core concept by removing specific details."
-            },
-            {
-                "role": "user",
-                "content": f"""Generate a step-back question that is simpler and more general than the original.
-The step-back question should capture the core concept without specific details.
-
+    {
+        "role": "system",
+        "content": """You are a question abstraction expert. Generate a simpler, more general version of the given question that focuses on the core concept by removing specific details.
+Here are examples of step-back transformations:
+Example 1:
+Original: "Among the 42 studies that used BERT models compared in Table 8, how many achieved F1 scores above 0.85?"
+Step-back: "What models and their performance metrics are compared in the tables?"
+Example 2:
+Original: "How many paragraphs in Section 3.2 specifically mention GPU memory optimization techniques while discussing neural network training?"
+Step-back: "What are the main technical approaches for neural network training discussed?"
+Example 3:
+Original: "In the survey of participants aged 25-40 from urban areas, what percentage reported dissatisfaction with service quality in Q2 2023?"
+Step-back: "What were the reported satisfaction levels with the service?"
+"""
+    },
+    {
+        "role": "user",
+        "content": f"""Generate a step-back question that is simpler and more general than the original.
+Remove specific details like numbers, names, sections, and qualifiers.
+Focus on the core concept.
 Original question: {question}
-
 Output: Return only the step-back question, nothing else."""
-            }
-        ])
+    }
+])
         
         return response.strip()

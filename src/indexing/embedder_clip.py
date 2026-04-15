@@ -23,7 +23,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-class TextEmbedder:
+class ClipTextEmbedder:
     """Wrapper for CLIP embedding model (text encoder for baseline)."""
     
     def __init__(self, model_name: str = "ViT-B/32"):
@@ -110,7 +110,7 @@ class TextEmbedder:
 
 def create_chunk_embeddings(
     chunks: List[Dict[str, Any]],
-    embedder: TextEmbedder
+    embedder: ClipTextEmbedder
 ) -> np.ndarray:
     """Create embeddings for all chunks."""
     texts = [chunk["text"] for chunk in chunks]

@@ -17,7 +17,6 @@ sys.path.append(str(Path(__file__).parent))
 from config.config import AdvancedConfig, MultiQueryConfig, RAGFusionConfig, HyDEConfig
 from data.data_loader import load_train_data
 from pipelines.advanced_pipeline import AdvancedRAGPipeline
-from generation.generator import BaselineGenerator
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -44,7 +43,7 @@ def get_config(technique: str = 'standard') -> AdvancedConfig:
         config = HyDEConfig()
     else:
         config = AdvancedConfig()
-    
+
     # Explicitly set technique to ensure it's applied
     # (dataclass inheritance doesn't override defaults reliably)
     if technique == 'step_back':
@@ -56,7 +55,6 @@ def get_config(technique: str = 'standard') -> AdvancedConfig:
     elif technique == 'query_expansion':
         config.QUERY_TECHNIQUE = 'query_expansion'
     elif technique != 'standard':
-        # For preset configs (multi_query, rag_fusion, hyde), ensure technique is set
         config.QUERY_TECHNIQUE = technique
     
     return config
@@ -110,18 +108,17 @@ def main(technique: str = 'standard', prompting_strategy: str = 'standard', eval
         with time_phase('Component Initialization'):
             pipeline.initialize_components()
 
-        with time_phase('Data Loading/Filtering'):
+        with time_phase('Data Loading'):
             train_data = load_train_data(config.TRAIN_JSONL)
-            pure_text_data = [r for r in train_data if r.get("types") == ["Pure-text (Plain-text)"]]
-            logger.info(f"Loaded {len(train_data)} qs, filtered to {len(pure_text_data)} pure-text")
+            logger.info(f"Loaded {len(train_data)} questions (all types)")
 
-        if pure_text_data:
+        if train_data:
             with time_phase('Single Query Test'):
-                sample = pure_text_data[0]
+                sample = train_data[0]
                 run_single_query_test(pipeline, sample['question'], sample.get('answer'))
 
         with time_phase(f'Full Evaluation ({eval_subset} qs)'):
-            eval_metrics = pipeline.evaluate(pure_text_data[:eval_subset], use_technique=True)
+            eval_metrics = pipeline.evaluate(train_data[:eval_subset], use_technique=True)
 
         # Merge new metrics without clobbering inner timing dict
         metrics.update({k: v for k, v in eval_metrics.items() if k != 'timing'})
@@ -171,12 +168,11 @@ def compare_techniques(techniques: list = None, eval_subset: int = 20):
             logger.info("Building Index (Shared)...")
             pipeline.build_index(force_rebuild=False)
             
-            logger.info("Initializing Generator (Shared)...")
-            pipeline.generator = BaselineGenerator(config.OLLAMA_BASE_URL, config.LLM_MODEL)
+            logger.info("Initializing Components (Shared)...")
+            pipeline.initialize_components()
             
             logger.info("Loading Test Data...")
             train_data = load_train_data(config.TRAIN_JSONL)
-            pure_text_data = [r for r in train_data if r.get("types") == ["Pure-text (Plain-text)"]]
 
         results = {}
         for technique in techniques:
@@ -184,11 +180,11 @@ def compare_techniques(techniques: list = None, eval_subset: int = 20):
             try:
                 tech_config = get_config(technique)
                 tech_config.EVAL_SUBSET_SIZE = eval_subset
-                
+
                 pipeline.config = tech_config
                 pipeline.initialize_components()
-                
-                tech_metrics = pipeline.evaluate(pure_text_data[:eval_subset], use_technique=True)
+
+                tech_metrics = pipeline.evaluate(train_data[:eval_subset], use_technique=True)
                 results[technique] = tech_metrics
                 
                 # Print quick snapshot
