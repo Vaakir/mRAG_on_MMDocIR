@@ -289,8 +289,8 @@ For EACH document, evaluate:
 3. Is the context type (table, text, image caption, etc.) appropriate?
 
 Then decide:
-- How many documents are RELEVANT? (contain answer content or key concepts)
-- How many are PARTIALLY relevant? (tangentially related)
+- Which document numbers are RELEVANT? (e.g., [1, 3, 5])
+- Which are PARTIALLY relevant? (e.g., [2, 4])
 - Overall decision: yes|no (is there enough relevant content overall?)
 - Confidence: 0.0-1.0 (how sure are you?)
 - Reasoning: specific details on what makes docs relevant/irrelevant
@@ -299,9 +299,10 @@ RESPOND WITH ONLY THIS JSON:
 {{
     "relevant": "yes",
     "confidence": 0.85,
-    "num_relevant": 3,
-    "num_partial": 1,
-    "reasoning": "Docs 1, 3, 5 directly contain answer content about [topic]. Docs 2, 4 are tangentially related. Strong confidence in relevance."
+    "relevant_docs": [1, 3, 5],
+    "partial_docs": [2],
+    "irrelevant_docs": [4],
+    "reasoning": "Docs 1, 3, 5 directly contain answer content about [topic]. Doc 2 is tangentially related. Doc 4 is irrelevant. Strong confidence in relevance."
 }}
 
 NO OTHER TEXT. ONLY JSON."""
@@ -313,15 +314,26 @@ NO OTHER TEXT. ONLY JSON."""
             # Parse JSON
             grade_dict = clean_and_extract_json(response_text)
             
+            # Calculate num_relevant from relevant_docs list (counts the documents the LLM marked as relevant)
+            relevant_docs_list = grade_dict.get('relevant_docs', [])
+            num_relevant = len(relevant_docs_list)
+            
             # Validate and create Pydantic model
-            # Note: DocumentGrade currently has num_relevant field, but we'll enhance the parsing to handle enhanced fields
-            grade = DocumentGrade(**{k: v for k, v in grade_dict.items() if k in {'relevant', 'confidence', 'reasoning', 'num_relevant'}})
+            grade = DocumentGrade(**{
+                'relevant': grade_dict.get('relevant', 'no'),
+                'confidence': grade_dict.get('confidence', 0.5),
+                'reasoning': grade_dict.get('reasoning', ''),
+                'num_relevant': num_relevant  # Derived from the relevant_docs list
+            })
+            
+            # Extract list of relevant document indices (1-based from LLM) for filtering
+            relevant_doc_indices = grade_dict.get('relevant_docs', [])
             
             # Log detailed grading information
             print(f"Grade: {grade.relevant} (confidence: {grade.confidence})")
-            print(f"Relevant docs: {grade.num_relevant}/{len(retrieved_docs)}")
-            if 'num_partial' in grade_dict:
-                print(f"Partially relevant docs: {grade_dict['num_partial']}")
+            print(f"Relevant docs: {len(relevant_doc_indices)}/{len(retrieved_docs)} (indices: {relevant_doc_indices})")
+            if 'partial_docs' in grade_dict:
+                print(f"Partially relevant docs: {grade_dict['partial_docs']}")
             print(f"Reasoning: {grade.reasoning}")
             
         except Exception as e:
@@ -332,6 +344,8 @@ NO OTHER TEXT. ONLY JSON."""
                 reasoning="Error in advanced grading; defaulting to relevant",
                 num_relevant=len(retrieved_docs)
             )
+            # If parsing fails, treat all docs as relevant
+            relevant_doc_indices = list(range(1, len(retrieved_docs) + 1))
         
         print(f"Grade: {grade.relevant} (confidence: {grade.confidence})")
         print(f"Reasoning: {grade.reasoning}")
@@ -344,11 +358,24 @@ NO OTHER TEXT. ONLY JSON."""
             existing_decisions = state.agent_decisions or {} # Existing decisions from previous nodes
             current_retry_count = state.retry_count          # Current retry count for this question
         
-        # Increment retry count if documents are not relevant (will retry)
-        new_retry_count = current_retry_count + 1 if grade.relevant == "no" else current_retry_count
+        # Increment retry count if documents are not relevant, or confidence is too low (will retry)
+        # This must match the retry conditions in route_after_grading()
+        confidence_threshold = 0.6  # Must match the threshold in route_after_grading()
+        confidence_too_low = grade.confidence < confidence_threshold
+        should_retry = grade.relevant == "no" or confidence_too_low
+        new_retry_count = current_retry_count + 1 if should_retry else current_retry_count
+        
+        # Only return documents that were marked as relevant by the grader
+        # relevant_doc_indices are 1-based from LLM response, convert to 0-based for list indexing
+        if relevant_doc_indices:
+            filtered_docs = [retrieved_docs[i-1] for i in relevant_doc_indices if i > 0 and i <= len(retrieved_docs)]
+            print(f"Filtered {len(retrieved_docs)} docs --> {len(filtered_docs)} relevant docs")
+        else:
+            # If parsing failed, keep all docs
+            filtered_docs = retrieved_docs
         
         return {
-            "retrieved_documents": retrieved_docs,  # PRESERVE: explicitly return retrieved documents to prevent them from being cleared
+            "retrieved_documents": filtered_docs,  # Return only those documents marked as relevant by the grader
             "grade_decision": grade.relevant, # Store the relevance decision for routing
             "grade_score": grade.relevant,    # Store the same relevance decision as a score for clarity
             "grade_confidence": grade.confidence, # Store the confidence in the grading decision
@@ -400,12 +427,14 @@ def make_generator_node(agent_llm, generator, config: Dict[str, Any]):
             question = state.get('original_question', '') # Original question (not rewritten, for generation)
             context = state.get('retrieved_text', '')     # Formatted retrieved text to use as context for generation
             grade_decision = state.get('grade_decision', '') # Grader's decision on the relevance (to inform strategy choice)
+            grade_confidence = state.get('grade_confidence', 0.0) # Grader's confidence in relevance (to inform caution level)
             retry_count = state.get('retry_count', 0)
             max_retries = state.get('max_retries', 2)
         else:
             question = state.original_question
             context = state.retrieved_text
             grade_decision = state.grade_decision
+            grade_confidence = state.grade_confidence
             retry_count = state.retry_count
             max_retries = state.max_retries
         
@@ -414,15 +443,17 @@ def make_generator_node(agent_llm, generator, config: Dict[str, Any]):
 Question: {question}
 Context available: {"yes" if context else "no"}
 Documents relevant: {grade_decision}
+Grader confidence: {grade_confidence:.2f} (scale 0.0-1.0)
 
 Strategies:
-1. standard - direct extraction
-2. cot - step-by-step reasoning
-3. few_shot - example-based
-4. role - expert perspective
-5. ensemble - combined approach
+1. standard - direct extraction (use when docs are highly relevant)
+2. cot - step-by-step reasoning (use for complex questions)
+3. few_shot - example-based (use when patterns are clear)
+4. role - expert perspective (use for domain-specific topics)
+5. ensemble - combined approach (use when uncertain)
 
-Select the best strategy based on question complexity and context quality.
+Select the best strategy based on question complexity, context quality, and grader confidence.
+If grader confidence < 0.6, consider using ensemble or cot for more reasoning.
 
 RESPOND WITH ONLY THIS JSON:
 {{"strategy": "standard", "reasoning": "straightforward factual question", "needs_more_context": false, "confidence": 0.9}}
@@ -473,12 +504,14 @@ NO OTHER TEXT. ONLY JSON."""
             "generated_answer": answer, # Store the generated answer in state
             "chosen_prompting_strategy": strategy_decision.strategy, # Store the chosen strategy for reporting
             "generation_confidence": strategy_decision.confidence, # Store the confidence in the generation quality
+            "grade_confidence": grade_confidence,  # PASS: Forward the grader's confidence 
             "agent_decisions": { # Store the decision details for analysis
                 **existing_decisions,
                 "generator": {
                     "strategy": strategy_decision.strategy,
                     "reasoning": strategy_decision.reasoning,
-                    "confidence": strategy_decision.confidence
+                    "confidence": strategy_decision.confidence,
+                    "grader_confidence": grade_confidence  # Include grader confidence in decisions log
                 }
             }
         }
@@ -493,7 +526,7 @@ NO OTHER TEXT. ONLY JSON."""
 
 def route_after_grading(state: AgenticRAGState) -> Literal["generator", "query_rewriter"]:
     """
-    Route after grading: if documents are not relevant and there are retries left, go back to rewriter.
+    Route after grading: if documents are not relevant OR confidence is low, and there are retries left, go back to rewriter.
     Otherwise, go to generator.
     
     The retry_count is incremented by the grader when it returns "no", so:
@@ -505,17 +538,26 @@ def route_after_grading(state: AgenticRAGState) -> Literal["generator", "query_r
     # Handle both AgenticRAGState and dict
     if isinstance(state, dict):
         grade_decision = state.get('grade_decision', '') # Grader's decision on the relevance
+        grade_confidence = state.get('grade_confidence', 0.0) # Grader's confidence in the decision
         retry_count = state.get('retry_count', 0)        # Current retry count for this question
         max_retries = state.get('max_retries', 2)        # Maximum retries allowed before forcing generation
     else:
         grade_decision = state.grade_decision
+        grade_confidence = state.grade_confidence
         retry_count = state.retry_count
         max_retries = state.max_retries
     
-    # If retry_count (1) <= max_retries (1), allow the retry to proceed
-    if (grade_decision == "no" and retry_count <= max_retries): # If documents are not relevant and we haven't exceeded max retries, go back to query rewriter
-        print(f"Routing to query_rewriter for retry (attempt {retry_count + 1})")
+    # Check both grade_decision and confidence threshold
+    # Retry if: (1) documents marked not relevant, or (2) confidence too low (< 0.6) AND there are retries remaining
+    confidence_threshold = 0.6  # Minimum acceptable confidence
+    confidence_too_low = grade_confidence < confidence_threshold
+    decision_negative = grade_decision == "no"
+    retries_remaining = retry_count <= max_retries
+    
+    if ((decision_negative or confidence_too_low) and retries_remaining):
+        reason = "grade=no" if decision_negative else f"confidence={grade_confidence:.2f} < {confidence_threshold}"
+        print(f"Routing to query_rewriter for retry (attempt {retry_count + 1}): {reason}")
         return "query_rewriter"
     
-    print("Routing to generator for answer generation (retries exhausted or docs relevant)")
+    print(f"Routing to generator for answer generation (retries exhausted or high confidence)")
     return "generator"
