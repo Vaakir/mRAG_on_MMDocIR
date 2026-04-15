@@ -133,12 +133,11 @@ def main(technique: str = 'standard', prompting_strategy: str = 'standard', eval
     # Load test data
     print(f"\nLoading test data...")
     train_data = load_train_data(config.TRAIN_JSONL)
-    pure_text_data = [r for r in train_data if r.get("types") == ["Pure-text (Plain-text)"]]
-    print(f"Filtered to {len(pure_text_data)} pure-text questions (out of {len(train_data)} total)")
+    print(f"Loaded {len(train_data)} questions (all types)")
     
     # Test single query
-    if pure_text_data:
-        sample = pure_text_data[0]
+    if train_data:
+        sample = train_data[0]
         run_single_query_test(
             pipeline, 
             sample['question'], 
@@ -147,9 +146,9 @@ def main(technique: str = 'standard', prompting_strategy: str = 'standard', eval
     
     # Run evaluation
     print(f"\n{'='*80}")
-    print(f"RUNNING EVALUATION (Pure-Text Questions)")
+    print(f"RUNNING EVALUATION (All Question Types)")
     print(f"{'='*80}")
-    metrics = pipeline.evaluate(pure_text_data[:eval_subset], use_technique=True)
+    metrics = pipeline.evaluate(train_data[:eval_subset], use_technique=True)
     
     print(f"\n{'='*80}")
     print("EVALUATION RESULTS")

@@ -37,16 +37,15 @@ def main():
     pipeline.initialize_components()
     timings['Component Initialization'] = time.time() - init_start
 
-    # Phase 3: Data Loading and Filtering
+    # Phase 3: Data Loading
     data_start = time.time()
     train_data = load_train_data(config.TRAIN_JSONL)
-    pure_text_data = [r for r in train_data if r.get("types") == ["Pure-text (Plain-text)"]]
-    timings['Data Loading/Filtering'] = time.time() - data_start
+    timings['Data Loading'] = time.time() - data_start
 
-    logger.info(f"Loaded {len(train_data)} total questions, filtered to {len(pure_text_data)} pure-text questions")
+    logger.info(f"Loaded {len(train_data)} total questions")
 
     # Phase 4: Single Query Test
-    sample_query = pure_text_data[0]
+    sample_query = train_data[0]
     query_start = time.time()
     result = pipeline.run_query(sample_query["question"])
     timings['Single Query Test'] = time.time() - query_start
@@ -55,7 +54,8 @@ def main():
 
     # Phase 5: Full Evaluation
     eval_start = time.time()
-    metrics = pipeline.evaluate(pure_text_data[:20])
+    metrics = pipeline.evaluate(train_data[:20])
+    # metrics = pipeline.evaluate(train_data)
     eval_time = time.time() - eval_start
     timings['Full Evaluation (20 qs)'] = eval_time
 
@@ -72,7 +72,7 @@ def main():
     print(f"Phase Breakdown:")
     print(f"  1. Index Build/Load:               {timings['Index Build/Load']:>10.2f}s")
     print(f"  2. Component Initialization:       {timings['Component Initialization']:>10.2f}s")
-    print(f"  3. Data Loading/Filtering:         {timings['Data Loading/Filtering']:>10.2f}s")
+    print(f"  3. Data Loading:                   {timings['Data Loading']:>10.2f}s")
     print(f"  4. Single Query Test:              {timings['Single Query Test']:>10.2f}s")
     print(f"  5. Full Evaluation (20 qs):        {timings['Full Evaluation (20 qs)']:>10.2f}s")
     print(f"  " + "-" * 50)
