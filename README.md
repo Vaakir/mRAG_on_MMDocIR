@@ -10,6 +10,7 @@
 conda create --name dat560project python=3.11
 conda activate dat560project
 python -m pip install -r requirements.txt
+pip install torch torchvision torchaudio #cant be added in the requirements.txt
 
 # Run all experiments
 python \src\preprocessing_pipeline.py
