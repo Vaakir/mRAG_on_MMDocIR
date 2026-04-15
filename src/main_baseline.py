@@ -18,7 +18,7 @@ from pipelines.baseline_pipeline import BaselineRAGPipeline
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-def main():
+def main(force_rebuild: bool = False):
     metrics = {'timing': {}}
 
     @contextmanager
@@ -29,11 +29,12 @@ def main():
 
     with time_phase('Total Pipeline Runtime'):
         logger.info("Starting BASELINE RAG SYSTEM")
+        
         config = BaselineConfig()
         pipeline = BaselineRAGPipeline(config)
         
         with time_phase('Index Build/Load'):
-            pipeline.build_index()
+            pipeline.build_index(force_rebuild=force_rebuild)
 
         with time_phase('Component Initialization'):
             pipeline.initialize_components()
@@ -70,4 +71,7 @@ def main():
     return metrics
 
 if __name__ == "__main__":
-    main()
+    # Only needed if the local_qdrant database does not exist (need only run once)
+    FORCE_REBUILD = False
+    
+    main(force_rebuild=FORCE_REBUILD)

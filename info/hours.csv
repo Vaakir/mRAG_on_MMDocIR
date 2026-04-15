@@ -12,6 +12,8 @@ Date,Name,Start,End,Tag,WorkingOn
 07.04.2026,vaakir,14:00,16:00,Planning,Mob programming/full code walkthrough + Refactor + Clarifying remaining tasks in group
 08.04.2026,vaakir,10:00,13:00,Fix,Debugging system 1 and 2 run issues
 08.04.2026,vaakir,13:00,17:00,Refactor,Config files merged inheritance added across many classes standardizing some code
+13.04.2026,vaakir,09:15,16:15,Refactor,Being able to run all experiements from one file + Refactor + Caching of API calls
+15.04.2026,vaakir,08:45,16:30,Refactor,Fixed Caching of API calls
 
 
 25.03.2026,BaalCat,12:15,14:00,Planning,Planning filestructure etc
