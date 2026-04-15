@@ -136,7 +136,7 @@ class AdvancedConfig(BaselineConfig):
     QUERY_TECHNIQUE_CONFIG: Dict[str, Any] = field(
         default_factory=lambda: {
             "num_variants": 3,
-            "max_page_images": 2,
+            "max_page_images": 1,
         }
     )
 

@@ -40,7 +40,7 @@ class HybridRetriever:
         self.embedder = embedder
         self.vector_db = vector_db
         self.top_k = top_k
-        self.allowed_types = allowed_types  # e.g. ["text"] — prevents page_images from consuming candidate slots
+        self.allowed_types = allowed_types or ["text"]  # e.g. ["text"] — prevents page_images from consuming candidate slots
 
         logger.info(f"Building BM25 index over {len(chunks)} chunks...")
         tokenized = [_tokenize(chunk["text"]) for chunk in chunks]
@@ -164,6 +164,6 @@ class HybridRetriever:
         k = top_k or self.top_k
         
         # Dense retrieval only (no BM25 for embedding-based search)
-        dense_results = self.vector_db.retrieve(embedding, top_k=k)
+        dense_results = self.vector_db.retrieve(embedding, top_k=k,  allowed_types=self.allowed_types)
         
         return dense_results

@@ -48,6 +48,8 @@ Instructions:
   - Identify all relevant items in the context.
   - Apply the required condition step by step.
   - Ensure the final count is correct.
+  - But also be conscious of not hallucinating items that are not in the context.
+  - For counting questions, output only the final number and don't over think it.
 - If the answer is partially available, explain what is missing.
 - If the answer cannot be found, say: "I cannot find the answer in the provided context."
 - Be concise but ensure accuracy."""
@@ -215,7 +217,7 @@ class BaselineGenerator:
         self,
         question: str,
         context: str,
-        system_prompt: str = SYSTEM_PROMPT
+        system_prompt: str = SYSTEM_PROMPT2
     ) -> str:
         """
         Generate an answer given a question and context.
@@ -350,7 +352,7 @@ class VisionGenerator(BaselineGenerator):
         if not think:
             messages = self._inject_no_think(messages)
 
-        options = {"temperature": 0.0, "top_p": 0.1, "num_predict": 4096}
+        options = {"temperature": 0.0, "top_p": 0.1}#, "num_predict": 7200}
         if not think:
             options["repeat_penalty"] = 1.1
         options.update(kwargs.pop("options", {}))
@@ -392,7 +394,7 @@ class VisionGenerator(BaselineGenerator):
             raise Exception("Empty response from Ollama chat API")
         return normalize_ws(content)
 
-    def generate(self, question, context, system_prompt=SYSTEM_PROMPT, think=True):
+    def generate(self, question, context, system_prompt=SYSTEM_PROMPT2, think=True):
         """Text-only generation — enable thinking for better accuracy."""
         user_message = f"Context:\n{context}\n\nQuestion: {question}"
         messages = [

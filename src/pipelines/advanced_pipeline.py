@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from config.config import AdvancedConfig
 from pipelines.base_pipeline import BaseRAGPipeline
-from preprocessing.image_processor import load_page_image_chunks, load_figure_chunks
+from preprocessing.image_processor import load_page_image_chunks, load_figure_chunks, load_evidence_chunks
 from generation.generator import VisionGenerator
 from query_techniques import get_query_technique
 from retrieval_techniques import MultimodalRetriever
@@ -105,6 +105,23 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
                 abs_paths = [str(self.config.DATA_DIR / c["image_path"]) for c in figure_chunks]
                 figure_embeddings = self.embedder.embed_images(abs_paths)
 
+                # Evidence crops
+        evidence_chunks = []
+        evidence_embeddings = None
+        if self.config.USE_MULTIMODAL and hasattr(self.config, "IMAGES_TRAIN_DIR"):
+            evidence_chunks = load_evidence_chunks(
+                self.config.IMAGES_TRAIN_DIR, self.config.DATA_DIR
+            )
+            if evidence_chunks:
+                abs_paths = []
+                for c in evidence_chunks:
+                    img_val = c.get("image_path") or c.get("image_paths")
+                    if isinstance(img_val, list):
+                        abs_paths.append(str(self.config.DATA_DIR / img_val[0]))
+                    else:
+                        abs_paths.append(str(self.config.DATA_DIR / img_val))
+                evidence_embeddings = self.embedder.embed_images(abs_paths)
+
         # Index into Qdrant
         self.vector_db.create_collection(force_recreate=True)
         qdrant_docs = []
@@ -150,9 +167,22 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
                     },
                 })
                 doc_id += 1
+        
+        if evidence_embeddings is not None:
+            for chunk, emb in zip(evidence_chunks, evidence_embeddings):
+                qdrant_docs.append({
+                    "id": doc_id, "embedding": emb, "text": chunk["text"],
+                    "metadata": {
+                        "type": chunk.get("type", "evidence"),
+                        "image_path": chunk.get("image_path") or chunk.get("image_paths"),
+                        "question_id": chunk.get("question_id"),
+                        "doc_name": chunk.get("doc_name")
+                    },
+                })
+                doc_id += 1
 
         self.vector_db.index_documents(qdrant_docs)
-        logger.info(f"Indexed {doc_id} docs ({len(self.chunks)} text, {len(page_chunks)} page images, {len(figure_chunks)} figures) in {time.time() - start_time:.2f}s")
+        logger.info(f"Indexed {doc_id} docs ({len(self.chunks)} text, {len(page_chunks)} page images, {len(figure_chunks)} figures, {len(evidence_chunks)} evidence) in {time.time() - start_time:.2f}s")
         self._initialize_retriever()
 
     def _load_chunks_for_bm25(self):
@@ -196,17 +226,20 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
     # Retrieval
     # ------------------------------------------------------------------
 
-    def retrieve_with_technique(self, question: str, top_k: Optional[int] = None) -> List[Dict[str, Any]]:
+    def retrieve_with_technique(self, question: str, top_k: Optional[int] = None, is_visual: Optional[bool] = None, doc_name: Optional[str] = None) -> List[Dict[str, Any]]:
         top_k = top_k or self.config.TOP_K
+        query = f"[Document: {doc_name}] {question}" if doc_name else question
         if self.multimodal_retriever:
-            return self.multimodal_retriever.retrieve(question, top_k)
+            return self.multimodal_retriever.retrieve(query, top_k, is_visual=is_visual)
         if self.query_technique:
-            return self.query_technique.retrieve(question, top_k)
+            return self.query_technique.retrieve(query, top_k)
         raise RuntimeError("Call initialize_components() first.")
 
     # ------------------------------------------------------------------
     # Generation routing
     # ------------------------------------------------------------------
+
+    MAX_VLM_IMAGES = 2  # cap images sent to VLM to avoid OOM
 
     def _generate(self, question: str, retrieved: List[Dict[str, Any]]) -> str:
         """Route to VLM if page images or figures were retrieved, otherwise text LLM."""
@@ -222,12 +255,25 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
                     ip = [ip]
                 for p in ip:
                     image_paths.append(str(self.config.DATA_DIR / p))
+                    if len(image_paths) >= self.MAX_VLM_IMAGES:
+                        break
+                if len(image_paths) >= self.MAX_VLM_IMAGES:
+                    break
 
             text_context = "\n\n".join(
                 f"[Document {i+1}]:\n{r['text']}" for i, r in enumerate(text_results)
             )
-            return self.vlm.generate_with_images(question, image_paths, text_context)
 
+            # Try VLM, fall back to text-only if it fails
+            try:
+                answer = self.vlm.generate_with_images(question, image_paths, text_context)
+                if not answer.startswith("Error generating response:"):
+                    return answer
+                logger.warning(f"VLM returned error, falling back to text-only generation")
+            except Exception as e:
+                logger.warning(f"VLM failed ({e}), falling back to text-only generation")
+
+        # Text-only fallback — use all retrieved chunks as text context
         context = "\n\n".join(
             f"[Document {i+1}]:\n{r['text']}" for i, r in enumerate(retrieved)
         )
@@ -237,11 +283,11 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
     # Single query
     # ------------------------------------------------------------------
 
-    def run_query(self, question: str, use_technique: bool = True, top_k: Optional[int] = None) -> Dict[str, Any]:
+    def run_query(self, question: str, use_technique: bool = True, top_k: Optional[int] = None, is_visual: Optional[bool] = None, doc_name: Optional[str] = None) -> Dict[str, Any]:
         top_k = top_k or self.config.TOP_K
 
         if use_technique:
-            retrieved = self.retrieve_with_technique(question, top_k)
+            retrieved = self.retrieve_with_technique(question, top_k, is_visual=is_visual, doc_name=doc_name)
         else:
             retrieved = self.retrieve(question, top_k)
 
@@ -266,8 +312,17 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
         with ThreadPoolExecutor(max_workers=self.config.RETRIEVAL_WORKERS) as executor:
             futures = {}
             for i, tq in enumerate(test_subset):
-                fn = self.retrieve_with_technique if use_technique else self.retrieve
-                futures[executor.submit(fn, tq["question"], self.config.TOP_K)] = i
+                types = tq.get("types") or []
+                is_visual = any(t in {"Figure", "Chart", "Table"} for t in types)
+                if not types:
+                    q = tq.get("question", "").lower()
+                    is_visual = any(k in q for k in ["logo", "color", "colour", "shown", "figure", "chart", "table"])
+                # Extract doc name from pdf_path if available (e.g. "pdf_train/DSA-278777.pdf" → "DSA-278777")
+                doc_name = Path(tq["pdf_path"]).stem if tq.get("pdf_path") else None
+                if use_technique:
+                    futures[executor.submit(self.retrieve_with_technique, tq["question"], self.config.TOP_K, is_visual=is_visual, doc_name=doc_name)] = i
+                else:
+                    futures[executor.submit(self.retrieve, tq["question"], self.config.TOP_K)] = i
 
             for future in as_completed(futures):
                 idx = futures[future]

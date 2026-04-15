@@ -128,67 +128,64 @@ def load_figure_chunks(figures_dir: Path, data_dir: Path) -> List[Dict[str, Any]
     return chunks
 
 
-def load_evidence_chunks(images_dir: Path, jsonl_path: Path, data_dir: Path) -> List[Dict[str, Any]]:
+def load_evidence_chunks(images_dir: Path, data_dir: Path) -> List[Dict[str, Any]]:
     """
-    Build a chunk list from labeled evidence crops in the JSONL.
-
-    Each evidence entry embeds the *question text* (so similar test queries
-    retrieve it) but stores the image path in metadata so the VLM receives
-    the image at generation time.
-
-    image_path is stored relative to data_dir for portability.
-
-    Returns a list of dicts:
-        type          : "evidence"
-        text          : question text  (what gets embedded)
-        image_path    : list of relative path strings
-        question_id   : int
-        doc_name      : str
+    Build a chunk list purely from the nested directory structure.
+    
+    Expected structure:
+    images_dir / {doc_name} / {question_id}_{question_text} / [images...]
     """
     images_dir = Path(images_dir)
-    jsonl_path = Path(jsonl_path)
     data_dir = Path(data_dir)
     chunks = []
-    missing = 0
 
-    with open(jsonl_path, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            entry = json.loads(line)
+    if not images_dir.exists():
+        logger.warning(f"Images directory not found: {images_dir}")
+        return chunks
 
-            question_id = entry.get("question_id")
-            question = entry.get("question", "").strip()
-            evidence_images = entry.get("evidence_images", [])
+    # Iterate through document directories (e.g., "0b85477387a9d0cc33fca0f4becaa0e5")
+    for doc_dir in images_dir.iterdir():
+        if not doc_dir.is_dir():
+            continue
 
-            if not question or not evidence_images:
-                continue
+        doc_name = doc_dir.name
 
-            image_paths = []
-            for rel_path in evidence_images:
-                resolved = _resolve_evidence_path(images_dir, rel_path)
-                if resolved.exists():
-                    image_paths.append(str(resolved.relative_to(data_dir)))  # relative
-                else:
-                    logger.debug(f"Evidence image not found: {resolved}")
-                    missing += 1
-
-            if not image_paths:
+        # Iterate through question directories (e.g., "0169_Who_is_the_commanding...")
+        for q_dir in doc_dir.iterdir():
+            if not q_dir.is_dir():
                 continue
 
-            pdf_path = entry.get("pdf_path", "")
-            doc_name = Path(pdf_path).stem if pdf_path else ""
+            folder_name = q_dir.name
+            
+            # Split folder name into question_id and the question text
+            # E.g., "0169_Who_is_the..." -> ID: 169, Text: "Who_is_the..."
+            parts = folder_name.split("_", 1)
+            if len(parts) != 2:
+                logger.debug(f"Skipping incorrectly formatted folder: {folder_name}")
+                continue
+            
+            try:
+                question_id = int(parts[0])
+            except ValueError:
+                logger.debug(f"Could not parse question ID from folder: {folder_name}")
+                continue
+            
+            # Reconstruct question text (replace underscores with spaces)
+            question = parts[1].replace("_", " ")
 
-            chunks.append({
-                "type": "evidence",
-                "text": question,
-                "image_path": image_paths,  # relative paths — portable
-                "question_id": question_id,
-                "doc_name": doc_name,
-            })
+            # Grab all image files inside this specific subfolder and create one chunk per image
+            for img_file in q_dir.iterdir():
+                if img_file.is_file() and img_file.suffix.lower() in [".png", ".jpg", ".jpeg"]:
+                    # Keep it relative to data_dir for Qdrant portability
+                    rel_path = str(img_file.relative_to(data_dir))
+                    
+                    chunks.append({
+                        "type": "evidence",
+                        "text": question,
+                        "image_path": rel_path,
+                        "question_id": question_id,
+                        "doc_name": doc_name,
+                    })
 
-    if missing:
-        logger.warning(f"{missing} evidence image paths could not be resolved")
-    logger.info(f"Built {len(chunks)} evidence chunks from {jsonl_path.name}")
+    logger.info(f"Built {len(chunks)} evidence chunks directly from {images_dir.name}")
     return chunks

@@ -4,9 +4,9 @@
 
 import json
 import re
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
-from qdrant_client.http.models import Filter, FieldCondition, MatchValue
+from qdrant_client.http.models import Filter, FieldCondition, MatchValue, MatchAny
 
 
 # ----- Prompts for visual classification -----
@@ -51,42 +51,62 @@ class MultimodalRetriever:
            - TEXT   → look up page images from text results metadata (Strategy 2)
     """
 
-    def __init__(self, query_technique, embedder, vector_db, generator, max_page_images: int = 2):
+    def __init__(self, query_technique, embedder, vector_db, generator, max_page_images: int = 1):
         self.query_technique = query_technique
         self.embedder = embedder
         self.vector_db = vector_db
         self.generator = generator
         self.max_page_images = max_page_images
 
+        self.text_ratio_non_visual = 1.0
+        self.text_ratio_visual = 0.8
+
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
-    def retrieve(self, question: str, top_k: int = 5) -> List[Dict[str, Any]]:
+    def retrieve(self, question: str, top_k: int = 5, is_visual: Optional[bool] = None) -> List[Dict[str, Any]]:
         _trace(f"Question: {question[:120]}")
 
-        # Step 1: Classify
-        is_visual = self._classify_visual(question)
+        # Step 1: Classify (or use forced routing from evaluation)
+        is_visual = self._classify_visual(question) if is_visual is None else is_visual
 
-        # Step 2: Text retrieval via query technique
-        _trace(f"Text retrieval (top_k={top_k})...")
-        text_results = self.query_technique.retrieve(question, top_k)
+        # Decide split per policy
+        if is_visual:
+            text_k, image_k = self._split_text_image_k(top_k, self.text_ratio_visual)
+        else:
+            text_k, image_k = self._split_text_image_k(top_k, self.text_ratio_non_visual)
+
+        # Step 2: Text retrieval
+        _trace(f"Text retrieval (text_k={text_k})...")
+        text_results = self.query_technique.retrieve(question, text_k)
         _trace(f"Got {len(text_results)} text results")
 
-        # Step 3: Add images
+        # Step 3: Image retrieval if we have budget
+        if image_k <= 0:
+            _trace(f"Returning {len(text_results)} text + 0 images")
+            return text_results
+        doc_names = self._extract_doc_names(text_results)
+
+        # Strategy 4 first: doc-filtered CLIP search (finds visually relevant images)
         if is_visual:
-            _trace(f"VISUAL → image search with original query")
-            image_results = self._image_search(question)
-            if not image_results:
-                _trace(f"No image results → falling back to metadata lookup")
-                image_results = self._page_image_lookup(text_results)
+            _trace(f"Strategy 4 → doc-filtered image search (image_k={image_k}, docs={doc_names[:3]})")
+            image_results = self._image_search(question, top_k=image_k, doc_names=doc_names)
         else:
-            _trace(f"TEXT → page image lookup from metadata")
-            image_results = self._page_image_lookup(text_results)
+            image_results = []
+
+        # Fallback to Strategy 2: page lookup from text chunk metadata
+        if len(image_results) < image_k:
+            remaining = image_k - len(image_results)
+            _trace(f"Strategy 2 fallback → page image lookup (remaining={remaining})")
+            seen_ids = {r["id"] for r in image_results}
+            for r in self._page_image_lookup(text_results, limit=remaining):
+                if r["id"] not in seen_ids:
+                    image_results.append(r)
+                    seen_ids.add(r["id"])
 
         _trace(f"Returning {len(text_results)} text + {len(image_results)} images")
         return text_results + image_results
-
     # ------------------------------------------------------------------
     # Visual classification
     # ------------------------------------------------------------------
@@ -113,25 +133,79 @@ class MultimodalRetriever:
         return False
 
     # ------------------------------------------------------------------
-    # Strategy 4 — image search with original query
+    # Helpers
     # ------------------------------------------------------------------
 
-    def _image_search(self, question: str) -> List[Dict[str, Any]]:
-        query_emb = self.embedder.embed_query(question)
-        results = self.vector_db.retrieve(
-            query_emb, top_k=self.max_page_images, allowed_types=["page_image", "figure"]
-        )
-        for r in results:
+    @staticmethod
+    def _extract_doc_names(text_results: List[Dict]) -> List[str]:
+        """Extract unique document names from text retrieval results."""
+        seen = set()
+        names = []
+        for r in text_results:
             p = r.get("payload", {})
-            _trace(f"  image: doc={p.get('doc_name')}  page={p.get('page_num')}  score={r.get('score',0):.3f}")
+            # text chunks store pdf_name; image chunks store doc_name
+            name = p.get("pdf_name", p.get("doc_name", ""))
+            name = name.replace(".pdf", "")
+            if name and name not in seen:
+                seen.add(name)
+                names.append(name)
+        return names
+
+    # ------------------------------------------------------------------
+    # Strategy 4 — image search with original query (doc-filtered)
+    # ------------------------------------------------------------------
+
+    def _image_search(self, question: str, top_k: Optional[int] = None,
+                      doc_names: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+        query_emb = self.embedder.embed_query(question)
+        k = int(top_k) if top_k is not None else int(self.max_page_images)
+        k = max(1, min(k, int(self.max_page_images)))
+
+        # Build filter: image types AND (optionally) constrain to specific documents
+        image_types = ["page_image", "figure", "evidence"]
+        must_conditions = [
+            FieldCondition(key="type", match=MatchAny(any=image_types))
+        ]
+        if doc_names:
+            must_conditions.append(
+                FieldCondition(key="doc_name", match=MatchAny(any=doc_names))
+            )
+
+        from qdrant_client.http.models import Filter as QFilter
+        query_filter = QFilter(must=must_conditions)
+
+        collection = self.vector_db.config.VECTOR_DB_COLLECTION
+        try:
+            import numpy as np
+            qe = query_emb.tolist() if isinstance(query_emb, np.ndarray) else query_emb
+            search_results = self.vector_db.client.query_points(
+                collection_name=collection,
+                query=qe,
+                limit=k,
+                query_filter=query_filter,
+            ).points
+        except Exception as e:
+            _trace(f"  image search error: {e}")
+            return []
+
+        results = []
+        for pt in search_results:
+            results.append({
+                "id": pt.id,
+                "score": pt.score,
+                "payload": pt.payload,
+                "text": pt.payload.get("text", ""),
+            })
+            p = pt.payload
+            _trace(f"  image: doc={p.get('doc_name')}  page={p.get('page_num')}  score={pt.score:.3f}")
         return results
 
     # ------------------------------------------------------------------
     # Strategy 2 — page image lookup from text results metadata
     # ------------------------------------------------------------------
 
-    def _page_image_lookup(self, text_results: List[Dict]) -> List[Dict[str, Any]]:
-        lookups = self._collect_page_lookups(text_results)
+    def _page_image_lookup(self, text_results: List[Dict], limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        lookups = self._collect_page_lookups(text_results, limit=limit)
         if not lookups:
             return []
 
@@ -167,18 +241,32 @@ class MultimodalRetriever:
 
         return results
 
-    def _collect_page_lookups(self, text_results: List[Dict]) -> List[tuple]:
+    def _collect_page_lookups(self, text_results: List[Dict], limit: Optional[int] = None) -> List[tuple]:
         """Extract unique (doc_name, page_num) pairs from text results."""
         seen = set()
         lookups = []
         for r in text_results:
             payload = r.get("payload", {})
             doc_stem = payload.get("pdf_name", "").replace(".pdf", "")
+            cap = int(limit) if limit is not None else int(self.max_page_images)
             for pn in (payload.get("page_numbers") or []):
                 key = (doc_stem, pn)
                 if key not in seen:
                     seen.add(key)
                     lookups.append(key)
-                    if len(lookups) >= self.max_page_images:
+                    if len(lookups) >= cap:
                         return lookups
         return lookups
+    
+    def _split_text_image_k(self, total_k: int, text_ratio: float) -> tuple[int, int]:
+        """Compute (text_k, image_k) from a total budget.
+
+        - Guarantees at least 1 text.
+        - image_k is capped by self.max_page_images.
+        """
+        total_k = max(1, int(total_k))
+        text_k = int(round(total_k * float(text_ratio)))
+        text_k = max(1, min(text_k, total_k))
+        image_k = total_k - text_k
+        image_k = max(0, min(image_k, int(self.max_page_images)))
+        return text_k, image_k
