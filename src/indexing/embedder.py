@@ -1,5 +1,6 @@
 # src/indexing/embedder.py
 import torch
+import threading
 from typing import List, Dict, Any
 import numpy as np
 import logging
@@ -17,6 +18,7 @@ class TextEmbedder:
 
         self.model = SentenceTransformer(model_name, trust_remote_code=True, device="cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
         self.dimension = 1024  # Jina CLIP v2 outputs 1024 dimensions
+        self.encode_lock = threading.Lock()  # Thread safety for concurrent encoding
 
         # logger.info(f"Embedding model loaded. Dimension: {self.dimension}")
         print(f"\n[OK] Embedding model loaded. Dimension: {self.dimension}")
@@ -35,12 +37,17 @@ class TextEmbedder:
 
         # Process texts in batches to avoid memory issues
         for i in tqdm(range(0, len(texts), batch_size), desc="Encoding texts"):
-            batch_texts = texts[i:i + batch_size]
-            embeddings = self.model.encode(
-                batch_texts,
-                prompt_name="document",
-                batch_size=8,
-            )
+            # Normalize text to lowercase for consistent tokenization
+            batch_texts = [text.lower() for text in texts[i:i + batch_size]]
+            
+            # Thread-safe encoding
+            with self.encode_lock:
+                embeddings = self.model.encode(
+                    batch_texts,
+                    prompt_name="document",
+                    batch_size=8,
+                    normalize_embeddings=True
+                )
             all_embeddings.append(embeddings)
 
     #-------------------
@@ -51,7 +58,11 @@ class TextEmbedder:
 
     def embed_query(self, query: str) -> np.ndarray:
         """Embed a single query text."""
-        return self.model.encode([query], normalize_embeddings=True)[0]
+        # Normalize text to lowercase for consistent tokenization
+        normalized_query = query.lower()
+        # Thread-safe encoding
+        with self.encode_lock:
+            return self.model.encode([normalized_query], prompt_name="retrieval.query", normalize_embeddings=True)[0]
 
 # -------------------------------------------------------------------
 def create_chunk_embeddings(
