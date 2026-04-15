@@ -53,6 +53,12 @@ class GeneratorDecision(BaseModel):
         description="Prompting strategy to use"
     )
     
+    # Expert role type (only used if strategy="role")
+    role_type: str = Field(
+        default="financial_analyst",
+        description="Expert role for role-based prompting: financial_analyst, researcher, data_analyst, domain_expert, or technical_writer"
+    )
+    
     # Reasoning for the choice of prompting strategy
     reasoning: str = Field(description="Why this strategy?")
     

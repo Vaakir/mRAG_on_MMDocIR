@@ -452,11 +452,18 @@ Strategies:
 4. role - expert perspective (use for domain-specific topics)
 5. ensemble - combined approach (use when uncertain)
 
+If you choose 'role' strategy, also specify a role_type (pick the MOST appropriate):
+- financial_analyst: for financial/numerical questions
+- researcher: for evidence-based questions requiring citations
+- data_analyst: for data extraction and pattern questions
+- domain_expert: for field-specific interpretation
+- technical_writer: for technical/structured communication
+
 Select the best strategy based on question complexity, context quality, and grader confidence.
 If grader confidence < 0.6, consider using ensemble or cot for more reasoning.
 
 RESPOND WITH ONLY THIS JSON:
-{{"strategy": "standard", "reasoning": "straightforward factual question", "needs_more_context": false, "confidence": 0.9}}
+{{"strategy": "standard", "role_type": "financial_analyst", "reasoning": "straightforward factual question", "needs_more_context": false, "confidence": 0.9}}
 
 NO OTHER TEXT. ONLY JSON."""
         
@@ -478,13 +485,20 @@ NO OTHER TEXT. ONLY JSON."""
             )
         
         print(f"Chose strategy: {strategy_decision.strategy}")
+        if strategy_decision.strategy == "role": 
+            print(f"Role type: {strategy_decision.role_type}")
         print(f"Confidence: {strategy_decision.confidence}")
+        
+        # Build config for the strategy (include role_type if using role prompt strategy)
+        strategy_config = {}
+        if strategy_decision.strategy == "role":
+            strategy_config['role_type'] = strategy_decision.role_type
         
         # Generate answer using the chosen strategy        
         strategy = get_prompt_strategy( # Get the actual prompting strategy function based on the decision
             strategy_decision.strategy,
             generator,
-            {}
+            strategy_config
         )
         
         answer = strategy.generate(question, context) # Generate the answer using the selected strategy
