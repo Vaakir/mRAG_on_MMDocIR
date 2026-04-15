@@ -35,63 +35,8 @@ class BaseRAGPipeline:
         self.hybrid_retriever: Optional[HybridRetriever] = None
         self.generator: Optional[BaselineGenerator] = None
         self.chunks: Optional[List[Dict]] = None
-        
-        # Initialize Cache Database
-        self._init_cache_db()
 
-    def _init_cache_db(self):
-        """Initialize SQLite database for caching query responses."""
-        db_path = getattr(self.config, 'CACHE_DB_PATH', Path('query_cache.db'))
-        
-        # Ensure parent directory exists
-        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-        
-        self.cache_conn = sqlite3.connect(str(db_path), check_same_thread=False)
-        self.cache_conn.execute('''
-            CREATE TABLE IF NOT EXISTS query_cache (
-                query TEXT PRIMARY KEY,
-                response_json TEXT
-            )
-        ''')
-        self.cache_conn.commit()
-
-    def _get_cached_response(self, query: str) -> Optional[Dict[str, Any]]:
-        """Retrieve a cached response for an exact query match."""
-        cursor = self.cache_conn.cursor()
-        cursor.execute("SELECT response_json FROM query_cache WHERE query = ?", (query,))
-        row = cursor.fetchone()
-        if row:
-            try:
-                return json.loads(row[0])
-            except Exception as e:
-                logger.warning(f"Failed to load cached response for query '{query}': {e}")
-        return None
-
-    def _cache_response(self, query: str, response: Dict[str, Any]):
-        """Save a response to the cache database."""
-        try:
-            response_json = json.dumps(response)
-            with self.cache_conn:
-                self.cache_conn.execute(
-                    "INSERT OR REPLACE INTO query_cache (query, response_json) VALUES (?, ?)",
-                    (query, response_json)
-                )
-        except Exception as e:
-            logger.warning(f"Failed to cache response for query '{query}': {e}")
-
-    def run_query_cached(self, question: str, **kwargs) -> Dict[str, Any]:
-        """Wrap the run_query method to check the cache first."""
-        cached_result = self._get_cached_response(question)
-        if cached_result:
-            logger.info(f"Cache hit for query: {question[:50]}...")
-            return cached_result
-            
-        logger.info(f"Cache miss for query. Running pipeline: {question[:50]}...")
-        result = self.run_query(question, **kwargs)
-        self._cache_response(question, result)
-        return result
-
-    def build_index(self, force_rebuild: bool = True):
+    def build_index(self, force_rebuild: bool = False):
         """
         Build or load the document index using Qdrant.
         
@@ -262,9 +207,9 @@ class BaseRAGPipeline:
         phase1_start = time.time()
         
         with ThreadPoolExecutor(max_workers=workers) as executor:
-            # Submit all questions to the executor using run_query_cached
+            # Submit all questions to the executor using run_query
             futures = {
-                executor.submit(self.run_query_cached, record["question"], **kwargs): (i, record)
+                executor.submit(self.run_query, record["question"], **kwargs): (i, record)
                 for i, record in enumerate(test_subset)
             }
             

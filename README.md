@@ -4,6 +4,11 @@
 
 ---
 
+## How to run
+- Run all DAT560project/src> `python run_experiments.py`
+- Run individial DAT560project/src> `python main_baseline.py`
+
+
 ## Project Structure
 
 ```text

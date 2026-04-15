@@ -7,9 +7,14 @@ with the Ollama server, following the pattern from the generative AI course.
 
 import os
 import logging
+import sqlite3
+import json
+import hashlib
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 from dotenv import load_dotenv
+
+from config.config import CACHE_DB_PATH
 
 try:
     from ollama import Client, ResponseError
@@ -86,6 +91,51 @@ class BaselineGenerator:
             headers=headers if self.api_key else None  # Include headers only if API key is provided
         )
         logger.info(f"Initialized Ollama client for model: {self.model}")
+        
+        # Initialize Cache Database
+        self._init_cache_db()
+
+    def _init_cache_db(self):
+        """Initialize SQLite database for caching generated answers."""
+        db_path = Path(CACHE_DB_PATH)
+        
+        # Ensure parent directory exists
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        self.cache_conn = sqlite3.connect(str(db_path), check_same_thread=False)
+        self.cache_conn.execute('''
+            CREATE TABLE IF NOT EXISTS generator_cache (
+                cache_key TEXT PRIMARY KEY,
+                model TEXT,
+                messages_json TEXT,
+                answer TEXT
+            )
+        ''')
+        self.cache_conn.commit()
+
+    def _get_cache_key(self, messages_json: str) -> str:
+        """Generate a unique cache key based on the model and the exact messages."""
+        combined = f"{self.model}|{messages_json}"
+        return hashlib.sha256(combined.encode('utf-8')).hexdigest()
+
+    def _get_cached_answer(self, cache_key: str) -> Optional[str]:
+        """Retrieve a cached answer for an exact key match."""
+        cursor = self.cache_conn.cursor()
+        cursor.execute("SELECT answer FROM generator_cache WHERE cache_key = ?", (cache_key,))
+        row = cursor.fetchone()
+        return row[0] if row else None
+
+    def _cache_answer(self, cache_key: str, messages_json: str, answer: str):
+        """Save the exact request messages and the generated answer to the database."""
+        try:
+            with self.cache_conn:
+                self.cache_conn.execute(
+                    "INSERT OR REPLACE INTO generator_cache (cache_key, model, messages_json, answer) VALUES (?, ?, ?, ?)",
+                    (cache_key, self.model, messages_json, answer)
+                )
+        except Exception as e:
+            logger.warning(f"Failed to cache generated answer: {e}")
+            
     #-------------------
     def _pull_model(self, model_name: str) -> None:
         """
@@ -207,10 +257,22 @@ Question: {question}"""
             {"role": "user", "content": user_message}
         ]
         
+        # Check Cache
+        messages_json = json.dumps(messages, ensure_ascii=False)
+        cache_key = self._get_cache_key(messages_json)
+        cached_answer = self._get_cached_answer(cache_key)
+        if cached_answer:
+            logger.debug(f"Cache hit for generation with question: {question[:50]}...")
+            return cached_answer
+        
         try:
             logger.debug(f"Generating answer for question: {question[:100]}...")
             answer = self.chat(messages) # Call the chat method to get the answer
             logger.debug(f"Generated answer: {answer[:100]}...")
+            
+            # Save into cache
+            self._cache_answer(cache_key, messages_json, answer)
+            
             return answer
         except ResponseError as e:
             logger.error(f"Error generating response: {e}")
