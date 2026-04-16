@@ -16,7 +16,7 @@ from typing import Dict, Any, Optional, List
 from pathlib import Path
 from dotenv import load_dotenv
 
-from config.config import CACHE_DB_PATH
+from config.config import CACHE_DB_PATH, PROJECT_ROOT
 
 try:
     from ollama import Client, ResponseError
@@ -225,7 +225,7 @@ class BaselineGenerator:
                 messages=messages,
                 options=options,
                 stream=False,
-                think=True,  # Enable reasoning/thinking for better accuracy
+                think=False,  # Disabled: thinking mode was temporary workaround during development. System now uses proper query techniques and strategies.
                 **kwargs,
             )
         #-------------------
@@ -255,7 +255,6 @@ class BaselineGenerator:
             raise last_exc
         
         # Extract content from response
-        # The response object has a 'message' attribute with content
         content = getattr(getattr(resp, "message", None), "content", "")
         
         if not content:
@@ -363,11 +362,23 @@ def _encode_image(image_path: str, max_side: int = 1120) -> str:
 
     1120 px is the native tile size qwen3-vl uses internally; sending larger
     images just bloats the payload without helping quality.
+    
+    Args:
+        image_path: Can be a relative path (resolved from PROJECT_ROOT) or absolute path
+        max_side: Maximum pixel dimension for the longer side
+        
+    Returns:
+        Base64-encoded JPEG bytes as string
     """
     from PIL import Image as _Image
     import io as _io
 
-    img = _Image.open(image_path).convert("RGB")
+    # Resolve relative paths to absolute paths using PROJECT_ROOT
+    resolved_path = Path(image_path)
+    if not resolved_path.is_absolute():
+        resolved_path = PROJECT_ROOT / image_path
+    
+    img = _Image.open(str(resolved_path)).convert("RGB")
     w, h = img.size
     if max(w, h) > max_side:
         scale = max_side / max(w, h)
@@ -452,12 +463,13 @@ class VisionGenerator(BaselineGenerator):
             raise last_exc
         logger.info(f"resp: {resp}")
         content = getattr(getattr(resp, "message", None), "content", "")
+        
         if not content:
             raise Exception("Empty response from Ollama chat API")
         return normalize_ws(content)
 
-    def generate(self, question, context, system_prompt=SYSTEM_PROMPT2, think=True):
-        """Text-only generation — enable thinking for better accuracy."""
+    def generate(self, question, context, system_prompt=SYSTEM_PROMPT2, think=False):
+        """Text-only generation. Thinking mode disabled (uses query techniques instead)."""
         user_message = f"Context:\n{context}\n\nQuestion: {question}"
         messages = [
             {"role": "system", "content": system_prompt},
