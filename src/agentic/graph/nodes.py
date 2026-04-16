@@ -2,9 +2,8 @@
 
 import logging
 import json
-from typing import Literal, Dict, Any, List
+from typing import Literal, Dict, Any
 
-from langchain_core.messages import HumanMessage, AIMessage
 from .state import AgenticRAGState
 from ..tools.output_parser import (
     QueryRewriterDecision,
@@ -77,7 +76,7 @@ def clean_and_extract_json(response_text: str) -> dict:
 # Decides which QueryTechnique to use based on the question
 # ============================================================================
 
-def make_query_rewriter_node(agent_llm, query_techniques_dict, config: Dict[str, Any]):
+def make_query_rewriter_node(agent_llm, retriever, query_techniques_dict, config: Dict[str, Any]):
     """
     Factory function to create the query rewriter node.
     
@@ -85,7 +84,9 @@ def make_query_rewriter_node(agent_llm, query_techniques_dict, config: Dict[str,
     to use, based on the user's question.
     
     Args:
-        agent_llm: Lightweight LLM instance for decision-making (qwen3-vl:8b)
+        agent_llm: Lightweight LLM instance for decision-making (qwen3:8b)
+        retriever: Retriever instance (HybridRetriever, MultimodalRetriever, or basic Retriever)
+                   If None, falls back to using query techniques directly
         query_techniques_dict: Dict mapping technique names to QueryTechnique instances
         config: Configuration dict
         
@@ -126,8 +127,6 @@ def make_query_rewriter_node(agent_llm, query_techniques_dict, config: Dict[str,
             print(f"Last technique (to avoid on retry): {last_technique}")
         
         # Build prompt for LLM to decide which technique to use
-        available_techniques = list(query_techniques_dict.keys())
-        
         prompt = f"""Choose ONE query technique for this question:
 Question: {question}
 
@@ -144,19 +143,22 @@ Techniques:
 Last technique: {last_technique if last_technique else "none"}
 Attempt: {retry_count + 1}
 
-RESPOND WITH ONLY THIS JSON:
-{{"technique": "<one of above>", "reasoning": "<short explanation>"}}
+CRITICAL: Your response MUST be ONLY a valid JSON object. Do NOT include:
+- Any text before the JSON
+- Any text after the JSON
+- Code block markers (```, ```json)
+- Explanations outside JSON
 
-NO OTHER TEXT. ONLY JSON."""
+Output the raw JSON only, like: {{"technique":"standard","reasoning":"brief explanation"}}"""
         
         # Call agent LLM to get decision on which technique to use
         try:
             response = agent_llm.invoke(prompt)
-            response_text = response.content if hasattr(response, 'content') else str(response) # Handle different response types
+            response_text = response.content if hasattr(response, 'content') else str(response)
             
             # Try to parse as JSON
-            decision_dict = clean_and_extract_json(response_text) # This will raise an error if parsing fails, which we catch below
-            decision = QueryRewriterDecision(**decision_dict) # Validate and create Pydantic model (also checks if technique is valid)
+            decision_dict = clean_and_extract_json(response_text)
+            decision = QueryRewriterDecision(**decision_dict)
             
         except Exception as e:
             print(f"Failed to parse LLM decision: {e}, falling back to 'standard'")
@@ -169,14 +171,51 @@ NO OTHER TEXT. ONLY JSON."""
         print(f"Chose technique: {decision.technique}")
         print(f"Reasoning: {decision.reasoning}")
         
-        # Apply the chosen query technique
-        technique = query_techniques_dict.get(decision.technique)
-        if not technique: # This should not happen due to Pydantic validation, but we check just in case
-            print(f"Technique {decision.technique} not found, using 'standard'")
-            technique = query_techniques_dict['standard']
+        # Retrieve documents using either MultimodalRetriever or selected technique
+        top_k = config.get('TOP_K', 5)
         
-        # Retrieve documents using the technique
-        retrieved_docs = technique.retrieve(question, top_k=config.get('TOP_K', 5))
+        # If we have a MultimodalRetriever, use it directly (it handles technique selection internally)
+        # Otherwise, use the selected technique
+        from retrieval_techniques import MultimodalRetriever
+        if isinstance(retriever, MultimodalRetriever):
+            print("Using MultimodalRetriever for image-aware retrieval...")
+            retrieved_docs = retriever.retrieve(question, top_k=top_k)
+        else:
+            # Use the selected query technique
+            technique = query_techniques_dict.get(decision.technique)
+            if not technique:
+                print(f"Technique {decision.technique} not found, using 'standard'")
+                technique = query_techniques_dict['standard']
+            
+            print(f"Retrieving with {decision.technique} technique...")
+            retrieved_docs = technique.retrieve(question, top_k=top_k)
+        
+        # Detect image types in retrieved documents
+        image_types = {"page_image", "figure", "evidence"}
+        detected_image_types = []
+        image_paths = []
+        for doc in retrieved_docs:
+            doc_type = doc.get("payload", {}).get("type")
+            if doc_type in image_types:
+                if doc_type not in detected_image_types:
+                    detected_image_types.append(doc_type)
+                # Collect image paths for potential image generation
+                img_path = doc.get("payload", {}).get("image_path")
+                if img_path:
+                    # Resolve image path: Qdrant stores paths relative to DATA_DIR
+                    # Prepend DATA_DIR to make absolute path for image encoding
+                    from config.config import DATA_DIR
+                    from pathlib import Path
+                    
+                    img_path_obj = Path(img_path)
+                    if not img_path_obj.is_absolute():
+                        # Relative path from DATA_DIR, resolve it
+                        resolved_path = DATA_DIR / img_path
+                    else:
+                        # Already absolute
+                        resolved_path = img_path_obj
+                    
+                    image_paths.append(str(resolved_path))
         
         # Format the retrieved text
         retrieved_text = "\n\n".join([
@@ -184,26 +223,31 @@ NO OTHER TEXT. ONLY JSON."""
             for i, doc in enumerate(retrieved_docs)
         ])
         
-        print(f"Retrieved {len(retrieved_docs)} documents")
+        print(f"Retrieved {len(retrieved_docs)} documents ({len(detected_image_types)} image types)")
         
-        # Get existing agent_decisions safely (handle both dict and AgenticRAGState)
+        # Get existing agent_decisions safely
         if isinstance(state, dict):
             existing_decisions = state.get('agent_decisions') or {}
         else:
             existing_decisions = state.agent_decisions or {}
         
-        # Update state
+        # Update state with retrieved documents and image information
         return {
-            "rewritten_queries": [question],  # Store the final queries used
+            "rewritten_queries": [question],
             "retrieved_documents": retrieved_docs,
             "retrieved_text": retrieved_text,
-            "last_technique_used": decision.technique, # Store last technique for retry logic
-            "agent_decisions": { # Store the decision details for analysis
+            "detected_image_types": detected_image_types,  # Track image types for generator routing
+            "has_images": len(detected_image_types) > 0,    # Flag for image-aware generation
+            "image_paths": image_paths,                     # Store image paths for generation
+            "last_technique_used": decision.technique,
+            "agent_decisions": {
                 **existing_decisions,
                 "query_rewriter": {
                     "technique": decision.technique,
                     "reasoning": decision.reasoning,
-                    "rewritten_queries": [question]
+                    "rewritten_queries": [question],
+                    "has_images": len(detected_image_types) > 0,
+                    "num_images": len(image_paths)
                 }
             }
         }
@@ -295,17 +339,15 @@ Then decide:
 - Confidence: 0.0-1.0 (how sure are you?)
 - Reasoning: specific details on what makes docs relevant/irrelevant
 
-RESPOND WITH ONLY THIS JSON:
-{{
-    "relevant": "yes",
-    "confidence": 0.85,
-    "relevant_docs": [1, 3, 5],
-    "partial_docs": [2],
-    "irrelevant_docs": [4],
-    "reasoning": "Docs 1, 3, 5 directly contain answer content about [topic]. Doc 2 is tangentially related. Doc 4 is irrelevant. Strong confidence in relevance."
-}}
+CRITICAL: Your response MUST be ONLY a valid JSON object. Do NOT include:
+- Any text before the JSON
+- Any text after the JSON
+- Code block markers (```, ```json)
+- Explanations or reasoning outside JSON
+- Any markdown formatting
 
-NO OTHER TEXT. ONLY JSON."""
+Output ONLY the raw JSON starting with {{ and ending with }}, like this:
+{{"relevant":"yes","confidence":0.85,"relevant_docs":[1,3,5],"partial_docs":[2],"irrelevant_docs":[4],"reasoning":"Docs 1, 3, 5 directly contain answer content..."}}"""
         
         try:
             response = agent_llm.invoke(prompt) # Call agent LLM to get detailed grading decision
@@ -381,6 +423,10 @@ NO OTHER TEXT. ONLY JSON."""
             "grade_confidence": grade.confidence, # Store the confidence in the grading decision
             "grade_reasoning": grade.reasoning, # Store the reasoning for the grading decision
             "retry_count": new_retry_count, # Update retry count in state (increment if documents are not relevant)
+            # PRESERVE image-related fields from query rewriter
+            "detected_image_types": state.get('detected_image_types') if isinstance(state, dict) else (state.detected_image_types or []),
+            "has_images": state.get('has_images') if isinstance(state, dict) else (state.has_images or False),
+            "image_paths": state.get('image_paths') if isinstance(state, dict) else (state.image_paths or []),
             "agent_decisions": { # Store the decision details for analysis
                 **existing_decisions,
                 "grader": {
@@ -407,10 +453,11 @@ def make_generator_node(agent_llm, generator, config: Dict[str, Any]):
     
     The generator agent decides which prompting strategy to use
     and then uses the heavy LLM (via generator) for final answer generation.
+    Supports both text-only and image-aware generation (if VisionGenerator).
     
     Args:
-        agent_llm: Lightweight LLM instance for strategy decision-making (qwen3-vl:8b)
-        generator: BaselineGenerator instance (uses qwen3:32b for answer generation)
+        agent_llm: Lightweight LLM instance for strategy decision-making (qwen3:8b)
+        generator: BaselineGenerator or VisionGenerator instance for answer generation
         config: Configuration dict
         
     Returns:
@@ -419,28 +466,31 @@ def make_generator_node(agent_llm, generator, config: Dict[str, Any]):
     
     def generator_node(state: AgenticRAGState):
         """
-        Generator Agent: Decide prompting strategy and generate answer.
+        Generator Agent: Decide prompting strategy and generate answer (with optional image support).
         """
         
         # Handle both AgenticRAGState and dict
         if isinstance(state, dict):
-            question = state.get('original_question', '') # Original question (not rewritten, for generation)
-            context = state.get('retrieved_text', '')     # Formatted retrieved text to use as context for generation
-            grade_decision = state.get('grade_decision', '') # Grader's decision on the relevance (to inform strategy choice)
-            grade_confidence = state.get('grade_confidence', 0.0) # Grader's confidence in relevance (to inform caution level)
-            retry_count = state.get('retry_count', 0)
-            max_retries = state.get('max_retries', 2)
+            question = state.get('original_question', '')
+            context = state.get('retrieved_text', '')
+            grade_decision = state.get('grade_decision', '')
+            grade_confidence = state.get('grade_confidence', 0.0)
+            detected_image_types = state.get('detected_image_types', [])
+            image_paths = state.get('image_paths', [])
+            retrieved_docs = state.get('retrieved_documents', [])
         else:
             question = state.original_question
             context = state.retrieved_text
             grade_decision = state.grade_decision
             grade_confidence = state.grade_confidence
-            retry_count = state.retry_count
-            max_retries = state.max_retries
+            detected_image_types = state.detected_image_types or []
+            image_paths = state.image_paths or []
+            retrieved_docs = state.retrieved_documents or []
         
         # Build prompt for strategy selection
+        has_images_context = " (IMAGES AVAILABLE)" if detected_image_types else ""
         prompt = f"""Choose a generation strategy:
-Question: {question}
+Question: {question}{has_images_context}
 Context available: {"yes" if context else "no"}
 Documents relevant: {grade_decision}
 Grader confidence: {grade_confidence:.2f} (scale 0.0-1.0)
@@ -462,22 +512,25 @@ If you choose 'role' strategy, also specify a role_type (pick the MOST appropria
 Select the best strategy based on question complexity, context quality, and grader confidence.
 If grader confidence < 0.6, consider using ensemble or cot for more reasoning.
 
-RESPOND WITH ONLY THIS JSON:
-{{"strategy": "standard", "role_type": "financial_analyst", "reasoning": "straightforward factual question", "needs_more_context": false, "confidence": 0.9}}
+CRITICAL: Your response MUST be ONLY a valid JSON object. Do NOT include:
+- Any text before the JSON
+- Any text after the JSON
+- Code block markers (```, ```json)
+- Explanations or reasoning outside JSON
 
-NO OTHER TEXT. ONLY JSON."""
+Output raw JSON only, like: {{"strategy":"standard","role_type":"financial_analyst","reasoning":"straightforward","needs_more_context":false,"confidence":0.9}}"""
         
         try:
-            response = agent_llm.invoke(prompt) # Call agent LLM to get strategy decision
-            response_text = response.content if hasattr(response, 'content') else str(response) # Handle different response types
+            response = agent_llm.invoke(prompt)
+            response_text = response.content if hasattr(response, 'content') else str(response)
             
             # Parse JSON
             strategy_dict = clean_and_extract_json(response_text)
-            strategy_decision = GeneratorDecision(**strategy_dict) # Validate and create Pydantic model (also checks if strategy is valid and that confidence is in range)
+            strategy_decision = GeneratorDecision(**strategy_dict)
             
         except Exception as e:
             print(f"Failed to decide strategy: {e}, using 'standard'")
-            strategy_decision = GeneratorDecision( # Default to standard strategy if decision fails, to ensure continuation of generation
+            strategy_decision = GeneratorDecision(
                 strategy="standard",
                 reasoning="Error in selection, using default",
                 needs_more_context=False,
@@ -494,38 +547,90 @@ NO OTHER TEXT. ONLY JSON."""
         if strategy_decision.strategy == "role":
             strategy_config['role_type'] = strategy_decision.role_type
         
-        # Generate answer using the chosen strategy        
-        strategy = get_prompt_strategy( # Get the actual prompting strategy function based on the decision
-            strategy_decision.strategy,
-            generator,
-            strategy_config
+        # CHECK FOR IMAGE HANDLING
+        # If we have images and the generator supports vision, use image-aware generation
+        from generation.generator import VisionGenerator
+        use_image_generation = (
+            detected_image_types and 
+            image_paths and 
+            isinstance(generator, VisionGenerator) and
+            hasattr(generator, 'generate_with_images')
         )
         
-        answer = strategy.generate(question, context) # Generate the answer using the selected strategy
-        
-        print(f"Generated answer length: {len(answer)} chars")
-        
-        # Get existing agent_decisions and retrieved_documents safely (handle both dict and AgenticRAGState)
-        if isinstance(state, dict):
-            existing_decisions = state.get('agent_decisions') or {} # Existing decisions from previous nodes
-            retrieved_docs = state.get('retrieved_documents') or []  # Get retrieved documents from state to preserve them
+        if use_image_generation:
+            print(f"Using image-aware generation (detected: {detected_image_types})")
+            try:
+                # Use VisionGenerator with images
+                answer = generator.generate_with_images(
+                    question=question,
+                    image_paths=image_paths,
+                    text_context=context
+                )
+                print(f"Generated answer from images: {len(answer)} chars")
+                generation_method = "vision"
+            except Exception as e:
+                print(f"Image generation failed: {e}, falling back to text generation")
+                # Fallback to text-only generation
+                strategy = get_prompt_strategy(
+                    strategy_decision.strategy,
+                    generator,
+                    strategy_config
+                )
+                answer = strategy.generate(question, context)
+                print(f"Generated answer from text: {len(answer)} chars")
+                generation_method = "text-fallback"
         else:
-            existing_decisions = state.agent_decisions or {} # Existing decisions from previous nodes
-            retrieved_docs = state.retrieved_documents or []  # Get retrieved documents from state to preserve them
+            # Text-only generation (normal path)
+            strategy = get_prompt_strategy(
+                strategy_decision.strategy,
+                generator,
+                strategy_config
+            )
+            answer = strategy.generate(question, context)
+            print(f"Generated answer: {len(answer)} chars")
+            generation_method = "text"
+        
+        # Get existing agent_decisions safely
+        if isinstance(state, dict):
+            existing_decisions = state.get('agent_decisions') or {}
+        else:
+            existing_decisions = state.agent_decisions or {}
+        
+        # ===== ANSWER FORMAT VALIDATION =====
+        # Validate that answer matches expected output format (count, percentage, list, etc.)
+        from generation.answer_validator import validate_answer_format
+        is_valid_format, corrected_answer = validate_answer_format(
+            answer=answer,
+            question=question,
+            log_issues=True
+        )
+        
+        if not is_valid_format:
+            print("Answer format validation: FAILED - using original answer")
+            validation_status = "format_invalid"
+        else:
+            print("Answer format validation: PASSED")
+            answer = corrected_answer  # Use corrected answer if adjusted
+            validation_status = "format_valid"
         
         return {
-            "retrieved_documents": retrieved_docs,  # PRESERVE: explicitly return retrieved documents to prevent them from being cleared
-            "generated_answer": answer, # Store the generated answer in state
-            "chosen_prompting_strategy": strategy_decision.strategy, # Store the chosen strategy for reporting
-            "generation_confidence": strategy_decision.confidence, # Store the confidence in the generation quality
-            "grade_confidence": grade_confidence,  # PASS: Forward the grader's confidence 
-            "agent_decisions": { # Store the decision details for analysis
+            "retrieved_documents": retrieved_docs,  # PRESERVE retrieved documents
+            "generated_answer": answer,
+            "chosen_prompting_strategy": strategy_decision.strategy,
+            "generation_confidence": strategy_decision.confidence,
+            "grade_confidence": grade_confidence,
+            "answer_format_validation": validation_status,  # Track validation status
+            "agent_decisions": {
                 **existing_decisions,
                 "generator": {
                     "strategy": strategy_decision.strategy,
                     "reasoning": strategy_decision.reasoning,
                     "confidence": strategy_decision.confidence,
-                    "grader_confidence": grade_confidence  # Include grader confidence in decisions log
+                    "grader_confidence": grade_confidence,
+                    "has_images": use_image_generation,
+                    "generation_method": generation_method,
+                    "num_images_used": len(image_paths) if use_image_generation else 0,
+                    "answer_format_validation": validation_status
                 }
             }
         }

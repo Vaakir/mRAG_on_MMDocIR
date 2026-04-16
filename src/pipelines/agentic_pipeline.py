@@ -10,6 +10,8 @@ from pipelines.base_pipeline import BaseRAGPipeline
 from agentic.graph.builder import build_agentic_graph
 from agentic.graph.state import AgenticRAGState
 from query_techniques import get_query_technique
+from retrieval_techniques import MultimodalRetriever
+from generation.generator import VisionGenerator
 from agentic.llm import SimpleLLM
 from evaluation.retrieval_metrics import evaluate_retrieval
 from evaluation.generation_metrics import evaluate_generation
@@ -29,22 +31,59 @@ class AgenticRAGPipeline(BaseRAGPipeline):
         """Initialize the agentic pipeline."""
         super().__init__(config)
         self.agentic_graph = None # Will hold the compiled LangGraph StateGraph
-        self.llm = None           # LLM for agent decision-making
+        self.agent_llm = None           # LLM for agent decision-making
+        self.multimodal_retriever: Optional[MultimodalRetriever] = None  # Multimodal retriever for image-aware retrieval
         
     def initialize_components(self):
-        """Initialize all components including separate LLMs for agent decisions and generation."""
+        """Initialize all components including multimodal generator and multimodal retriever."""
+        # Initialize generator and retriever FIRST from parent
         super().initialize_components()
         
+        # OVERRIDE: Use VisionGenerator instead of BaselineGenerator for multimodal support
+        if self.config.USE_MULTIMODAL:
+            logger.info(f"Initializing VisionGenerator for multimodal support: {self.config.LLM_MODEL}")
+            self.generator = VisionGenerator(
+                base_url=self.config.OLLAMA_BASE_URL,
+                model=self.config.LLM_MODEL,
+            )
+        
+        # Initialize query technique (needed for MultimodalRetriever)
+        logger.info(f"Initializing query technique: {self.config.QUERY_TECHNIQUE}")
+        query_technique = get_query_technique(
+            self.config.QUERY_TECHNIQUE,
+            self.embedder,
+            self.hybrid_retriever or getattr(self, "retriever", None),
+            self.generator,
+            self.config.QUERY_TECHNIQUE_CONFIG,
+        )
+        
+        # Initialize MultimodalRetriever if enabled
+        if self.config.USE_MULTIMODAL and self.embedder and self.vector_db:
+            logger.info("Initializing MultimodalRetriever for image-aware retrieval...")
+            self.multimodal_retriever = MultimodalRetriever(
+                query_technique=query_technique,
+                embedder=self.embedder,
+                vector_db=self.vector_db,
+                generator=self.generator,
+                max_page_images=self.config.QUERY_TECHNIQUE_CONFIG.get("max_page_images", 1),
+            )
+            logger.info("MultimodalRetriever initialized successfully")
+        
         # Initialize lightweight LLM for agent decision-making (Query Rewriter, Grader, Generator strategy)
-        print(f"Initializing lightweight LLM for agent decisions: {self.config.AGENT_LLM_MODEL}")
+        logger.info(f"Initializing lightweight LLM for agent decisions: {self.config.AGENT_LLM_MODEL}")
         
         self.agent_llm = SimpleLLM(
             base_url=self.config.OLLAMA_BASE_URL,
             model=self.config.AGENT_LLM_MODEL
         )
         
-        print(f"Agent LLM initialized: {self.config.AGENT_LLM_MODEL}")
-        print(f"Generator LLM (inherited from parent): {self.config.LLM_MODEL}")
+        logger.info(f"Agent LLM initialized: {self.config.AGENT_LLM_MODEL}")
+        logger.info(f"Generator LLM (multimodal if enabled): {self.config.LLM_MODEL}")
+    
+    def _initialize_retriever(self):
+        """Initialize hybrid retriever first (parent), then optionally build multimodal retriever."""
+        super()._initialize_retriever()  # This builds self.hybrid_retriever
+        # MultimodalRetriever will be built in initialize_components() after query_technique is ready
     
     def build_query_techniques_dict(self) -> Dict[str, Any]:
         """
@@ -108,8 +147,8 @@ class AgenticRAGPipeline(BaseRAGPipeline):
         self.agentic_graph = build_agentic_graph( # Build the LangGraph StateGraph using the builder function, passing all dependencies
             self.agent_llm,  # Lightweight LLM for agent decisions
             self.embedder,
-            self.hybrid_retriever or self.retriever,
-            self.generator,  # Heavy LLM for final answer generation (self.generator uses qwen3:32b)
+            self.multimodal_retriever or self.hybrid_retriever or self.retriever,  # Use multimodal if available, otherwise fall back
+            self.generator,  # Heavy LLM for final answer generation (VisionGenerator if multimodal enabled)
             query_techniques_dict,
             config_dict
         )

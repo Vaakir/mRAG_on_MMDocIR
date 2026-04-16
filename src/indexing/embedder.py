@@ -44,7 +44,7 @@ class TextEmbedder:
             batch_texts = [text.lower() for text in texts[i:i + batch_size]]
             
             # Thread-safe encoding
-            with self.encode_lock:
+            with self._lock:
                 embeddings = self.model.encode(
                     batch_texts,
                     prompt_name="document",

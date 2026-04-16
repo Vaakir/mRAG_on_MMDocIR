@@ -63,6 +63,16 @@ class AgenticRAGState(MessagesState):
     generation_confidence: float = 0.0
     """Generator's confidence in the answer (0.0 to 1.0)"""
     
+    # ===== IMAGE HANDLING (for multimodal support) =====
+    detected_image_types: List[str] = None
+    """List of image chunk types detected in retrieved documents: page_image, figure, evidence"""
+    
+    has_images: bool = False
+    """Whether any image chunks were retrieved"""
+    
+    image_paths: List[str] = None
+    """List of absolute paths to images for image-aware generation"""
+    
     # ===== AGENT DECISIONS (for reporting) =====
     agent_decisions: Dict[str, Dict[str, Any]] = None
     """
