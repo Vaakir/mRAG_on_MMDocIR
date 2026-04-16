@@ -5,6 +5,7 @@ The LLM is instructed to think step-by-step before providing the final answer,
 making reasoning explicit and improving accuracy for complex questions.
 """
 
+from typing import List
 from .base import PromptStrategy
 import logging
 
@@ -58,7 +59,7 @@ class ChainOfThoughtPromptStrategy(PromptStrategy):
     
     def __init__(self, generator, config=None):
         super().__init__(generator, config)
-        self.show_reasoning = self.config.get('show_reasoning', True)
+        self.show_reasoning = self.config.get('show_reasoning', False)
     
     def get_system_prompt(self) -> str:
         """Get the Chain-of-Thought system prompt."""
@@ -80,7 +81,8 @@ class ChainOfThoughtPromptStrategy(PromptStrategy):
         system_prompt = self.get_system_prompt()
         logger.debug("Generating with Chain-of-Thought reasoning")
         
-        full_response = self.generator.generate(question, context, system_prompt=system_prompt)
+        # think=False: the <REASONING> block IS the reasoning, no need for model's internal thinking too
+        full_response = self.generator.generate(question, context, system_prompt=system_prompt, think=False)
         
         # If show_reasoning is False, extract only the answer section
         if not self.show_reasoning:
@@ -88,6 +90,16 @@ class ChainOfThoughtPromptStrategy(PromptStrategy):
         
         return full_response
     
+    def generate_with_images(self, question: str, image_paths: List[str], text_context: str = "") -> str:
+        """Generate with images, then extract answer if show_reasoning is False."""
+        full_response = self.generator.generate_with_images(
+            question, image_paths, text_context,
+            system_prompt=self.get_system_prompt(), think=False,
+        )
+        if not self.show_reasoning:
+            return self._extract_answer_only(full_response)
+        return full_response
+
     def _extract_answer_only(self, response: str) -> str:
         """
         Extract only the answer from the full CoT response.

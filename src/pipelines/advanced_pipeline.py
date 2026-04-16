@@ -265,9 +265,6 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
         image_results = [r for r in retrieved if r.get("payload", {}).get("type") in image_types]
         text_results  = [r for r in retrieved if r.get("payload", {}).get("type") not in image_types]
 
-        # Get system prompt from prompt strategy (applies to both VLM and text paths)
-        system_prompt = self.prompt_strategy.get_system_prompt() if self.prompt_strategy else None
-
         if image_results and self.vlm is not None:
             image_paths = []
             for r in image_results:
@@ -285,19 +282,19 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
                 f"[Document {i+1}]:\n{r['text']}" for i, r in enumerate(text_results)
             )
 
-            # Try VLM with prompt strategy's system prompt, fall back to text-only if it fails
+            # VLM generation through prompt strategy (handles system prompt + post-processing)
             try:
-                vlm_kwargs = {}
-                if system_prompt:
-                    vlm_kwargs["system_prompt"] = system_prompt
-                answer = self.vlm.generate_with_images(question, image_paths, text_context, **vlm_kwargs)
+                if self.prompt_strategy:
+                    answer = self.prompt_strategy.generate_with_images(question, image_paths, text_context)
+                else:
+                    answer = self.vlm.generate_with_images(question, image_paths, text_context)
                 if not answer.startswith("Error generating response:"):
                     return answer
                 logger.warning(f"VLM returned error, falling back to text-only generation")
             except Exception as e:
                 logger.warning(f"VLM failed ({e}), falling back to text-only generation")
 
-        # Text-only fallback — use prompt strategy
+        # Text-only fallback — through prompt strategy
         context = "\n\n".join(
             f"[Document {i+1}]:\n{r['text']}" for i, r in enumerate(retrieved)
         )
