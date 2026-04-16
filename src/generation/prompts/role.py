@@ -2,6 +2,7 @@
 Role-based prompting strategy - assign an expert role to the LLM.
 """
 
+from typing import List
 from .base import PromptStrategy
 import logging
 
@@ -118,3 +119,11 @@ class RolePromptStrategy(PromptStrategy):
         system_prompt = self.get_system_prompt()
         logger.debug(f"Generating with role: {self.role_type}")
         return self.generator.generate(question, context, system_prompt=system_prompt)
+
+    def generate_with_images(self, question: str, image_paths: List[str], text_context: str = "") -> str:
+        """Generate with images using role-specific system prompt."""
+        logger.debug(f"Generating with images using role: {self.role_type}")
+        return self.generator.generate_with_images(
+            question, image_paths, text_context,
+            system_prompt=self.get_system_prompt(),
+        )
