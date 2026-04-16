@@ -79,11 +79,12 @@ class TextEmbedder:
         for i in tqdm(range(0, len(image_paths), batch_size), desc="Encoding images"):
             batch_paths = image_paths[i:i + batch_size]
             images = [Image.open(p).convert("RGB") for p in batch_paths]
-            embeddings = self.model.encode(
-                images,
-                normalize_embeddings=True,
-                batch_size=batch_size,
-            )
+            with self._lock:
+                embeddings = self.model.encode(
+                    images,
+                    normalize_embeddings=True,
+                    batch_size=batch_size,
+                )
             all_embeddings.append(embeddings)
 
             if torch.backends.mps.is_available():
