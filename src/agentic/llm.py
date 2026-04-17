@@ -1,4 +1,4 @@
-"""Simple LLM wrapper for agent decision-making using Ollama."""
+"""Simple LLM wrapper for the agent decision-making using Ollama."""
 
 import os
 import logging

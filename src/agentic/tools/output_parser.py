@@ -1,7 +1,7 @@
 """Pydantic models for structured LLM outputs."""
 
 from pydantic import BaseModel, Field
-from typing import Literal, List
+from typing import Literal, List, Optional
 
 
 class QueryRewriterDecision(BaseModel):
@@ -54,9 +54,9 @@ class GeneratorDecision(BaseModel):
     )
     
     # Expert role type (only used if strategy="role")
-    role_type: str = Field(
-        default="financial_analyst",
-        description="Expert role for role-based prompting: financial_analyst, researcher, data_analyst, domain_expert, or technical_writer"
+    role_type: Optional[str] = Field(
+        default=None,
+        description="Expert role for role-based prompting: financial_analyst, researcher, data_analyst, domain_expert, or technical_writer (only required if strategy='role')"
     )
     
     # Reasoning for the choice of prompting strategy

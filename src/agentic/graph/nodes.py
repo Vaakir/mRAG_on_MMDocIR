@@ -11,6 +11,10 @@ from ..tools.output_parser import (
     GeneratorDecision
 )
 from generation.prompts import get_prompt_strategy
+from retrieval_techniques import MultimodalRetriever
+from generation.answer_validator import validate_answer_format
+from config.config import DATA_DIR
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -176,7 +180,7 @@ Output the raw JSON only, like: {{"technique":"standard","reasoning":"brief expl
         
         # If we have a MultimodalRetriever, use it directly (it handles technique selection internally)
         # Otherwise, use the selected technique
-        from retrieval_techniques import MultimodalRetriever
+        
         if isinstance(retriever, MultimodalRetriever):
             print("Using MultimodalRetriever for image-aware retrieval...")
             retrieved_docs = retriever.retrieve(question, top_k=top_k)
@@ -203,10 +207,7 @@ Output the raw JSON only, like: {{"technique":"standard","reasoning":"brief expl
                 img_path = doc.get("payload", {}).get("image_path")
                 if img_path:
                     # Resolve image path: Qdrant stores paths relative to DATA_DIR
-                    # Prepend DATA_DIR to make absolute path for image encoding
-                    from config.config import DATA_DIR
-                    from pathlib import Path
-                    
+                    # Prepend DATA_DIR to make absolute path for image encoding                    
                     img_path_obj = Path(img_path)
                     if not img_path_obj.is_absolute():
                         # Relative path from DATA_DIR, resolve it
@@ -314,9 +315,16 @@ def make_grader_node(agent_llm, config: Dict[str, Any]):
         doc_summaries = []
         for i, doc in enumerate(retrieved_docs):
             doc_text = doc.get('text', '')
-            # Truncate to 250 chars per doc to fit more docs in context
-            summary = doc_text[:250] + "..." if len(doc_text) > 250 else doc_text
-            doc_summaries.append(f"[Doc {i+1}]: {summary}")
+            doc_type = doc.get('metadata', {}).get('type', 'text')
+            
+            if doc_type in {"page_image", "figure", "evidence"}:
+                # Inform grader that this is visual content, so it marks it as relevant rather than discarding empty/short text
+                summary = f"[{doc_type}] A retrieved image that is visually relevant to the user's question."
+                doc_summaries.append(f"[Doc {i+1}]: {summary}")
+            else:
+                # INCREASED FROM 250 to 1500: Giving the Grader enough context to evaluate whether the chunk actually contains the answer, solving the Truncation Mismatch.
+                summary = doc_text[:1500] + "..." if len(doc_text) > 1500 else doc_text
+                doc_summaries.append(f"[Doc {i+1}]: {summary}")
         
         doc_text = "\n\n".join(doc_summaries)
         
@@ -410,14 +418,27 @@ Output ONLY the raw JSON starting with {{ and ending with }}, like this:
         # Only return documents that were marked as relevant by the grader
         # relevant_doc_indices are 1-based from LLM response, convert to 0-based for list indexing
         if relevant_doc_indices:
-            filtered_docs = [retrieved_docs[i-1] for i in relevant_doc_indices if i > 0 and i <= len(retrieved_docs)]
-            print(f"Filtered {len(retrieved_docs)} docs --> {len(filtered_docs)} relevant docs")
+            filtered_docs = []
+            for i, doc in enumerate(retrieved_docs):
+                doc_type = doc.get('metadata', {}).get('type', 'text')
+                # Always retain multimodal documents (images, figures) or texts explicitly marked relevant
+                if doc_type in {"page_image", "figure", "evidence"} or (i + 1) in relevant_doc_indices:
+                    filtered_docs.append(doc)
+            print(f"Filtered {len(retrieved_docs)} docs --> {len(filtered_docs)} relevant docs (including all retrieved images)")
         else:
             # If parsing failed, keep all docs
             filtered_docs = retrieved_docs
+            
+        # BUG FIX: Format the newly filtered text so the Generator only receives relevant docs,
+        # otherwise it will still use the old un-filtered 'retrieved_text' from the Query Rewriter.
+        filtered_text = "\n\n".join([
+            f"[Document {i+1}]:\n{doc.get('text', '')}"
+            for i, doc in enumerate(filtered_docs)
+        ])
         
         return {
             "retrieved_documents": filtered_docs,  # Return only those documents marked as relevant by the grader
+            "retrieved_text": filtered_text,       # Return the updated prompt context for the Generator
             "grade_decision": grade.relevant, # Store the relevance decision for routing
             "grade_score": grade.relevant,    # Store the same relevance decision as a score for clarity
             "grade_confidence": grade.confidence, # Store the confidence in the grading decision
@@ -538,14 +559,15 @@ Output raw JSON only, like: {{"strategy":"standard","role_type":"financial_analy
             )
         
         print(f"Chose strategy: {strategy_decision.strategy}")
-        if strategy_decision.strategy == "role": 
+        if strategy_decision.strategy == "role" and strategy_decision.role_type: 
             print(f"Role type: {strategy_decision.role_type}")
         print(f"Confidence: {strategy_decision.confidence}")
         
         # Build config for the strategy (include role_type if using role prompt strategy)
         strategy_config = {}
         if strategy_decision.strategy == "role":
-            strategy_config['role_type'] = strategy_decision.role_type
+            # Use provided role_type or default to financial_analyst
+            strategy_config['role_type'] = strategy_decision.role_type or "financial_analyst"
         
         # CHECK FOR IMAGE HANDLING
         # If we have images and the generator supports vision, use image-aware generation
@@ -598,7 +620,6 @@ Output raw JSON only, like: {{"strategy":"standard","role_type":"financial_analy
         
         # ===== ANSWER FORMAT VALIDATION =====
         # Validate that answer matches expected output format (count, percentage, list, etc.)
-        from generation.answer_validator import validate_answer_format
         is_valid_format, corrected_answer = validate_answer_format(
             answer=answer,
             question=question,
