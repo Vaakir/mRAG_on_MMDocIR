@@ -1,16 +1,23 @@
 # src/config/config.py
 # Configuration for the all systems to share a single source of truth
-
+import os
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Dict, Any, List
+from dotenv import load_dotenv
 
 # Define paths outside the dataclass for cleaner referencing
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+
+# Load environment variables
+load_dotenv(PROJECT_ROOT / ".env", override=True)
+
 SRC_DIR = PROJECT_ROOT / "src"
 DATA_DIR = SRC_DIR / "data"
+RESULTS_DIR = SRC_DIR / "results"
+PREPROCESSING_TIME_CSV = RESULTS_DIR / "preprocessing_time.csv"
 
-PDFS_DIR = DATA_DIR / "train" / "pdf_train"
+PDFS_DIR = DATA_DIR / "train" / "pdfs_train"
 PREPROCESSED_DATA_DIR = DATA_DIR / "preprocessed"
 PREPROCESSED_DOCUMENTS_FILE = DATA_DIR / "preprocessed" / "all_documents.json"
 
@@ -28,9 +35,11 @@ PREPROCESSED_CHUNKS_FILE = SRC_DIR / "data" / "preprocessed" / "chunks_fixed_siz
 RESULTS_CSV = SRC_DIR / "experiments_results.csv"
 
 
+
 @dataclass
 class BaselineConfig:
     """Configuration matching the baseline pipeline."""
+    HF_TOKEN: str = os.getenv("HF_TOKEN")
 
     # ===== PATHS =====
     PROJECT_ROOT: Path = PROJECT_ROOT
@@ -47,6 +56,7 @@ class BaselineConfig:
     CACHE_DIR: Path = CACHE_DIR
     CACHE_DB_PATH: Path = CACHE_DB_PATH
     RESULTS_CSV: Path = RESULTS_CSV
+    PREPROCESSING_TIME_CSV: Path = PREPROCESSING_TIME_CSV
 
     PREPROCESSED_CHUNKS_FILE: str = str(PREPROCESSED_CHUNKS_FILE)
 
@@ -101,19 +111,10 @@ class BaselineConfig:
 
 @dataclass
 class AdvancedConfig(BaselineConfig):
-    """
-    Configuration for the Advanced RAG Pipeline.
-    """
-
-    
-    
+    """Configuration for the Advanced RAG Pipeline."""
     # ===== ADVANCED APP OVERRIDES =====
-    #override the chunk file to use the semantic chunks instead of the fixed-size ones
-    PREPROCESSED_CHUNKS_FILE = SRC_DIR / "data" / "preprocessed" / "chunks_semantic.json"
-    PREPROCESSED_CHUNKS_FILE: str = str(PREPROCESSED_CHUNKS_FILE)
-
-    EMBEDDING_MODEL: str = "jinaai/jina-clip-v2"
-    """Embedding model name from Hugging Face"""
+    # override the chunk file to use the semantic chunks instead of the fixed-size ones
+    PREPROCESSED_CHUNKS_FILE: str = str(SRC_DIR / "data" / "preprocessed" / "chunks_semantic.json")
 
     VECTOR_DB_COLLECTION: str = "advanced_multimodal"
     """Separate collection from baseline so the two don't interfere"""
@@ -183,36 +184,4 @@ class AdvancedConfig(BaselineConfig):
         }
     })
     """Configuration dict for the selected prompting strategy"""
-
-
-# Preset configurations for quick switching
-@dataclass
-class FastEmbeddingConfig(AdvancedConfig):
-    """Fast embedding using smaller model."""
-
-    EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
-    EMBEDDING_DIMENSION: int = 384
-    EMBEDDING_BATCH_SIZE: int = 128
-
-
-@dataclass
-class MultiQueryConfig(AdvancedConfig):
-    """Multi-query technique configuration."""
-
-    QUERY_TECHNIQUE: str = "multi_query"
-
-
-@dataclass
-class RAGFusionConfig(AdvancedConfig):
-    """RAG-Fusion configuration."""
-
-    QUERY_TECHNIQUE: str = "rag_fusion"
-
-
-@dataclass
-class HyDEConfig(AdvancedConfig):
-    """HyDE (Hypothetical Documents) configuration."""
-
-    QUERY_TECHNIQUE: str = "hyde"
-
 

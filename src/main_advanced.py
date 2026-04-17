@@ -22,49 +22,9 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 
-def get_config(technique: str = 'standard') -> AdvancedConfig:
-    """
-    Get configuration for a specific query technique.
-    
-    Args:
-        technique: Query technique name or 'standard'
-        
-    Returns:
-        AdvancedConfig instance with technique set
-    """
-    technique = technique.lower().strip()
-    
-    # Create base config
-    if technique == 'multi_query':
-        config = MultiQueryConfig()
-    elif technique == 'rag_fusion':
-        config = RAGFusionConfig()
-    elif technique == 'hyde':
-        config = HyDEConfig()
-    else:
-        config = AdvancedConfig()
-
-    # Explicitly set technique to ensure it's applied
-    # (dataclass inheritance doesn't override defaults reliably)
-    if technique == 'step_back':
-        config.QUERY_TECHNIQUE = 'step_back'
-    elif technique == 'query_decomposition':
-        config.QUERY_TECHNIQUE = 'query_decomposition'
-    elif technique == 'query_rewriting':
-        config.QUERY_TECHNIQUE = 'query_rewriting'
-    elif technique == 'query_expansion':
-        config.QUERY_TECHNIQUE = 'query_expansion'
-    elif technique != 'standard':
-        config.QUERY_TECHNIQUE = technique
-    
-    return config
-
-
 def run_single_query_test(pipeline: AdvancedRAGPipeline, question: str, ground_truth: Optional[str] = None):
     """Run and display results for a single query."""
-    print("\n" + "="*80)
-    print("SINGLE QUERY TEST")
-    print("="*80)
+    print("\n", "="*80, "SINGLE QUERY TEST", "="*80)
     
     result = pipeline.run_query(question, use_technique=True)
     
@@ -94,9 +54,12 @@ def main(technique: str = 'standard', prompting_strategy: str = 'standard', eval
     with time_phase('Total Pipeline Runtime'):
         logger.info(f"Starting ADVANCED RAG SYSTEM | Technique: {technique.upper()} | Prompting: {prompting_strategy.upper()}")
         
-        config = get_config(technique)
-        config.EVAL_SUBSET_SIZE = eval_subset
-        config.PROMPTING_STRATEGY = prompting_strategy
+                #[standard, multi_query, rag_fusion, hyde, step_back,query_decomposition, query_rewriting, query_expansion]
+        config = AdvancedConfig(
+            QUERY_TECHNIQUE=technique,
+            EVAL_SUBSET_SIZE = eval_subset,
+            PROMPTING_STRATEGY = prompting_strategy
+        )
         
         logger.info(f"Configuration -> Embed: {config.EMBEDDING_MODEL} | LLM: {config.LLM_MODEL} | DB: {config.VECTOR_DB_COLLECTION}")
         
@@ -161,8 +124,7 @@ def compare_techniques(techniques: list = None, eval_subset: int = 20):
 
     with time_phase('Total Compare Runtime'):
         with time_phase('Shared Setup'):
-            config = AdvancedConfig()
-            config.EVAL_SUBSET_SIZE = eval_subset
+            config = AdvancedConfig(EVAL_SUBSET_SIZE=eval_subset)
             pipeline = AdvancedRAGPipeline(config)
             
             logger.info("Building Index (Shared)...")
@@ -178,8 +140,10 @@ def compare_techniques(techniques: list = None, eval_subset: int = 20):
         for technique in techniques:
             logger.info(f"--- Evaluating Technique: {technique.upper()} ---")
             try:
-                tech_config = get_config(technique)
-                tech_config.EVAL_SUBSET_SIZE = eval_subset
+                tech_config = AdvancedConfig(
+                    QUERY_TECHNIQUE=technique,
+                    EVAL_SUBSET_SIZE=eval_subset
+                )
 
                 pipeline.config = tech_config
                 pipeline.initialize_components()
