@@ -62,14 +62,14 @@ class SimpleLLM:
         Args:
             prompt: Input prompt string
             max_retries: Max retry attempts if response is not valid JSON (default: 1)
-            timeout: Timeout in seconds for LLM call (default: 300 seconds = 5 minutes)
+            timeout: Timeout in seconds for LLM call (default of 300 seconds)
             
         Returns:
             SimpleLLMResponse object with content attribute
         """
         def _make_call(prompt_text: str) -> str:
             """Helper to make actual API call with timeout."""
-            with ThreadPoolExecutor(max_workers=1) as executor:
+            with ThreadPoolExecutor(max_workers=1) as executor: # Use ThreadPoolExecutor to enforce timeout on blocking call
                 future = executor.submit(
                     self._client.generate,
                     model=self.model,
@@ -77,12 +77,12 @@ class SimpleLLM:
                     stream=False
                 )
                 try:
-                    response = future.result(timeout=timeout)
-                    content = response.get('response', '')
+                    response = future.result(timeout=timeout) # Wait for result with timeout
+                    content = response.get('response', '') # Extract content from response
                     if not content:
                         raise ResponseError("Empty response from Ollama")
                     return content
-                except FuturesTimeoutError:
+                except FuturesTimeoutError: # Handle timeout
                     logger.error(f"LLM call timed out after {timeout} seconds")
                     raise TimeoutError(f"LLM call exceeded {timeout} second timeout")
         
@@ -102,27 +102,27 @@ IMPORTANT: Your previous response was not valid JSON.
 RESPOND WITH ONLY A JSON OBJECT, NOTHING ELSE.
 NO EXPLANATION, NO MARKDOWN, JUST JSON.
 Start with {{ and end with }}."""
-                    try:
+                    try: # Make the retry call and validate again
                         content = _make_call(correction_prompt)
                         if not content.strip().startswith('{'):
                             logger.error("Retry failed. Response still not JSON. Using fallback.")
                             return SimpleLLMResponse(content='{"error": "Failed to parse JSON", "fallback": true}')
-                    except TimeoutError as timeout_error:
+                    except TimeoutError as timeout_error: # Handle timeout on retry
                         logger.error(f"Retry timed out: {timeout_error}")
                         return SimpleLLMResponse(content='{"error": "LLM timeout on retry", "fallback": true}')
-                    except Exception as retry_error:
+                    except Exception as retry_error: # Handle other exceptions on retry
                         logger.error(f"Retry failed with error: {retry_error}. Using fallback.")
                         return SimpleLLMResponse(content='{"error": "Failed to parse JSON", "fallback": true}')
-                else:
+                else: # No retries allowed, return fallback immediately
                     logger.warning("Max retries exhausted. Using fallback.")
                     return SimpleLLMResponse(content='{"error": "Failed to parse JSON", "fallback": true}')
             
             return SimpleLLMResponse(content=content)
             
-        except TimeoutError as e:
+        except TimeoutError as e:  # Handle timeout on initial call
             logger.error(f"LLM call timed out: {e}")
             return SimpleLLMResponse(content='{"error": "LLM timeout", "fallback": true}')
-        except ResponseError as e:
+        except ResponseError as e: # Handle specific Ollama response errors (e.g. model not found)
             if getattr(e, 'status_code', None) == 404:
                 logger.warning(f"Model {self.model} not found, attempting to pull...")
                 try:

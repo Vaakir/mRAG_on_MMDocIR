@@ -3,7 +3,6 @@ System 3: Agentic mRAG Pipeline Main Entry Point
 
 This script runs the full agentic RAG pipeline with agent-based decision making:
 - Query Rewriter Agent: Decides which query technique to use
-- Retriever: Uses the chosen technique to retrieve documents
 - Grader Agent: Evaluates document relevance and decides if retry is needed
 - Generator Agent: Decides prompting strategy and generates answer
 
@@ -163,9 +162,9 @@ def main():
             print(f"  {metric}: {value}")
     
     else:
-        # Default: test with sample query
-        print("\nNo query or eval specified. Running sample query...")
-        sample_query = "What is the main topic of the documents?"
+        # Default: test with example query
+        print("\nNo query or eval specified. Running example query...")
+        sample_query = "How many students of NTU would recommend studying at NTU?"
         result = pipeline.run_query(sample_query)
         results = {"sample_query": result}
         

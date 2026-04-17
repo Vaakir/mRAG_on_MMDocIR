@@ -21,8 +21,7 @@ logger = logging.getLogger(__name__)
 
 class AgenticRAGPipeline(BaseRAGPipeline):
     """
-    Agentic RAG Pipeline: Orchestrates agents for query rewriting, retrieval, 
-    grading, and generation.
+    Agentic RAG Pipeline: Orchestrates agents for query rewriting, grading, and generation.
     
     Extends BaseRAGPipeline to reuse index building and component initialization.
     """
@@ -30,19 +29,19 @@ class AgenticRAGPipeline(BaseRAGPipeline):
     def __init__(self, config: AdvancedConfig):
         """Initialize the agentic pipeline."""
         super().__init__(config)
-        self.agentic_graph = None # Will hold the compiled LangGraph StateGraph
+        self.agentic_graph = None       # Will hold the compiled LangGraph StateGraph
         self.agent_llm = None           # LLM for agent decision-making
         self.multimodal_retriever: Optional[MultimodalRetriever] = None  # Multimodal retriever for image-aware retrieval
         
     def initialize_components(self):
-        """Initialize all components including multimodal generator and multimodal retriever."""
-        # Initialize generator and retriever FIRST from parent
+        """Initialize all components, including multimodal generator and multimodal retriever."""
+        # Initialize generator and retriever first from parent
         super().initialize_components()
         
-        # OVERRIDE: Use VisionGenerator instead of BaselineGenerator for multimodal support
+        # Use VisionGenerator instead of BaselineGenerator for multimodal support (if enabled)
         if self.config.USE_MULTIMODAL:
             logger.info(f"Initializing VisionGenerator for multimodal support: {self.config.LLM_MODEL}")
-            self.generator = VisionGenerator(
+            self.generator = VisionGenerator( # Instantiate VisionGenerator for multimodal generation
                 base_url=self.config.OLLAMA_BASE_URL,
                 model=self.config.LLM_MODEL,
             )
@@ -57,10 +56,10 @@ class AgenticRAGPipeline(BaseRAGPipeline):
             self.config.QUERY_TECHNIQUE_CONFIG,
         )
         
-        # Initialize MultimodalRetriever if enabled
+        # Initialize MultimodalRetriever (if enabled)
         if self.config.USE_MULTIMODAL and self.embedder and self.vector_db:
             logger.info("Initializing MultimodalRetriever for image-aware retrieval...")
-            self.multimodal_retriever = MultimodalRetriever(
+            self.multimodal_retriever = MultimodalRetriever( # Instantiate MultimodalRetriever for image-aware retrieval
                 query_technique=query_technique,
                 embedder=self.embedder,
                 vector_db=self.vector_db,
@@ -69,9 +68,8 @@ class AgenticRAGPipeline(BaseRAGPipeline):
             )
             logger.info("MultimodalRetriever initialized successfully")
         
-        # Initialize lightweight LLM for agent decision-making (Query Rewriter, Grader, Generator strategy)
+        # Initialize separate LLM for agent decision-making (Query Rewriter, Grader, Generator strategy)
         logger.info(f"Initializing lightweight LLM for agent decisions: {self.config.AGENT_LLM_MODEL}")
-        
         self.agent_llm = SimpleLLM(
             base_url=self.config.OLLAMA_BASE_URL,
             model=self.config.AGENT_LLM_MODEL
@@ -117,7 +115,7 @@ class AgenticRAGPipeline(BaseRAGPipeline):
                     self.config.QUERY_TECHNIQUE_CONFIG
                 )
                 techniques_dict[technique_name] = technique # Store the instance in the dict
-                print(f"  [OK]Loaded {technique_name}")
+                print(f"  [OK] Loaded {technique_name}")
             except Exception as e:
                 print(f"  [ERROR] Failed to load {technique_name}: {e}")
         
@@ -125,7 +123,7 @@ class AgenticRAGPipeline(BaseRAGPipeline):
         return techniques_dict
     
     def build_agentic_graph(self):
-        """Build the agentic graph with all agents."""
+        """Build the agentic graph with all agents/nodes."""
         
         if self.agent_llm is None:
             raise RuntimeError("Agent LLM not initialized. Call initialize_components() first.")
@@ -145,10 +143,10 @@ class AgenticRAGPipeline(BaseRAGPipeline):
         }
         
         self.agentic_graph = build_agentic_graph( # Build the LangGraph StateGraph using the builder function, passing all dependencies
-            self.agent_llm,  # Lightweight LLM for agent decisions
+            self.agent_llm,  # LLM for agent decisions
             self.embedder,
             self.multimodal_retriever or self.hybrid_retriever or self.retriever,  # Use multimodal if available, otherwise fall back
-            self.generator,  # Heavy LLM for final answer generation (VisionGenerator if multimodal enabled)
+            self.generator,  # LLM for final answer generation (VisionGenerator if multimodal enabled)
             query_techniques_dict,
             config_dict
         )
@@ -175,7 +173,7 @@ class AgenticRAGPipeline(BaseRAGPipeline):
         
         # Create initial state
         initial_state = AgenticRAGState(
-            messages=[],  # Empty messages (we don't use chat history in this version)
+            messages=[],  # Empty messages list to be filled by agent nodes
             original_question=question,
             rewritten_queries=None,
             retrieved_documents=None,
@@ -185,7 +183,7 @@ class AgenticRAGPipeline(BaseRAGPipeline):
             grade_confidence=0.0,
             grade_reasoning="",
             retry_count=0,
-            max_retries=getattr(self.config, 'MAX_RETRIES', 1), # Use config value or default to 2
+            max_retries=getattr(self.config, 'MAX_RETRIES', 1), # Use config value or default to 1
             last_technique_used="",
             chosen_prompting_strategy="",
             generated_answer="",
@@ -193,7 +191,7 @@ class AgenticRAGPipeline(BaseRAGPipeline):
             agent_decisions={}
         )
         
-        # Run the graph synchronously
+        # Run the graph with the initial state, and get the final state after all agents have processed
         try:
             final_state = self.agentic_graph.invoke(initial_state) # Invoke the graph with the initial state and get the final state after all agents have processed
         except Exception as e:
@@ -225,7 +223,7 @@ class AgenticRAGPipeline(BaseRAGPipeline):
                 "num_docs_retrieved": len(raw_docs),
             }
         
-        print("FINAL ANSWER\n" + result["answer"][:500] + ("..." if len(result["answer"]) > 500 else ""))
+        print("FINAL ANSWER: " + result["answer"][:500] + ("..." if len(result["answer"]) > 500 else ""))
         
         return result
     
@@ -248,14 +246,14 @@ class AgenticRAGPipeline(BaseRAGPipeline):
         
         test_subset = test_questions[:self.config.EVAL_SUBSET_SIZE] # Limit to subset for faster evaluation during development
         
-        results = []
+        results = [] 
         
-        # Run each test question through the pipeline and collect results
+        # Run each test question through the agentic pipeline and collect results
         for i, test_q in enumerate(test_subset):
             print(f"\n[{i+1}/{len(test_subset)}] Question: {test_q['question'][:100]}...")
             
             try:
-                result = self.run_query(test_q['question']) # Run the question through the agentic pipeline and get the result
+                result = self.run_query(test_q['question']) # Run current question through the agentic pipeline and get the result
                 result['ground_truth'] = test_q.get('answer', '') # Add ground truth to the result for later evaluation
                 results.append(result)
             except Exception as e:
@@ -267,10 +265,7 @@ class AgenticRAGPipeline(BaseRAGPipeline):
                     "ground_truth": test_q.get('answer', '')
                 })
         
-        # Compute evaluation metrics (same as other systems for comparison)
-        # Prepare docs for retrieval evaluation
-        # evaluate_retrieval expects: List of retrieved document lists (one per query)
-        # Each document should be in Qdrant format with id, score, text, payload (metadata)
+        # Compute evaluation metrics
         retrieval_results = [
             r.get("retrieved_documents_raw", [])  # Use raw Qdrant documents
             for r in results if "retrieved_documents_raw" in r
@@ -300,7 +295,7 @@ class AgenticRAGPipeline(BaseRAGPipeline):
         generation_metrics = evaluate_generation( 
             predictions, 
             ground_truths,
-            embedder=self.embedder  # Pass embedder for true semantic similarity computation
+            embedder=self.embedder
         )
         
         elapsed = time.time() - eval_start

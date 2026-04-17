@@ -28,7 +28,7 @@ def build_agentic_graph(
     Build the agentic RAG graph using LangGraph.
     
     Args:
-        agent_llm: Lightweight LLM instance for agent decisions (Query Rewriter, Grader, Generator strategy)
+        agent_llm: Lightweight LLM instance for making agent decisions (Query Rewriter, Grader, Generator strategy)
         embedder: TextEmbedder instance
         retriever: Retriever instance (HybridRetriever, MultimodalRetriever, or basic Retriever)
                    If MultimodalRetriever, it will handle image-aware retrieval automatically
@@ -71,7 +71,7 @@ def build_agentic_graph(
     )
     graph.add_edge("generator", END) # generator -> END
     
-    # Compile with async support
+    # Compiling the graph (with async support)
     compiled_graph = graph.compile()
     
     logger.info("Agentic RAG graph built successfully")
