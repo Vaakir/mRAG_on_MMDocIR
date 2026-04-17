@@ -8,6 +8,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Literal
 from config.config import BaselineConfig
+from utils.timer import MetricsTracker
 from preprocessing.pdf_chunker import chunk_and_save_pdf_data
 from preprocessing.pdf_loader import (
     process_all_pdfs,
@@ -21,53 +22,37 @@ logger = logging.getLogger(__name__)
 def preprocessing_pipeline():
     """Runs the preprocessing pipeline."""
     config = BaselineConfig()
-    timing_data = {"Phase": [], "Duration (seconds)": [], "Timestamp": []}
+    tracker = MetricsTracker(logger)
+    log_and_time = tracker.log_and_time
 
-    @contextmanager
-    def time_phase(name):
-        logger.info(f"Starting: {name}...")
-        start = time.time()
-        yield
-        duration = time.time() - start
-        
-        timing_data["Phase"].append(name)
-        timing_data["Duration (seconds)"].append(round(duration, 4))
-        timing_data["Timestamp"].append(time.strftime('%Y-%m-%d %H:%M:%S'))
+    with log_and_time('Total Pipeline Runtime'):
 
-    with time_phase('Total Pipeline Runtime'):
-        # 1. pdf_loader.py
-        with time_phase('Extracting PDFs using docling'):
+        with log_and_time('Extracting PDFs using docling'):
             all_documents = process_all_pdfs(config.PDFS_DIR)
 
         if not all_documents:
             raise ValueError("PDF extraction returned no documents.")
 
-        with time_phase(f"Saving extracted JSON to {config.PREPROCESSED_DOCUMENTS_FILE}"):
+        with log_and_time(f"Saving extracted JSON to {config.PREPROCESSED_DOCUMENTS_FILE}"):
             save_read_pdf_data(all_documents, path=config.PREPROCESSED_DOCUMENTS_FILE)
 
-        # 2. pdf_chunker.py
-        with time_phase('Loading documents for chunking'):
+        with log_and_time('Loading documents for chunking'):
             all_documents = load_read_documents(config.PREPROCESSED_DOCUMENTS_FILE)
 
-        with time_phase('Running chunking methods and saving outputs'):
+        with log_and_time('Running chunking methods and saving outputs'):
             chunk_result = chunk_and_save_pdf_data(
                 all_documents, output_dir=config.PREPROCESSED_DATA_DIR
             )
 
-    # 3. save time taken
-    csv_file = config.PREPROCESSING_TIME_CSV
-    csv_file.parent.mkdir(parents=True, exist_ok=True)
-    df = pd.DataFrame(timing_data)
-    df.to_csv(csv_file, mode='a', index=False, header=not csv_file.exists())
-    
-    for _, row in df.iterrows():
-        logger.info(f"{row['Phase']:<30}: {row['Duration (seconds)']} seconds")
+    tracker.print_timing_summary()
+
+    tracker.save_to_csv(tracker.timing_data, config.PREPROCESSING_TIME_CSV)
 
     return {
         "status": "success",
         "processed_count": len(all_documents),
         "chunk_info": chunk_result,
-        "timing": timing_data
+        "timing": tracker.timing_data
     }
 
 
