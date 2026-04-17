@@ -2,67 +2,77 @@
 # 1. pdf_loader.py
 # 2. pdf_chunker.py
 import logging
+import time
+import pandas as pd
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Literal
-
 from config.config import BaselineConfig
+from preprocessing.pdf_chunker import chunk_and_save_pdf_data
 from preprocessing.pdf_loader import (
     process_all_pdfs,
-    process_all_pdfs_fast,
     save_read_pdf_data,
     load_read_documents,
 )
-from preprocessing.pdf_chunker import chunk_and_save_pdf_data
 
 logger = logging.getLogger(__name__)
 
 
-def preprocessing_pipeline(
-    reading_method: Literal["standard", "multiprocessing"] = "multiprocessing",
-):
-    """
-    Runs the preprocessing pipeline.
-    """
+def preprocessing_pipeline():
+    """Runs the preprocessing pipeline."""
     config = BaselineConfig()
+    timing_data = {"Phase": [], "Duration (seconds)": [], "Timestamp": []}
+
+    @contextmanager
+    def time_phase(name):
+        logger.info(f"Starting: {name}...")
+        start = time.time()
+        yield
+        duration = time.time() - start
+        
+        timing_data["Phase"].append(name)
+        timing_data["Duration (seconds)"].append(round(duration, 4))
+        timing_data["Timestamp"].append(time.strftime('%Y-%m-%d %H:%M:%S'))
+
+    with time_phase('Total Pipeline Runtime'):
+        # 1. pdf_loader.py
+        with time_phase('Extracting PDFs using docling'):
+            all_documents = process_all_pdfs(config.PDFS_DIR)
+
+        if not all_documents:
+            raise ValueError("PDF extraction returned no documents.")
+
+        with time_phase(f"Saving extracted JSON to {config.PREPROCESSED_DOCUMENTS_FILE}"):
+            save_read_pdf_data(all_documents, path=config.PREPROCESSED_DOCUMENTS_FILE)
+
+        # 2. pdf_chunker.py
+        with time_phase('Loading documents for chunking'):
+            all_documents = load_read_documents(config.PREPROCESSED_DOCUMENTS_FILE)
+
+        with time_phase('Running chunking methods and saving outputs'):
+            chunk_result = chunk_and_save_pdf_data(
+                all_documents, output_dir=config.PREPROCESSED_DATA_DIR
+            )
+
+    # 3. save time taken
+    csv_file = config.PREPROCESSING_TIME_CSV
+    csv_file.parent.mkdir(parents=True, exist_ok=True)
+    df = pd.DataFrame(timing_data)
+    df.to_csv(csv_file, mode='a', index=False, header=not csv_file.exists())
     
-    # 1. pdf_loader.py
-    reading_method_map = {
-        "standard": process_all_pdfs,
-        "multiprocessing": process_all_pdfs_fast,
-    }
-
-    if reading_method not in reading_method_map.keys():
-        raise ValueError(
-            f"Reading method is not among {list(reading_method_map.keys())}"
-        )
-
-    logger.info(f"Extracting PDFs using {reading_method}...")
-    all_documents = reading_method_map[reading_method](config.PDFS_DIR)
-
-    if not all_documents:
-        raise ValueError("PDF extraction returned no documents.")
-
-    logger.info(f"Saving extracted JSON to {config.PREPROCESSED_DOCUMENTS_FILE}...")
-    save_read_pdf_data(all_documents, path=config.PREPROCESSED_DOCUMENTS_FILE)
-
-    # 2. pdf_chunker.py
-    logger.info("Loading documents for chunking...")
-    all_documents = load_read_documents(config.PREPROCESSED_DOCUMENTS_FILE)
-
-    logger.info("Running chunking methods and saving outputs...")
-    chunk_result = chunk_and_save_pdf_data(
-        all_documents, output_dir=config.PREPROCESSED_DATA_DIR
-    )
+    for _, row in df.iterrows():
+        logger.info(f"{row['Phase']:<30}: {row['Duration (seconds)']} seconds")
 
     return {
         "status": "success",
         "processed_count": len(all_documents),
         "chunk_info": chunk_result,
+        "timing": timing_data
     }
 
 
 if __name__ == "__main__":
-    result = preprocessing_pipeline(reading_method="multiprocessing")
+    result = preprocessing_pipeline()
     print(f"Preprocessing pipeline completed successfully: {result}")
 
     # how to run:

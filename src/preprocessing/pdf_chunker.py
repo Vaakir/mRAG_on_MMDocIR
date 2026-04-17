@@ -4,11 +4,11 @@ from types import SimpleNamespace
 import numpy as np
 import matplotlib.pyplot as plt
 import json
+from config.config import PREPROCESSED_DOCUMENTS_FILE, PREPROCESSED_DATA_DIR
 try:
     from .pdf_loader import load_read_documents
 except ImportError:
     from pdf_loader import load_read_documents
-
 
 class Chunking:
     HEADING_CATEGORIES = {"Title", "Header"}
@@ -528,20 +528,11 @@ def plot_chunk_size_distribution(chunks, label="", alpha=0.5, percentile=99.5):
     if not lengths:
         return
 
-    # compute cutoff
     cutoff = np.percentile(lengths, percentile)
-
-    # filter outliers
     filtered = [l for l in lengths if l <= cutoff]
-
     plt.hist(filtered, bins=30, label=label, alpha=alpha)
 
 
 if __name__ == "__main__":
-    # Paths are relative to this file's location, so this works regardless of
-    # which directory you run the script from.
-    _here = Path(__file__).parent
-    _data_dir = _here.parent / "data" / "preprocessed"
-
-    all_documents = load_read_documents(str(_data_dir / "all_documents.json"))
-    result = chunk_and_save_pdf_data(all_documents, output_dir=str(_data_dir))
+    all_documents = load_read_documents(PREPROCESSED_DOCUMENTS_FILE)
+    result = chunk_and_save_pdf_data(all_documents, output_dir=PREPROCESSED_DATA_DIR)
