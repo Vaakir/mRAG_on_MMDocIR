@@ -604,6 +604,14 @@ Context to answer from:
 """
         enhanced_context = strict_format_rules + (context or "")
         
+        # Build the strategy once (works for both image and text generation)
+        # The strategy object handles system_prompt internally via get_system_prompt()
+        strategy = get_prompt_strategy(
+            strategy_decision.strategy,
+            generator,
+            strategy_config
+        )
+        
         # CHECK FOR IMAGE HANDLING
         # If we have images and the generator supports vision, use image-aware generation
         from generation.generator import VisionGenerator
@@ -617,8 +625,8 @@ Context to answer from:
         if use_image_generation:
             print(f"Using image-aware generation (detected: {detected_image_types})")
             try:
-                # Use VisionGenerator with images
-                answer = generator.generate_with_images(
+                # Use strategy's generate_with_images() which handles system_prompt internally
+                answer = strategy.generate_with_images(
                     question=question,
                     image_paths=image_paths,
                     text_context=enhanced_context
@@ -628,21 +636,11 @@ Context to answer from:
             except Exception as e:
                 print(f"Image generation failed: {e}, falling back to text generation")
                 # Fallback to text-only generation
-                strategy = get_prompt_strategy(
-                    strategy_decision.strategy,
-                    generator,
-                    strategy_config
-                )
                 answer = strategy.generate(question, enhanced_context)
                 print(f"Generated answer from text: {len(answer)} chars")
                 generation_method = "text-fallback"
         else:
             # Text-only generation (normal path)
-            strategy = get_prompt_strategy(
-                strategy_decision.strategy,
-                generator,
-                strategy_config
-            )
             answer = strategy.generate(question, enhanced_context)
             print(f"Generated answer: {len(answer)} chars")
             generation_method = "text"

@@ -44,6 +44,7 @@ class AgenticRAGPipeline(BaseRAGPipeline):
             self.generator = VisionGenerator( # Instantiate VisionGenerator for multimodal generation
                 base_url=self.config.OLLAMA_BASE_URL,
                 model=self.config.LLM_MODEL,
+                api_key=self.config.OLLAMA_API_KEY,
             )
         
         # Initialize query technique (needed for MultimodalRetriever)

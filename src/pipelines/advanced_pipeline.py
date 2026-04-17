@@ -44,7 +44,7 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
     # Index building
     # ------------------------------------------------------------------
 
-    def build_index(self, force_rebuild: bool = True):
+    def build_index(self, force_rebuild: bool = False):
         """Build multimodal index: text chunks + page images."""
         logger.info(f"Building multimodal index with {type(self.config).__name__}...")
         start_time = time.time()
