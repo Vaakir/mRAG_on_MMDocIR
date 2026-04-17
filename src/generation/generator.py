@@ -16,7 +16,7 @@ from typing import Dict, Any, Optional, List
 from pathlib import Path
 from dotenv import load_dotenv
 
-from config.config import CACHE_DB_PATH, PROJECT_ROOT
+from config.config import CACHE_DB_PATH
 
 try:
     from ollama import Client, ResponseError
@@ -61,23 +61,48 @@ Instructions:
 
 SYSTEM_PROMPT = """You are a concise assistant. Answer using ONLY the provided context.
 
-Strict Instructions (NON-NEGOTIABLE):
-- Read the whole context and think before answering.
-- NEVER add preamble, explanation, or context. ANSWER ONLY.
-- DO NOT rephrase, explain, or add context.
-- Multiple answers: ONLY output ['answer1', 'answer2', ...]. NOTHING ELSE.
-- For yes/no questions, answer only "Yes" or "No".
-- Do not rely only on explicit statements. If the answer can be derived from the context through calculation (e.g., growth rate, difference, ratio, count), compute it before answering.
+🚨 CRITICAL INSTRUCTION: NEVER OUTPUT NARRATIVE TEXT 🚨
 
-Be direct. No padding. No explanations unless specifically asked."""
+Strict Rules (NON-NEGOTIABLE):
+1. Read the whole context and think before answering.
+2. Output ONLY the answer. NOTHING ELSE.
+3. PROHIBITED:
+   - Do NOT add preamble ("Based on...", "The answer is...", "According to...")
+   - Do NOT explain or reason
+   - Do NOT rephrase
+   - Do NOT add context
+   - Do NOT write complete sentences for factual answers
+   - Do NOT apologize for missing information
+   - Do NOT say "I cannot find"
+4. REQUIRED OUTPUT FORMATS:
+   - Number question → output only the number (e.g., "42" not "The answer is 42")
+   - Yes/no question → output only "Yes" or "No"
+   - Percentage → output only "37%" or similar
+   - List/array → output ONLY ['item1', 'item2'] with no extra text
+   - Single item answer → output only the item
+5. For calculations, derive the result from context but OUTPUT ONLY THE FINAL RESULT.
+
+VIOLATION: If you output anything beyond the pure answer, the response will fail validation.
+
+Be direct. Answer only. No exceptions."""
 
 VISION_PROMPT = """Answer the question using the image(s) provided.
-Output ONLY the direct answer. No explanation, no reasoning, no preamble, no "Based on...".
 
-- Number question → output the number only.
-- Yes/no question → output "Yes" or "No" only.
-- List question → output ["item1", "item2"] only.
-- Single answer → output the answer only."""
+🚨 CRITICAL: OUTPUT ANSWER ONLY. ZERO NARRATIVE. 🚨
+
+Strict Rules:
+- NEVER write complete sentences
+- NEVER add explanations, reasoning, or preamble
+- NEVER say "The answer is...", "Based on...", "I can see..."
+- ONLY output the pure answer
+
+Output Format:
+- Number question → ONLY the number (e.g., "5" not "There are 5 items")
+- Yes/no question → ONLY "Yes" or "No"
+- List question → ONLY ["item1", "item2", ...]
+- Single answer → ONLY the answer (e.g., "Blue" not "The color is Blue")
+
+VIOLATION: Any narrative text will cause the response to fail."""
 # -------------------------------------------------------------------
 class BaselineGenerator:
     """LLM-based answer generator using Ollama via the ollama Python library."""
@@ -119,7 +144,7 @@ class BaselineGenerator:
         self._client = Client( # Initialize the Ollama client with base URL and headers
             host=self.base_url, # Base URL of the Ollama server
             headers=headers if self.api_key else None,  # Include headers only if API key is provided
-            timeout=300,  # 5 min — image calls + model reload can take a long time
+            timeout=600,  # 10 min — image calls, multi-document context, model reload can take a long time
         )
         logger.info(f"Initialized Ollama client for model: {self.model}")
         
@@ -225,7 +250,7 @@ class BaselineGenerator:
                 messages=messages,
                 options=options,
                 stream=False,
-                think=False,  # Disabled: thinking mode was temporary workaround during development. System now uses proper query techniques and strategies.
+                think=False,  # Enable reasoning/thinking for better accuracy
                 **kwargs,
             )
         #-------------------
@@ -255,6 +280,7 @@ class BaselineGenerator:
             raise last_exc
         
         # Extract content from response
+        # The response object has a 'message' attribute with content
         content = getattr(getattr(resp, "message", None), "content", "")
         
         if not content:
@@ -368,27 +394,12 @@ def _encode_image(image_path: str, max_side: int = 1120, quality: int = 65) -> s
 
     1120 px is the native tile size qwen3-vl uses internally; sending larger
     images just bloats the payload without helping quality.
-<<<<<<< HEAD
-    
-    Args:
-        image_path: Can be a relative path (resolved from PROJECT_ROOT) or absolute path
-        max_side: Maximum pixel dimension for the longer side
-        
-    Returns:
-        Base64-encoded JPEG bytes as string
-=======
     quality=65 is sufficient for document pages (text, tables, charts).
->>>>>>> main
     """
     from PIL import Image as _Image
     import io as _io
 
-    # Resolve relative paths to absolute paths using PROJECT_ROOT
-    resolved_path = Path(image_path)
-    if not resolved_path.is_absolute():
-        resolved_path = PROJECT_ROOT / image_path
-    
-    img = _Image.open(str(resolved_path)).convert("RGB")
+    img = _Image.open(image_path).convert("RGB")
     w, h = img.size
     if max(w, h) > max_side:
         scale = max_side / max(w, h)
@@ -473,13 +484,12 @@ class VisionGenerator(BaselineGenerator):
             raise last_exc
         logger.info(f"resp: {resp}")
         content = getattr(getattr(resp, "message", None), "content", "")
-        
         if not content:
             raise Exception("Empty response from Ollama chat API")
         return normalize_ws(content)
 
     def generate(self, question, context, system_prompt=SYSTEM_PROMPT2, think=False):
-        """Text-only generation. Thinking mode disabled (uses query techniques instead)."""
+        """Text-only generation — enable thinking for better accuracy."""
         user_message = f"Context:\n{context}\n\nQuestion: {question}"
         messages = [
             {"role": "system", "content": system_prompt},

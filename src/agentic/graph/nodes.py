@@ -364,13 +364,19 @@ Output ONLY the raw JSON starting with {{ and ending with }}, like this:
             # Parse JSON
             grade_dict = clean_and_extract_json(response_text)
             
+            # Handle LLM hallucination: if relevant field is a list, convert to string
+            relevant_val = grade_dict.get('relevant', 'no')
+            if isinstance(relevant_val, list):
+                # LLM hallucinated a list; convert to string representation
+                relevant_val = 'yes' if relevant_val else 'no'
+            
             # Calculate num_relevant from relevant_docs list (counts the documents the LLM marked as relevant)
             relevant_docs_list = grade_dict.get('relevant_docs', [])
             num_relevant = len(relevant_docs_list)
             
             # Validate and create Pydantic model
             grade = DocumentGrade(**{
-                'relevant': grade_dict.get('relevant', 'no'),
+                'relevant': relevant_val,
                 'confidence': grade_dict.get('confidence', 0.5),
                 'reasoning': grade_dict.get('reasoning', ''),
                 'num_relevant': num_relevant  # Derived from the relevant_docs list
@@ -569,6 +575,35 @@ Output raw JSON only, like: {{"strategy":"standard","role_type":"financial_analy
             # Use provided role_type or default to financial_analyst
             strategy_config['role_type'] = strategy_decision.role_type or "financial_analyst"
         
+        # ===== STRICT OUTPUT FORMATTING RULES =====
+        # Prepend formatting constraints to context to enforce answer-only output
+        strict_format_rules = """CRITICAL OUTPUT FORMAT RULES
+
+You MUST output ONLY the answer in the format specified below. NO NARRATIVE. NO PREAMBLE. NO EXPLANATION.
+
+OUTPUT FORMAT:
+- Number question → output ONLY the number (e.g., "42", not "The answer is 42")
+- Yes/no question → output ONLY "Yes" or "No"
+- Percentage → output ONLY "37%" (no explanation or narrative)
+- List/array → output ONLY ['item1', 'item2'] with NO surrounding text
+- Text answer → output ONLY the answer text, no elaboration
+- If answer not in context → output "Not found" only, no explanation
+
+STRICT PROHIBITIONS:
+- NO preamble like "Based on...", "The answer is...", "According to..."
+- NO explanations, reasoning, or justification
+- NO narrative wrappers or context summaries
+- NO apologies or hedging ("I cannot find...")
+- NO complete sentences for factual answers
+
+CONSEQUENCE: Violation of these rules will result in automatic answer validation failure.
+
+=====================================
+
+Context to answer from:
+"""
+        enhanced_context = strict_format_rules + (context or "")
+        
         # CHECK FOR IMAGE HANDLING
         # If we have images and the generator supports vision, use image-aware generation
         from generation.generator import VisionGenerator
@@ -586,7 +621,7 @@ Output raw JSON only, like: {{"strategy":"standard","role_type":"financial_analy
                 answer = generator.generate_with_images(
                     question=question,
                     image_paths=image_paths,
-                    text_context=context
+                    text_context=enhanced_context
                 )
                 print(f"Generated answer from images: {len(answer)} chars")
                 generation_method = "vision"
@@ -598,7 +633,7 @@ Output raw JSON only, like: {{"strategy":"standard","role_type":"financial_analy
                     generator,
                     strategy_config
                 )
-                answer = strategy.generate(question, context)
+                answer = strategy.generate(question, enhanced_context)
                 print(f"Generated answer from text: {len(answer)} chars")
                 generation_method = "text-fallback"
         else:
@@ -608,7 +643,7 @@ Output raw JSON only, like: {{"strategy":"standard","role_type":"financial_analy
                 generator,
                 strategy_config
             )
-            answer = strategy.generate(question, context)
+            answer = strategy.generate(question, enhanced_context)
             print(f"Generated answer: {len(answer)} chars")
             generation_method = "text"
         
