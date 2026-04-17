@@ -86,22 +86,33 @@ class EnsemblePromptStrategy(PromptStrategy):
     def generate(self, question: str, context: str) -> str:
         """
         Generate answers using ensemble approach and aggregate them.
-        
+
         Args:
             question: User's question
             context: Retrieved context/documents
-        
+
         Returns:
             Aggregated answer from multiple prompting approaches
         """
         log_msg = f"Starting ensemble generation (mode={self.mode}, ensemble_size={self.ensemble_size}, aggregation={self.aggregation_method})"
         if self.verbose_logging:
             logger.info(log_msg)
-        
+
         if self.mode == 'multi_prompt':
             return self._generate_multi_prompt(question, context)
         else:  # self_consistency
             return self._generate_self_consistency(question, context)
+
+    def generate_with_images(self, question: str, image_paths: List[str], text_context: str = "") -> str:
+        """Generate with images using ensemble of sub-strategies."""
+        log_msg = f"Starting ensemble VLM generation (mode={self.mode}, ensemble_size={self.ensemble_size})"
+        if self.verbose_logging:
+            logger.info(log_msg)
+
+        if self.mode == 'multi_prompt':
+            return self._generate_multi_prompt_with_images(question, image_paths, text_context)
+        else:
+            return self._generate_self_consistency_with_images(question, image_paths, text_context)
     
     def _generate_multi_prompt(self, question: str, context: str) -> str:
         """
@@ -183,6 +194,46 @@ class EnsemblePromptStrategy(PromptStrategy):
         
         return self._aggregate_answers(all_answers, question, context)
     
+    def _generate_multi_prompt_with_images(self, question: str, image_paths: List[str], text_context: str) -> str:
+        """Multi-prompt ensemble with VLM: each sub-strategy calls generate_with_images."""
+        all_answers = []
+        strategy_map = self._get_strategy_map()
+        strategies_to_use = self.strategies[:self.ensemble_size]
+
+        for i, strategy_name in enumerate(strategies_to_use, 1):
+            try:
+                temp = self.temperatures.get(strategy_name, 0.5)
+                if strategy_name not in strategy_map:
+                    continue
+                strategy = strategy_map[strategy_name](temp)
+                answer = strategy.generate_with_images(question, image_paths, text_context)
+                all_answers.append({'strategy': strategy_name, 'answer': answer, 'temperature': temp})
+            except Exception as e:
+                logger.error(f"Error in ensemble VLM strategy '{strategy_name}': {e}")
+
+        if not all_answers:
+            return "Error: Could not generate answers with any strategy"
+        return self._aggregate_answers(all_answers, question, text_context)
+
+    def _generate_self_consistency_with_images(self, question: str, image_paths: List[str], text_context: str) -> str:
+        """Self-consistency ensemble with VLM: same CoT strategy, multiple samples."""
+        from .cot import ChainOfThoughtPromptStrategy
+        all_answers = []
+
+        for i in range(self.ensemble_size):
+            try:
+                strategy = ChainOfThoughtPromptStrategy(
+                    self.generator, {'show_reasoning': False, 'temperature': self.temperature}
+                )
+                answer = strategy.generate_with_images(question, image_paths, text_context)
+                all_answers.append({'sample': i + 1, 'answer': answer})
+            except Exception as e:
+                logger.error(f"Error generating VLM sample {i+1}: {e}")
+
+        if not all_answers:
+            return "Error: Could not generate answers"
+        return self._aggregate_answers(all_answers, question, text_context)
+
     def _get_strategy_map(self) -> Dict[str, callable]:
         """
         Get mapping of strategy names to factory functions using Strategy Pattern.

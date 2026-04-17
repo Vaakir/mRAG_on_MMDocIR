@@ -2,6 +2,7 @@
 Standard prompting strategy - direct extraction without special prompting.
 """
 
+from typing import List
 from .base import PromptStrategy
 import logging
 
@@ -45,3 +46,10 @@ class StandardPromptStrategy(PromptStrategy):
         """
         system_prompt = self.get_system_prompt()
         return self.generator.generate(question, context, system_prompt=system_prompt)
+
+    def generate_with_images(self, question: str, image_paths: List[str], text_context: str = "") -> str:
+        """Generate with images using standard system prompt."""
+        return self.generator.generate_with_images(
+            question, image_paths, text_context,
+            system_prompt=self.get_system_prompt(),
+        )

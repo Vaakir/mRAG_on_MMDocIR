@@ -356,13 +356,20 @@ Question: {question}"""
 
 
 # -------------------------------------------------------------------
-def _encode_image(image_path: str, max_side: int = 1120) -> str:
+from functools import lru_cache
+
+@lru_cache(maxsize=256)
+def _encode_image(image_path: str, max_side: int = 1120, quality: int = 65) -> str:
     """
     Read an image, resize so the longest side ≤ max_side (preserving aspect
     ratio), then return base64-encoded JPEG bytes.
 
+    Results are cached (LRU, 256 entries) so the same page image isn't
+    re-encoded across different questions.
+
     1120 px is the native tile size qwen3-vl uses internally; sending larger
     images just bloats the payload without helping quality.
+    quality=65 is sufficient for document pages (text, tables, charts).
     """
     from PIL import Image as _Image
     import io as _io
@@ -374,7 +381,7 @@ def _encode_image(image_path: str, max_side: int = 1120) -> str:
         img = img.resize((int(w * scale), int(h * scale)), _Image.LANCZOS)
 
     buf = _io.BytesIO()
-    img.save(buf, format="JPEG", quality=85)
+    img.save(buf, format="JPEG", quality=quality)
     return base64.b64encode(buf.getvalue()).decode("utf-8")
 
 
@@ -475,6 +482,7 @@ class VisionGenerator(BaselineGenerator):
         image_paths: List[str],
         text_context: str = "",
         system_prompt: str = VISION_PROMPT,
+        think: bool = False,
     ) -> str:
         """
         Generate an answer given a question, one or more image paths, and
@@ -506,7 +514,7 @@ class VisionGenerator(BaselineGenerator):
         if not encoded_images:
             # Fall back to text-only generation
             logger.warning("No images could be loaded; falling back to text generation")
-            return self.generate(question, text_context, system_prompt)
+            return self.generate(question, text_context, system_prompt, think=think)
 
         messages = [
             {"role": "system", "content": system_prompt},
@@ -518,7 +526,7 @@ class VisionGenerator(BaselineGenerator):
         ]
 
         try:
-            return self.chat(messages)
+            return self.chat(messages, think)
         except Exception as e:
             logger.error(f"Vision generation error: {e}")
             return f"Error generating response: {str(e)}"
