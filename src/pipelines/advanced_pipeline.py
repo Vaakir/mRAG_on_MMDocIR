@@ -204,6 +204,8 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
         self.generator = VisionGenerator(
             base_url=self.config.OLLAMA_BASE_URL,
             model=self.config.LLM_MODEL,
+            api_key=self.config.OLLAMA_API_KEY,
+            config=self.config,
         )
         self.vlm = self.generator
 

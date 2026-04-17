@@ -23,6 +23,12 @@ Date,Name,Start,End,Tag,WorkingOn
 07.04.2026,BaalCat,14:00,16:00,Planning,Mob programming/full code walkthrough + working on prompt strategies code
 09.04.2026,BaalCat,12:00,16:00,System 2,Reading paper on ensemble/self-consistency to implement it in prompt strategies.
 09.04.2026,BaalCat,18.00,23.00,System 2,Looking over prompt strategy code + removing dead/unneeded code + updating code after pull from main.
+13.04.2026,BaalCat,08.00,16.30,System 2,Reading and looking into chunking and embedding to improve retrieval + pdf image extraction.
+14.04.2026,BaalCat,12.00,18.00,System 2,Troubleshooting and fixing a concurrency issue with database.
+15.04.2026,BaalCat,12:00,16:30,System 2,Improving prompt strategies and testing them (CoT, Few-shot, etc)
+16.04.2026,BaalCat,12:00,16:30,System 2,Testing integration of images in LLM calls + fixing bugs related to that.
+17.04.2026,BaalCat,08:30,17:00,System 2,Fixed problems with thinking in qwen3-vl:8b + cleanup of generator code + tested updated code + other small fixes.
+
 
 25.03.2026,GabIsr,12:15,14:00,Planning,Planning filestructure etc
 25.03.2026,GabIsr,20:30,23:15,Reading & Exploration,"Reading about dataset structure, and potential tools/libraries/frameworks that we can use for the project" 

@@ -14,7 +14,7 @@ os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
 sys.path.append(str(Path(__file__).parent))
 
-from config.config import AdvancedConfig, MultiQueryConfig, RAGFusionConfig, HyDEConfig
+from config.config import AdvancedConfig
 from data.data_loader import load_train_data
 from pipelines.advanced_pipeline import AdvancedRAGPipeline
 

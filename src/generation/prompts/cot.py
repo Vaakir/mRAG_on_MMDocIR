@@ -37,6 +37,8 @@ Answer Format:
 </ANSWER>
 
 Strict Rules:
+- If you are repeating yourself in reasoning, you might be going in circles. Stop and think about what you allready know.
+- If the same word is repeated more than 3 times in reasoning, you might be stuck. Stop and think about what you allready know.
 - ONLY use information from the provided context
 - NEVER add information not in the context
 - Be explicit about your reasoning so errors can be caught
@@ -46,7 +48,6 @@ Strict Rules:
 - For list answers: format as numbered list, nothing else
 - For calculations: give only the final result in the ANSWER section
 - NO complete sentences in the answer section, keep it minimalist"""
-
 
 class ChainOfThoughtPromptStrategy(PromptStrategy):
     """
