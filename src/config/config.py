@@ -120,12 +120,12 @@ class AdvancedConfig(BaselineConfig):
     """Separate collection from baseline so the two don't interfere"""
 
     # Use one model for everything — no server model swapping = no OOM crashes
-    LLM_MODEL: str = "qwen3:32b"
+    LLM_MODEL: str = "qwen3-vl:8b"
 
     # ===== MULTIMODAL SETTINGS =====
     USE_MULTIMODAL: bool = True
 
-    VLM_MODEL: str = "qwen3:32b"  # Vision-language model used when image chunks are retrieved
+    VLM_MODEL: str = "qwen3-vl:8b"
     """Vision-language model used when image chunks are retrieved"""
 
     # Sequential — keeps logs readable and avoids concurrent calls on shared GPU
