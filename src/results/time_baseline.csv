@@ -1,0 +1,7 @@
+Phase,Duration (seconds),Timestamp
+Index Build/Load,265.7124,2026-04-17 14:04:24
+Component Initialization,0.2048,2026-04-17 14:04:24
+Data Loading/Filtering,0.0083,2026-04-17 14:04:24
+Single Query Test,8.9728,2026-04-17 14:04:33
+Full Evaluation,59.55,2026-04-17 14:05:33
+Total Pipeline Runtime,334.4483,2026-04-17 14:05:33

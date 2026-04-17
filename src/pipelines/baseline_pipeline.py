@@ -13,6 +13,7 @@ from typing import Dict, Any, List
 
 from config.config import BaselineConfig
 from pipelines.base_pipeline import BaseRAGPipeline
+from generation.prompts.standard import StandardPromptStrategy
 from evaluation.retrieval_metrics import evaluate_retrieval
 from evaluation.generation_metrics import evaluate_generation
 
@@ -28,6 +29,8 @@ class BaselineRAGPipeline(BaseRAGPipeline):
     
     def __init__(self, config=None):
         super().__init__(config or BaselineConfig())
+        # Baseline ALWAYS uses the standard (direct extraction) strategy
+        self.prompt_strategy = StandardPromptStrategy(generator=self.generator)
         
     def run_query(self, question: str, top_k: int = None) -> Dict[str, Any]:
         """
@@ -58,7 +61,8 @@ class BaselineRAGPipeline(BaseRAGPipeline):
         
         # ===== STEP 3: GENERATION =====
         generation_start = time.time()
-        answer = self.generator.generate(question, context)
+        system_prompt = self.prompt_strategy.get_system_prompt()
+        answer = self.generator.generate(question, context, system_prompt)
         generation_time = time.time() - generation_start
         
         query_total_time = time.time() - query_total_start

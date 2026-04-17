@@ -4,10 +4,28 @@
 
 ---
 
-## How to run
-- Run all DAT560project/src> `python run_experiments.py`
-- Run individial DAT560project/src> `python main_baseline.py`
+## Reproducibility inside of DAT560project>
+```
+# Create a new .py environment
+conda create --name dat560project python=3.11
+conda activate dat560project
 
+# Install requirements in the new environment
+python -m pip install -r requirements.txt
+
+# pip install "pillow<11" "regex<2025" "pypdfium2==4.30.0" # TODO: check versions needed..
+
+# For non mac users cuda (GPU) can be installed like this:
+pip uninstall torch torchvision torchaudio -y
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+
+# Run all experiments
+python \src\preprocessing_pipeline.py
+python \src\run_experiments.py
+
+# If necessary (Delete environment)
+conda remove --name dat560project --all
+```
 
 ## Project Structure
 

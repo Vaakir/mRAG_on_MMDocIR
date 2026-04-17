@@ -1,16 +1,30 @@
 # src/config/config.py
 # Configuration for the all systems to share a single source of truth
-
+import os
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Dict, Any, List
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file for API keys
+env_path = Path(__file__).resolve().parent.parent / '.env'
+load_dotenv(dotenv_path=env_path)
 
 # Define paths outside the dataclass for cleaner referencing
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+
+# Load environment variables
+load_dotenv(PROJECT_ROOT / ".env", override=True)
+
 SRC_DIR = PROJECT_ROOT / "src"
 DATA_DIR = SRC_DIR / "data"
+RESULTS_DIR = SRC_DIR / "results"
+PREPROCESSING_TIME_CSV = RESULTS_DIR / "time_preprocessing.csv"
+BASELINE_TIME_CSV = RESULTS_DIR / "time_baseline.csv"
+RESULTS_CSV = RESULTS_DIR / "results_experiments.csv"
 
-PDFS_DIR = DATA_DIR / "train" / "pdf_train"
+PDFS_DIR = DATA_DIR / "train" / "pdfs_train"
 PREPROCESSED_DATA_DIR = DATA_DIR / "preprocessed"
 PREPROCESSED_DOCUMENTS_FILE = DATA_DIR / "preprocessed" / "all_documents.json"
 
@@ -22,15 +36,16 @@ IMAGES_TRAIN_DIR = DATA_DIR / "train" / "images_train"
 PAGE_IMAGES_TEST_DIR = DATA_DIR / "test" / "page_images_test"
 IMAGES_TEST_DIR = DATA_DIR / "test" / "images_test"
 
-CACHE_DIR = PROJECT_ROOT / "cache"
+CACHE_DIR = SRC_DIR / "cache"
 CACHE_DB_PATH = CACHE_DIR / "query_cache.db"
 PREPROCESSED_CHUNKS_FILE = SRC_DIR / "data" / "preprocessed" / "chunks_fixed_size.json"
-RESULTS_CSV = PROJECT_ROOT / "experiments_results.csv"
+
 
 
 @dataclass
 class BaselineConfig:
     """Configuration matching the baseline pipeline."""
+    HF_TOKEN: str = os.getenv("HF_TOKEN")
 
     # ===== PATHS =====
     PROJECT_ROOT: Path = PROJECT_ROOT
@@ -47,6 +62,8 @@ class BaselineConfig:
     CACHE_DIR: Path = CACHE_DIR
     CACHE_DB_PATH: Path = CACHE_DB_PATH
     RESULTS_CSV: Path = RESULTS_CSV
+    PREPROCESSING_TIME_CSV: Path = PREPROCESSING_TIME_CSV
+    BASELINE_TIME_CSV: Path = BASELINE_TIME_CSV
 
     PREPROCESSED_CHUNKS_FILE: str = str(PREPROCESSED_CHUNKS_FILE)
 
@@ -59,12 +76,14 @@ class BaselineConfig:
     LLM_MODEL: str = "qwen3:32b"
     AGENT_LLM_MODEL: str = "qwen3:32b"  # Lightweight LLM for agent decisions (Query Rewriter, Grader, Generator strategy)
     OLLAMA_BASE_URL: str = "https://ollama.ux.uis.no"
+    OLLAMA_API_KEY: str = os.getenv('OLLAMA_API_KEY', '')
+    """API key for Ollama authentication (loaded from .env, empty string if not found)"""
     LLM_TEMPERATURE: float = 0.0
     LLM_TOP_P: float = 0.1
 
     # ===== VECTOR DATABASE SETTINGS =====
     VECTOR_DB_MODE: str = "local"
-    VECTOR_DB_PATH: str = str(PROJECT_ROOT / "local_qdrant")
+    VECTOR_DB_PATH: str = str(SRC_DIR / "local_qdrant" )
     VECTOR_DB_COLLECTION: str = "baseline_documents_jina"
     VECTOR_DB_DISTANCE: str = "COSINE"
 
@@ -102,19 +121,10 @@ class BaselineConfig:
 
 @dataclass
 class AdvancedConfig(BaselineConfig):
-    """
-    Configuration for the Advanced RAG Pipeline.
-    """
-
-    
-    
+    """Configuration for the Advanced RAG Pipeline."""
     # ===== ADVANCED APP OVERRIDES =====
-    #override the chunk file to use the semantic chunks instead of the fixed-size ones
-    PREPROCESSED_CHUNKS_FILE = SRC_DIR / "data" / "preprocessed" / "chunks_semantic.json"
-    PREPROCESSED_CHUNKS_FILE: str = str(PREPROCESSED_CHUNKS_FILE)
-
-    EMBEDDING_MODEL: str = "jinaai/jina-clip-v2"
-    """Embedding model name from Hugging Face"""
+    # override the chunk file to use the semantic chunks instead of the fixed-size ones
+    PREPROCESSED_CHUNKS_FILE: str = str(SRC_DIR / "data" / "preprocessed" / "chunks_semantic.json")
 
     VECTOR_DB_COLLECTION: str = "advanced_multimodal"
     """Separate collection from baseline so the two don't interfere"""
@@ -131,6 +141,16 @@ class AdvancedConfig(BaselineConfig):
     # Sequential — keeps logs readable and avoids concurrent calls on shared GPU
     GENERATION_WORKERS: int = 1
     RETRIEVAL_WORKERS: int = 1
+
+    # ===== IMAGE RESIZING SETTINGS =====
+    MAX_IMAGE_WIDTH: int = 1024
+    """Maximum width in pixels for image resizing (0 to disable resizing)"""
+    MAX_IMAGE_HEIGHT: int = 1024
+    """Maximum height in pixels for image resizing (0 to disable resizing)"""
+    IMAGE_RESIZE_QUALITY: int = 85
+    """JPEG compression quality (0-100, higher = better quality but larger file size)"""
+    VLM_USE_RAW_CHATML: bool = True
+    """Use raw ChatML with /no_think to bypass qwen3-vl:8b thinking bug (ignores think=false in API)"""
 
     PAGE_IMAGES_TRAIN_DIR: Path = PAGE_IMAGES_TRAIN_DIR
     IMAGES_TRAIN_DIR: Path = IMAGES_TRAIN_DIR
@@ -164,7 +184,7 @@ class AdvancedConfig(BaselineConfig):
     
     PROMPTING_STRATEGY_CONFIG: Dict[str, Any] = field(default_factory=lambda: {
         # Role strategy
-        'role_type': 'financial_analyst',
+        'role_type': 'rag_specialist',
         
         # CoT strategy
         'show_reasoning': False,  # set to False to hide reasoning
@@ -184,36 +204,4 @@ class AdvancedConfig(BaselineConfig):
         }
     })
     """Configuration dict for the selected prompting strategy"""
-
-
-# Preset configurations for quick switching
-@dataclass
-class FastEmbeddingConfig(AdvancedConfig):
-    """Fast embedding using smaller model."""
-
-    EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
-    EMBEDDING_DIMENSION: int = 384
-    EMBEDDING_BATCH_SIZE: int = 128
-
-
-@dataclass
-class MultiQueryConfig(AdvancedConfig):
-    """Multi-query technique configuration."""
-
-    QUERY_TECHNIQUE: str = "multi_query"
-
-
-@dataclass
-class RAGFusionConfig(AdvancedConfig):
-    """RAG-Fusion configuration."""
-
-    QUERY_TECHNIQUE: str = "rag_fusion"
-
-
-@dataclass
-class HyDEConfig(AdvancedConfig):
-    """HyDE (Hypothetical Documents) configuration."""
-
-    QUERY_TECHNIQUE: str = "hyde"
-
 

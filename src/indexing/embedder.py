@@ -76,15 +76,35 @@ class TextEmbedder:
         logger.info(f"Embedding {len(image_paths)} images...")
         all_embeddings = []
 
+        is_jina = "jina" in (getattr(self.model, "model_card_data", None) and getattr(self.model.model_card_data, "model_name", "") or str(getattr(self.model, "tokenizer", "")))
+
         for i in tqdm(range(0, len(image_paths), batch_size), desc="Encoding images"):
             batch_paths = image_paths[i:i + batch_size]
             images = [Image.open(p).convert("RGB") for p in batch_paths]
+            
             with self._lock:
-                embeddings = self.model.encode(
-                    images,
-                    normalize_embeddings=True,
-                    batch_size=batch_size,
-                )
+                if is_jina and hasattr(self.model[0], 'auto_model') and hasattr(self.model[0].auto_model, 'encode_image'):
+                    auto_model = self.model[0].auto_model
+                    embeddings = auto_model.encode_image(images)
+                    if hasattr(embeddings, 'detach'):
+                        embeddings = embeddings.detach().cpu().numpy()
+                elif is_jina and hasattr(self.model[0], 'model') and hasattr(self.model[0].model, 'encode_image'):
+                    auto_model = self.model[0].model
+                    embeddings = auto_model.encode_image(images)
+                    if hasattr(embeddings, 'detach'):
+                        embeddings = embeddings.detach().cpu().numpy()
+                elif is_jina and hasattr(self.model._first_module(), 'encode_image'):
+                    # Workaround for jina-clip-v2 custom module in newer SentenceTransformers
+                    embeddings = self.model._first_module().encode_image(images)
+                    if hasattr(embeddings, 'detach'):
+                        embeddings = embeddings.detach().cpu().numpy()
+                else:
+                    embeddings = self.model.encode(
+                        images,
+                        normalize_embeddings=True,
+                        batch_size=batch_size,
+                    )
+            
             all_embeddings.append(embeddings)
 
             if torch.backends.mps.is_available():

@@ -1,4 +1,3 @@
-
 # src/preprocessing/pdf_loader.py
 # PDF processor using docling — auto-detects and removes page headers/footers by label
 # Falls back to forced-OCR docling when text extraction produces undecodable font garbage
@@ -11,7 +10,11 @@ import re
 from types import SimpleNamespace
 
 from docling.document_converter import DocumentConverter, PdfFormatOption
-from docling.datamodel.pipeline_options import PdfPipelineOptions, AcceleratorOptions, AcceleratorDevice
+from docling.datamodel.pipeline_options import (
+    PdfPipelineOptions,
+    AcceleratorOptions,
+    AcceleratorDevice,
+)
 from docling.datamodel.base_models import InputFormat, DocItemLabel
 
 logging.basicConfig(level=logging.INFO)
@@ -29,7 +32,12 @@ def _build_converter() -> DocumentConverter:
     """Build a DocumentConverter with GPU if available, CPU otherwise."""
     try:
         import torch
-        device = AcceleratorDevice.CUDA if torch.cuda.is_available() else AcceleratorDevice.CPU
+
+        device = (
+            AcceleratorDevice.CUDA
+            if torch.cuda.is_available()
+            else AcceleratorDevice.CPU
+        )
     except ImportError:
         device = AcceleratorDevice.CPU
 
@@ -98,11 +106,13 @@ def _docling_result_to_blocks(result) -> list:
             continue
         text = _decode_glyph_text(text)
         page_number = item.prov[0].page_no if item.prov else None
-        serialized_blocks.append({
-            "category": _docling_label_to_category(item.label),
-            "text": text,
-            "page_number": page_number,
-        })
+        serialized_blocks.append(
+            {
+                "category": _docling_label_to_category(item.label),
+                "text": text,
+                "page_number": page_number,
+            }
+        )
     return serialized_blocks
 
 
@@ -151,10 +161,6 @@ def process_all_pdfs(pdf_dir: Path) -> List[Dict[str, Any]]:
     return all_documents
 
 
-# Alias expected by the preprocessing pipeline
-process_all_pdfs_fast = process_all_pdfs
-
-
 def save_read_pdf_data(all_documents, path):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(all_documents, f, ensure_ascii=False, indent=2)
@@ -166,16 +172,16 @@ def load_read_documents(path):
     for doc in docs:
         doc["blocks"] = [
             SimpleNamespace(
-                category=b["category"],
-                text=b["text"],
-                page_number=b.get("page_number")
-            ) for b in doc["blocks"]
+                category=b["category"], text=b["text"], page_number=b.get("page_number")
+            )
+            for b in doc["blocks"]
         ]
     return docs
 
 
 if __name__ == "__main__":
     import sys
+
     sys.path.insert(0, str(Path(__file__).parent.parent))
     from config.config import BaselineConfig
 
@@ -183,4 +189,6 @@ if __name__ == "__main__":
     logger.info(f"Processing PDFs from: {cfg.PDFS_DIR}")
     all_documents = process_all_pdfs(cfg.PDFS_DIR)
     save_read_pdf_data(all_documents, path=cfg.PREPROCESSED_DOCUMENTS_FILE)
-    logger.info(f"Saved {len(all_documents)} documents to {cfg.PREPROCESSED_DOCUMENTS_FILE}")
+    logger.info(
+        f"Saved {len(all_documents)} documents to {cfg.PREPROCESSED_DOCUMENTS_FILE}"
+    )

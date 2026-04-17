@@ -161,9 +161,13 @@ class BaseRAGPipeline:
             )
 
     def initialize_components(self):
-        """Initialize standard generator component."""
+        """Initialize standard generator component with config values."""
         logger.info(f"Initializing generator with base URL {self.config.OLLAMA_BASE_URL} and model {self.config.LLM_MODEL}")
-        self.generator = BaselineGenerator(self.config.OLLAMA_BASE_URL, self.config.LLM_MODEL)
+        self.generator = BaselineGenerator(
+            base_url=self.config.OLLAMA_BASE_URL,
+            model=self.config.LLM_MODEL,
+            api_key=self.config.OLLAMA_API_KEY
+        )
 
     def retrieve(self, question: str, top_k: Optional[int] = None) -> List[Dict[str, Any]]:
         """

@@ -7,9 +7,11 @@
 # Paths stored in Qdrant are RELATIVE to DATA_DIR so the same index works
 # on any machine (local Mac, Colab, etc.).  Callers resolve them at runtime.
 
+import base64
 import json
 import logging
 import re
+from functools import lru_cache
 from pathlib import Path
 from typing import List, Dict, Any
 
@@ -18,6 +20,74 @@ logger = logging.getLogger(__name__)
 # JSONL evidence_images paths contain a "crops/" segment that does not exist on
 # disk — files sit directly in the question folder.
 _CROPS_RE = re.compile(r"/crops/")
+
+
+def resize_image(image_path: str, max_width: int = 1120, max_height: int = 1120, quality: int = 85) -> bytes:
+    """
+    Read an image, resize to fit within max_width x max_height (preserving aspect ratio),
+    and return JPEG bytes.
+    
+    Args:
+        image_path: Path to the image file
+        max_width: Maximum width in pixels (0 to disable)
+        max_height: Maximum height in pixels (0 to disable)
+        quality: JPEG compression quality (0-100)
+    
+    Returns:
+        JPEG bytes of the resized image
+    """
+    from PIL import Image
+    import io
+    
+    img = Image.open(image_path).convert("RGB")
+    w, h = img.size
+    
+    # Skip resizing if disabled or image is already smaller
+    if max_width > 0 or max_height > 0:
+        if max_width <= 0:
+            max_width = w
+        if max_height <= 0:
+            max_height = h
+        
+        if w > max_width or h > max_height:
+            # Scale proportionally to fit within bounds
+            scale = min(max_width / w, max_height / h)
+            new_w = int(w * scale)
+            new_h = int(h * scale)
+            img = img.resize((new_w, new_h), Image.LANCZOS)
+    
+    # Encode to JPEG
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=quality)
+    return buf.getvalue()
+
+
+@lru_cache(maxsize=256)
+def encode_image(image_path: str, max_width: int = None, max_height: int = None, quality: int = None) -> str:
+    """
+    Resize and encode an image as base64-encoded JPEG.
+    
+    If max_width, max_height, or quality are None, loads defaults from config.
+    
+    Args:
+        image_path: Path to the image file
+        max_width: Maximum width in pixels (None to load from config)
+        max_height: Maximum height in pixels (None to load from config)
+        quality: JPEG compression quality 0-100 (None to load from config)
+    
+    Returns:
+        Base64-encoded string of the resized JPEG image
+    """
+    # Load config values if not provided
+    if max_width is None or max_height is None or quality is None:
+        from config.config import AdvancedConfig
+        config = AdvancedConfig()
+        max_width = max_width or getattr(config, 'MAX_IMAGE_WIDTH', 1120)
+        max_height = max_height or getattr(config, 'MAX_IMAGE_HEIGHT', 1120)
+        quality = quality or getattr(config, 'IMAGE_RESIZE_QUALITY', 85)
+    
+    jpeg_bytes = resize_image(image_path, max_width, max_height, quality)
+    return base64.b64encode(jpeg_bytes).decode("utf-8")
 
 
 def _resolve_evidence_path(base_dir: Path, relative_path: str) -> Path:
