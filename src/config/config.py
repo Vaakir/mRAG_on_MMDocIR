@@ -15,7 +15,9 @@ load_dotenv(PROJECT_ROOT / ".env", override=True)
 SRC_DIR = PROJECT_ROOT / "src"
 DATA_DIR = SRC_DIR / "data"
 RESULTS_DIR = SRC_DIR / "results"
-PREPROCESSING_TIME_CSV = RESULTS_DIR / "preprocessing_time.csv"
+PREPROCESSING_TIME_CSV = RESULTS_DIR / "time_preprocessing.csv"
+BASELINE_TIME_CSV = RESULTS_DIR / "time_baseline.csv"
+RESULTS_CSV = RESULTS_DIR / "results_experiments.csv"
 
 PDFS_DIR = DATA_DIR / "train" / "pdfs_train"
 PREPROCESSED_DATA_DIR = DATA_DIR / "preprocessed"
@@ -32,7 +34,6 @@ IMAGES_TEST_DIR = DATA_DIR / "test" / "images_test"
 CACHE_DIR = SRC_DIR / "cache"
 CACHE_DB_PATH = CACHE_DIR / "query_cache.db"
 PREPROCESSED_CHUNKS_FILE = SRC_DIR / "data" / "preprocessed" / "chunks_fixed_size.json"
-RESULTS_CSV = SRC_DIR / "experiments_results.csv"
 
 
 
@@ -57,6 +58,7 @@ class BaselineConfig:
     CACHE_DB_PATH: Path = CACHE_DB_PATH
     RESULTS_CSV: Path = RESULTS_CSV
     PREPROCESSING_TIME_CSV: Path = PREPROCESSING_TIME_CSV
+    BASELINE_TIME_CSV: Path = BASELINE_TIME_CSV
 
     PREPROCESSED_CHUNKS_FILE: str = str(PREPROCESSED_CHUNKS_FILE)
 
