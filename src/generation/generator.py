@@ -225,7 +225,7 @@ class BaselineGenerator:
                 messages=messages,
                 options=options,
                 stream=False,
-                think=True,  # Enable reasoning/thinking for better accuracy
+                think=False,
                 **kwargs,
             )
         #-------------------

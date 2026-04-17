@@ -11,11 +11,10 @@ train/
 test/
 temp/
 outputs/
+query_cache.db
 
 # Qdrant local storage (large binary files, rebuild locally)
-qdrant_data/
-local_qdrant/collection/
-
+collection/
 
 # Models / embeddings
 *.pt

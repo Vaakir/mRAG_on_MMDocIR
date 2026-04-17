@@ -22,10 +22,10 @@ IMAGES_TRAIN_DIR = DATA_DIR / "train" / "images_train"
 PAGE_IMAGES_TEST_DIR = DATA_DIR / "test" / "page_images_test"
 IMAGES_TEST_DIR = DATA_DIR / "test" / "images_test"
 
-CACHE_DIR = PROJECT_ROOT / "cache"
+CACHE_DIR = SRC_DIR / "cache"
 CACHE_DB_PATH = CACHE_DIR / "query_cache.db"
 PREPROCESSED_CHUNKS_FILE = SRC_DIR / "data" / "preprocessed" / "chunks_fixed_size.json"
-RESULTS_CSV = PROJECT_ROOT / "experiments_results.csv"
+RESULTS_CSV = SRC_DIR / "experiments_results.csv"
 
 
 @dataclass
@@ -63,7 +63,7 @@ class BaselineConfig:
 
     # ===== VECTOR DATABASE SETTINGS =====
     VECTOR_DB_MODE: str = "local"
-    VECTOR_DB_PATH: str = str(PROJECT_ROOT / "local_qdrant")
+    VECTOR_DB_PATH: str = str(SRC_DIR / "local_qdrant" )
     VECTOR_DB_COLLECTION: str = "baseline_documents_jina"
     VECTOR_DB_DISTANCE: str = "COSINE"
 
@@ -119,12 +119,12 @@ class AdvancedConfig(BaselineConfig):
     """Separate collection from baseline so the two don't interfere"""
 
     # Use one model for everything — no server model swapping = no OOM crashes
-    LLM_MODEL: str = "gorina10.qwen3.5:122b"
+    LLM_MODEL: str = "gorina10.qwen3.5:122b" # qwen3-vl:8b
 
     # ===== MULTIMODAL SETTINGS =====
     USE_MULTIMODAL: bool = True
 
-    VLM_MODEL: str = "gorina10.qwen3.5:122b"
+    VLM_MODEL: str = "gorina10.qwen3.5:122b" # qwen3-vl:8b
     """Vision-language model used when image chunks are retrieved"""
 
     # Sequential — keeps logs readable and avoids concurrent calls on shared GPU
