@@ -61,48 +61,23 @@ Instructions:
 
 SYSTEM_PROMPT = """You are a concise assistant. Answer using ONLY the provided context.
 
-🚨 CRITICAL INSTRUCTION: NEVER OUTPUT NARRATIVE TEXT 🚨
+Strict Instructions (NON-NEGOTIABLE):
+- Read the whole context and think before answering.
+- NEVER add preamble, explanation, or context. ANSWER ONLY.
+- DO NOT rephrase, explain, or add context.
+- Multiple answers: ONLY output ['answer1', 'answer2', ...]. NOTHING ELSE.
+- For yes/no questions, answer only "Yes" or "No".
+- Do not rely only on explicit statements. If the answer can be derived from the context through calculation (e.g., growth rate, difference, ratio, count), compute it before answering.
 
-Strict Rules (NON-NEGOTIABLE):
-1. Read the whole context and think before answering.
-2. Output ONLY the answer. NOTHING ELSE.
-3. PROHIBITED:
-   - Do NOT add preamble ("Based on...", "The answer is...", "According to...")
-   - Do NOT explain or reason
-   - Do NOT rephrase
-   - Do NOT add context
-   - Do NOT write complete sentences for factual answers
-   - Do NOT apologize for missing information
-   - Do NOT say "I cannot find"
-4. REQUIRED OUTPUT FORMATS:
-   - Number question → output only the number (e.g., "42" not "The answer is 42")
-   - Yes/no question → output only "Yes" or "No"
-   - Percentage → output only "37%" or similar
-   - List/array → output ONLY ['item1', 'item2'] with no extra text
-   - Single item answer → output only the item
-5. For calculations, derive the result from context but OUTPUT ONLY THE FINAL RESULT.
-
-VIOLATION: If you output anything beyond the pure answer, the response will fail validation.
-
-Be direct. Answer only. No exceptions."""
+Be direct. No padding. No explanations unless specifically asked."""
 
 VISION_PROMPT = """Answer the question using the image(s) provided.
+Output ONLY the direct answer. No explanation, no reasoning, no preamble, no "Based on...".
 
-🚨 CRITICAL: OUTPUT ANSWER ONLY. ZERO NARRATIVE. 🚨
-
-Strict Rules:
-- NEVER write complete sentences
-- NEVER add explanations, reasoning, or preamble
-- NEVER say "The answer is...", "Based on...", "I can see..."
-- ONLY output the pure answer
-
-Output Format:
-- Number question → ONLY the number (e.g., "5" not "There are 5 items")
-- Yes/no question → ONLY "Yes" or "No"
-- List question → ONLY ["item1", "item2", ...]
-- Single answer → ONLY the answer (e.g., "Blue" not "The color is Blue")
-
-VIOLATION: Any narrative text will cause the response to fail."""
+- Number question → output the number only.
+- Yes/no question → output "Yes" or "No" only.
+- List question → output ["item1", "item2"] only.
+- Single answer → output the answer only."""
 # -------------------------------------------------------------------
 class BaselineGenerator:
     """LLM-based answer generator using Ollama via the ollama Python library."""
@@ -144,7 +119,7 @@ class BaselineGenerator:
         self._client = Client( # Initialize the Ollama client with base URL and headers
             host=self.base_url, # Base URL of the Ollama server
             headers=headers if self.api_key else None,  # Include headers only if API key is provided
-            timeout=600,  # 10 min — image calls, multi-document context, model reload can take a long time
+            timeout=300,  # 5 min — image calls + model reload can take a long time
         )
         logger.info(f"Initialized Ollama client for model: {self.model}")
         
@@ -250,7 +225,7 @@ class BaselineGenerator:
                 messages=messages,
                 options=options,
                 stream=False,
-                think=False,  # Enable reasoning/thinking for better accuracy
+                think=False,
                 **kwargs,
             )
         #-------------------
@@ -488,7 +463,7 @@ class VisionGenerator(BaselineGenerator):
             raise Exception("Empty response from Ollama chat API")
         return normalize_ws(content)
 
-    def generate(self, question, context, system_prompt=SYSTEM_PROMPT2, think=False):
+    def generate(self, question, context, system_prompt=SYSTEM_PROMPT2, think=True):
         """Text-only generation — enable thinking for better accuracy."""
         user_message = f"Context:\n{context}\n\nQuestion: {question}"
         messages = [
