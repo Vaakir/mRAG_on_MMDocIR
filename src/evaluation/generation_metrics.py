@@ -207,61 +207,12 @@ def semantic_similarity(pred_norm: str, gt_norm: str, embedder: Optional[Any] = 
         return token_f1(pred_norm, gt_norm)
 
 # -------------------------------------------------------------------
-# def accuracy(prediction: str, ground_truth: Any) -> float:
-#     """
-#     Binary accuracy: 1.0 if prediction is exactly correct (after normalization), 0.0 otherwise.
-#     Similar to exact_match but named differently for clarity.
-    
-#     Args:
-#         prediction: The generated answer to evaluate
-#         ground_truth: The reference answer (can be string or list)
-    
-#     Returns:
-#         1.0 if exact match, else 0.0
-#     """
-#     # Accuracy is essentially the same as exact match for generation evaluation, since we want to know if the prediction is correct or not. We can reuse the exact_match function for this purpose.
-#     return exact_match(prediction, ground_truth)
-# -------------------------------------------------------------------
-def faithfulness_prompt() -> str:
-    """
-    Return the system prompt for evaluating faithfulness of a generated answer.
-    Faithfulness checks if the answer is grounded in the provided context.
-    By "grounded" we mean that all factual claims in the answer are supported by or 
-    derivable from the context, and that the answer does not contradict the context or 
-    introduce facts that are not found in the context.
-    """
-    return """You are an expert evaluator of text generation systems. Your task is to assess the FAITHFULNESS of a generated answer.
 
-FAITHFULNESS measures whether the generated answer is grounded in the provided context. An answer is faithful if:
-1. All factual claims in the answer are supported by or derivable from the context
-2. The answer does not contradict the context
-3. The answer does not introduce facts not found in the context
-
-You will be given:
-- A CONTEXT (retrieved documents)
-- A GENERATED ANSWER
-- A REFERENCE ANSWER (ground truth)
-
-Output a JSON with:
-{
-    "score": <float between 0 and 1>,
-    "explanation": "<brief explanation of why this score>",
-    "issues": ["<list of unfaithful claims if any>"]
-}
-
-Be strict: only give a score above 0.7 if the answer is clearly grounded in the context."""
-
-# NOTE: The faithfulness evaluation relies on the LLM evaluator's ability to understand 
-# the context and assess the generated answer against it. The prompt is designed to guide 
-# the LLM to focus on factual grounding and consistency with the context when assigning 
-# a faithfulness score.
 # -------------------------------------------------------------------
 def evaluate_generation(
     predictions: List[str],
     ground_truths: List[Any],
-    contexts: Optional[List[str]] = None,
     embedder: Optional[Any] = None,
-    llm_evaluator: Optional[Any] = None
 ) -> Dict[str, float]:
     """
     Evaluate generation performance with comprehensive metrics.
@@ -269,10 +220,7 @@ def evaluate_generation(
     Args:
         predictions: List of generated answers
         ground_truths: List of reference answers
-        contexts: Optional list of retrieved contexts for each query
         embedder: Optional embedder for semantic similarity calculation
-        llm_evaluator: Optional LLM evaluator for faithfulness scoring
-                      (should have generate() method taking (prompt, context) and returning JSON)
     
     Returns:
         Dictionary with all computed metrics
@@ -302,22 +250,6 @@ def evaluate_generation(
                     results.setdefault(k, []).append(v)
             else:
                 results.setdefault(name, []).append(out)
-        
-        # Faithfulness evaluation (if context and LLM evaluator available)
-        if contexts and llm_evaluator and i < len(contexts):
-            try:
-                context = contexts[i]
-                prompt = faithfulness_prompt()
-                evaluation = llm_evaluator.generate(
-                    prompt,
-                    f"CONTEXT:\n{context}\n\nGENERATED ANSWER:\n{pred}\n\nREFERENCE ANSWER:\n{gt}"
-                )
-                
-                eval_json = json.loads(evaluation)
-                results.setdefault("faithfulness", []).append(eval_json.get("score", 0.5))
-            except Exception as e:
-                print(f"Warning: Faithfulness evaluation failed for sample {i}: {e}")
-                results.setdefault("faithfulness", []).append(None)
 
     # Average all the metrics across all queries and compile results into a dictionary
     averaged = {}
