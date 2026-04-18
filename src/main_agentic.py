@@ -25,7 +25,7 @@ import argparse
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from config.config import AdvancedConfig
+from config.config import AgenticConfig
 from data.data_loader import load_train_data
 from pipelines.agentic_pipeline import AgenticRAGPipeline
 
@@ -92,7 +92,7 @@ def main():
     
     # Initialize config
     print("Loading configuration...")
-    config = AdvancedConfig()
+    config = AgenticConfig()
     config.EVAL_SUBSET_SIZE = args.eval_size
     
     # Initialize pipeline

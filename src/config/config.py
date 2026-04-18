@@ -83,7 +83,7 @@ class BaselineConfig:
 
     # ===== VECTOR DATABASE SETTINGS =====
     VECTOR_DB_MODE: str = "local"
-    VECTOR_DB_PATH: str = str(SRC_DIR / "local_qdrant" )
+    VECTOR_DB_PATH: str = str(PROJECT_ROOT / "local_qdrant")
     VECTOR_DB_COLLECTION: str = "baseline_documents_jina"
     VECTOR_DB_DISTANCE: str = "COSINE"
 
@@ -130,12 +130,12 @@ class AdvancedConfig(BaselineConfig):
     """Separate collection from baseline so the two don't interfere"""
 
     # Use one model for everything — no server model swapping = no OOM crashes
-    LLM_MODEL: str = "qwen3-vl:8b"
+    LLM_MODEL: str = "qwen3-vl:8b-instruct"
 
     # ===== MULTIMODAL SETTINGS =====
     USE_MULTIMODAL: bool = True
 
-    VLM_MODEL: str = "qwen3-vl:8b"
+    VLM_MODEL: str = "qwen3-vl:8b-instruct"
     """Vision-language model used when image chunks are retrieved"""
 
     # Sequential — keeps logs readable and avoids concurrent calls on shared GPU
@@ -204,4 +204,22 @@ class AdvancedConfig(BaselineConfig):
         }
     })
     """Configuration dict for the selected prompting strategy"""
+
+
+@dataclass
+class AgenticConfig(AdvancedConfig):
+    """Configuration for System 3 Agentic RAG Pipeline."""
+    
+    # ===== AGENT SETTINGS =====
+    AGENT_MAX_RETRIES: int = 2
+    """Maximum number of retry iterations for query rewriting (total attempts = retries + 1)"""
+    
+    RETRY_ON_LOW_CONFIDENCE: bool = True
+    """Whether to retry retrieval if grader confidence is below threshold"""
+    
+    GRADER_CONFIDENCE_THRESHOLD: float = 0.6
+    """Minimum confidence threshold (0.0-1.0) for document relevance grading"""
+    
+    AGENT_DECISION_LOGGING: bool = True
+    """Whether to log all agent decisions (query rewriter, grader, generator) for analysis"""
 

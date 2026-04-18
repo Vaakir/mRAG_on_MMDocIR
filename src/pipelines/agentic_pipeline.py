@@ -3,9 +3,9 @@
 import logging
 import time
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Union
 
-from config.config import AdvancedConfig
+from config.config import AdvancedConfig, AgenticConfig
 from pipelines.base_pipeline import BaseRAGPipeline
 from agentic.graph.builder import build_agentic_graph
 from agentic.graph.state import AgenticRAGState
@@ -26,7 +26,7 @@ class AgenticRAGPipeline(BaseRAGPipeline):
     Extends BaseRAGPipeline to reuse index building and component initialization.
     """
     
-    def __init__(self, config: AdvancedConfig):
+    def __init__(self, config: Union[AdvancedConfig, AgenticConfig]):
         """Initialize the agentic pipeline."""
         super().__init__(config)
         self.agentic_graph = None       # Will hold the compiled LangGraph StateGraph
@@ -140,7 +140,13 @@ class AgenticRAGPipeline(BaseRAGPipeline):
         # Build the graph
         config_dict = {
             'TOP_K': self.config.TOP_K,
-            'MAX_RETRIES': getattr(self.config, 'MAX_RETRIES', 1)
+            # System 3 agent settings
+            'AGENT_MAX_RETRIES': getattr(self.config, 'AGENT_MAX_RETRIES', 1),
+            'GRADER_CONFIDENCE_THRESHOLD': getattr(self.config, 'GRADER_CONFIDENCE_THRESHOLD', 0.6),
+            'RETRY_ON_LOW_CONFIDENCE': getattr(self.config, 'RETRY_ON_LOW_CONFIDENCE', True),
+            'AGENT_DECISION_LOGGING': getattr(self.config, 'AGENT_DECISION_LOGGING', True),
+            # # Backward compatibility: support old MAX_RETRIES
+            # 'MAX_RETRIES': getattr(self.config, 'AGENT_MAX_RETRIES', getattr(self.config, 'MAX_RETRIES', 2)),
         }
         
         self.agentic_graph = build_agentic_graph( # Build the LangGraph StateGraph using the builder function, passing all dependencies
@@ -184,7 +190,7 @@ class AgenticRAGPipeline(BaseRAGPipeline):
             grade_confidence=0.0,
             grade_reasoning="",
             retry_count=0,
-            max_retries=getattr(self.config, 'MAX_RETRIES', 1), # Use config value or default to 1
+            max_retries=getattr(self.config, 'AGENT_MAX_RETRIES', 1), # Use config value or default to 1
             last_technique_used="",
             chosen_prompting_strategy="",
             generated_answer="",
