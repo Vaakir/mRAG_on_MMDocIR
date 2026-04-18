@@ -65,7 +65,7 @@ class MultimodalRetriever:
     # Public API
     # ------------------------------------------------------------------
 
-    def retrieve(self, question: str, top_k: int = 5, is_visual: Optional[bool] = None) -> List[Dict[str, Any]]:
+    def retrieve(self, question: str, top_k: int = 5, is_visual: Optional[bool] = None, technique=None) -> List[Dict[str, Any]]:
         _trace(f"Question: {question[:120]}")
 
         # Step 1: Classify (or use forced routing from evaluation)
@@ -78,8 +78,10 @@ class MultimodalRetriever:
             text_k, image_k = self._split_text_image_k(top_k, self.text_ratio_non_visual)
 
         # Step 2: Text retrieval
+        # Use provided technique (from agent) or fall back to default
+        used_technique = technique if technique is not None else self.query_technique
         _trace(f"Text retrieval (text_k={text_k})...")
-        text_results = self.query_technique.retrieve(question, text_k)
+        text_results = used_technique.retrieve(question, text_k)
         _trace(f"Got {len(text_results)} text results")
 
         # Step 3: Image retrieval if we have budget
