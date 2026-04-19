@@ -176,7 +176,7 @@ def semantic_similarity(pred_norm: str, gt_norm: str, embedder: Optional[Any] = 
     """
     Calculate semantic similarity between prediction and ground truth.
     
-    If embedder provided: uses embedding-based cosine similarity (LLM-based)
+    If embedder provided: uses embedding-based cosine similarity
     Otherwise: falls back to token F1 (text-based similarity)
     
     Args:

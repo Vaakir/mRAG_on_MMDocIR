@@ -73,8 +73,8 @@ class BaselineConfig:
     EMBEDDING_BATCH_SIZE: int = 64
 
     # ===== LLM / GENERATOR SETTINGS =====
-    LLM_MODEL: str = "qwen3:32b"
-    AGENT_LLM_MODEL: str = "qwen3:32b"  # Lightweight LLM for agent decisions (Query Rewriter, Grader, Generator strategy)
+    LLM_MODEL: str = "qwen3-vl:8b-instruct"
+    # AGENT_LLM_MODEL: str = "qwen3:32b"  # Lightweight LLM for agent decisions (Query Rewriter, Grader, Generator strategy)
     OLLAMA_BASE_URL: str = "https://ollama.ux.uis.no"
     OLLAMA_API_KEY: str = os.getenv('OLLAMA_API_KEY', '')
     """API key for Ollama authentication (loaded from .env, empty string if not found)"""
@@ -211,15 +211,17 @@ class AgenticConfig(AdvancedConfig):
     """Configuration for System 3 Agentic RAG Pipeline."""
     
     # ===== AGENT SETTINGS =====
-    AGENT_MAX_RETRIES: int = 2
+    AGENT_MAX_RETRIES: int = 1
     """Maximum number of retry iterations for query rewriting (total attempts = retries + 1)"""
     
     RETRY_ON_LOW_CONFIDENCE: bool = True
     """Whether to retry retrieval if grader confidence is below threshold"""
     
-    GRADER_CONFIDENCE_THRESHOLD: float = 0.6
+    GRADER_CONFIDENCE_THRESHOLD: float = 0.51
     """Minimum confidence threshold (0.0-1.0) for document relevance grading"""
     
     AGENT_DECISION_LOGGING: bool = True
     """Whether to log all agent decisions (query rewriter, grader, generator) for analysis"""
+    
+    AGENT_LLM_MODEL: str = "qwen3-vl:8b-instruct"  # Lightweight LLM for agent decisions (Query Rewriter, Grader, Generator strategy)
 
