@@ -330,24 +330,38 @@ def make_grader_node(agent_llm, config: Dict[str, Any]):
         
         doc_text = "\n\n".join(doc_summaries) # This represents the retrieved information the Grader has to evaluate for relevance
         
-        prompt = f"""You are an expert evaluator. Grade these documents on relevance to the question.
+        prompt = f"""You are a strict evaluator. Grade these documents on whether they CONTAIN THE SPECIFIC ANSWER TO THE QUESTION.
 
 Question: {question}
 
 Documents ({len(retrieved_docs)} total):
 {doc_text}
 
-For EACH document, evaluate:
-1. Does it contain answer content for the question?
-2. Does it mention key concepts from the question?
-3. Is the context type (table, text, image caption, etc.) appropriate?
+CRITICAL EVALUATION RULE:
+For EACH document, attempt to EXTRACT the specific answer:
+1. State: "Can I extract the specific answer to the question from this document?"
+2. If YES: Show the exact extracted value (number, name, list, etc.)
+3. If NO: Explain why (vague reference, missing data, wrong section, off-topic, etc.)
 
-Then decide:
-- Which document numbers are RELEVANT? (e.g., [1, 3, 5])
-- Which are PARTIALLY relevant? (e.g., [2, 4])
-- Overall decision: yes|no (is there enough relevant content overall?)
-- Confidence: 0.0-1.0 (how sure are you?)
-- Reasoning: specific details on what makes docs relevant/irrelevant
+RELEVANCE CRITERIA (STRICT):
+- RELEVANT (mark doc as relevant ONLY IF you successfully extracted the specific answer)
+- PARTIALLY RELEVANT (if document discusses topic but lacks the exact answer needed)
+- IRRELEVANT (if extraction impossible or answer not in document)
+
+Examples:
+- Q: "What is Costco's FY2021 debt?" 
+  - Doc says "Costco debt $7692M" from different year = PARTIALLY relevant (wrong time period)
+  - Doc shows "Costco FY2021 balance sheet, total debt: $11407M" = RELEVANT (exact answer)
+- Q: "How many X are in figure Y?"
+  - Doc discusses figure Y but no count = PARTIALLY relevant
+  - Doc shows count "4 items in figure Y" = RELEVANT
+
+Then output:
+- Which documents are RELEVANT (has extractable answer)?
+- Which are PARTIALLY relevant (topic-related but incomplete)?
+- Overall decision: yes|no (enough relevant docs for answering?)
+- Confidence: 0.0-1.0 (how confident in answer being derivable?)
+- Reasoning: Show what you extracted from each relevant doc
 
 CRITICAL: Your response MUST be ONLY a valid JSON object. Do NOT include:
 - Any text before the JSON
@@ -357,7 +371,7 @@ CRITICAL: Your response MUST be ONLY a valid JSON object. Do NOT include:
 - Any markdown formatting
 
 Output ONLY the raw JSON starting with {{ and ending with }}, like this:
-{{"relevant":"yes","confidence":0.85,"relevant_docs":[1,3,5],"partial_docs":[2],"irrelevant_docs":[4],"reasoning":"Docs 1, 3, 5 directly contain answer content..."}}"""
+{{"relevant":"yes","confidence":0.85,"relevant_docs":[1,3],"partial_docs":[2,4],"irrelevant_docs":[5],"reasoning":"Doc 1: extracted '$11407M FY2021 debt'. Doc 3: extracted 'total debt $11.4B'. Doc 2: mentions debt but not FY2021..."}}"""
         
         try:
             response = agent_llm.invoke(prompt) # Call agent LLM to get THE detailed grading decision
@@ -500,6 +514,10 @@ def make_generator_node(agent_llm, generator, config: Dict[str, Any]):
         Generator Agent: Decide prompting strategy, and generate answer (with optional image support).
         """
         
+        print(f"\n{'='*80}")
+        print("Generator AGENT")
+        print(f"{'='*80}")
+        
         # Handle both AgenticRAGState and dict
         if isinstance(state, dict):
             question = state.get('original_question', '')
@@ -579,28 +597,96 @@ Output raw JSON only, like: {{"strategy":"standard","role_type":"financial_analy
             # Use provided role_type or default to financial_analyst
             strategy_config['role_type'] = strategy_decision.role_type or "financial_analyst"
         
-        # ===== STRICT OUTPUT FORMATTING RULES =====
-        # Prepend formatting constraints to context to enforce answer-only output
+        # ===== ENHANCED OUTPUT FORMATTING RULES =====
+        # Comprehensive, well-structured prompt that guides answer generation by type
         strict_format_rules = """CRITICAL OUTPUT FORMAT RULES
 
 You MUST output ONLY the answer in the format specified below. NO NARRATIVE. NO PREAMBLE. NO EXPLANATION.
 
-OUTPUT FORMAT:
-- Number question → output ONLY the number (e.g., "42", not "The answer is 42")
-- Yes/no question → output ONLY "Yes" or "No"
-- Percentage → output ONLY "37%" (no explanation or narrative) (or if list of percentages output ONLY ["37%", "42%"] with NO surrounding text)
-- List/array → output ONLY ['item1', 'item2'] with NO surrounding text
-- Text answer → output ONLY the answer text, no elaboration
-- If answer not in context → output "Not found" only, no explanation
+=====================================
+ANSWER FORMAT BY TYPE
+=====================================
 
-STRICT PROHIBITIONS:
-- NO preamble like "Based on...", "The answer is...", "According to..."
-- NO explanations, reasoning, or justification
-- NO narrative wrappers or context summaries
-- NO apologies or hedging ("I cannot find...")
-- NO complete sentences for factual answers
+[TYPE 1: COUNTING / NUMERICAL ANSWERS]
+Question patterns: "How many...", "How much...", "Count...", "Number of..."
+Format: OUTPUT ONLY a single integer with NO other text
+Examples:
+  Q: "How many parts has the prefix N in the packages?"
+  A: 2
+  
+  Q: "How many hand drawn cartoons are included in the slides?"
+  A: 4
 
-CONSEQUENCE: Violation of these rules will result in automatic answer validation failure.
+[TYPE 2: YES/NO ANSWERS]
+Question patterns: "Is...", "Does...", "Are there..." followed by "yes or no" instruction
+Format: OUTPUT ONLY "Yes" or "No" with NO explanation
+Examples:
+  Q: "Does the mean significance of information flow from the text part to label words always greater than... Answer 'yes' or 'no' directly."
+  A: No
+
+[TYPE 3: PERCENTAGE ANSWERS]
+Question patterns: "What percentage...", "How many %...", "What %..."
+
+Single percentage:
+  Format: OUTPUT ONLY the number with % symbol (e.g., "37%" or "37.5%")
+  Example:
+    Q: "What percentage does Republicans in the United States rate China's response good to COVID-19?"
+    A: 15%
+
+Multiple percentages (when question asks for 2+ percentages with "and"):
+  Format: OUTPUT ONLY as JSON list like ["37%", "42%"] with NO surrounding text
+  Example:
+    Q: "How many % of Rep/Lean Rep people think cases have risen because of more testing and how many % think the federal government should be primarily responsible?"
+    A: [62%, 30%]
+
+[TYPE 4: LIST / ENUMERATED ANSWERS]
+Question patterns: "Which...", "What are...", "List...", "Identify...", "Name..." (multiple items)
+Format: OUTPUT ONLY as JSON list like ["item1", "item2", "item3"] with NO surrounding text
+Examples:
+  Q: "What DNA repair mechanisms does Figure 11 demonstrate?"
+  A: ["Base Excision Repair (BER)", "Nucleotide Excision Repair (NER)", "Mismatch Repair (MMR)", "Direct Reversal Repair", "Recombinational Repair"]
+  
+  Q: "Which figures include line plots in the paper?"
+  A: ["Figure 5", "Figure 6"]
+
+[TYPE 5: DECIMAL/FLOAT ANSWERS]
+Question patterns: Questions expecting decimal values, ratios, or multiples
+Format: OUTPUT ONLY the decimal number with NO other text
+Example:
+  Q: "What multiple of the 2014 e-commerce sales was achieved in 2018?"
+  A: 3.91
+
+[TYPE 6: TEXT / OPEN-ENDED ANSWERS]
+Question patterns: "What is...", "Where...", "Explain...", open-ended questions
+Format: OUTPUT ONLY the answer text (concise, no elaboration or narrative)
+Example:
+  Q: "Which category has the most increase from 2005 to 2010 for time spent on weekends?"
+  A: Eating out
+
+=====================================
+STRICT OUTPUT RULES
+=====================================
+
+MANDATORY:
+✓ Output ONLY the answer in the format specified for its type above
+✓ For numbers: output digits only (e.g., "42" not "forty-two" or "The answer is 42")
+✓ For lists: use JSON format with double quotes ["item1", "item2"]
+✓ For percentages: include the % symbol (e.g., "37%" not "37")
+✓ For yes/no: use exactly "Yes" or "No" (capital Y or N)
+
+PROHIBITED:
+✗ NO preamble ("Based on...", "The answer is...", "According to...", "I found...")
+✗ NO explanations, reasoning, or justification
+✗ NO narrative wrappers, context summaries, or elaboration
+✗ NO apologies or hedging ("I cannot find...", "It appears to be...")
+✗ NO complete sentences for factual answers
+✗ NO markdown formatting or code blocks
+✗ NO quotation marks around single answers (only use quotes in lists)
+
+If the answer is not found in the provided context:
+  Output ONLY: "Not found"
+
+CONSEQUENCE: Violation of these rules results in automatic validation failure and answer rejection.
 
 =====================================
 

@@ -224,4 +224,3 @@ class AgenticConfig(AdvancedConfig):
     """Whether to log all agent decisions (query rewriter, grader, generator) for analysis"""
     
     AGENT_LLM_MODEL: str = "qwen3-vl:8b-instruct"  # Lightweight LLM for agent decisions (Query Rewriter, Grader, Generator strategy)
-
