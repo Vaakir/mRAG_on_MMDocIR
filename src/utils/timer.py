@@ -31,9 +31,12 @@ class MetricsTracker:
         except ValueError:
             return None
 
-    def flatten_eval_metrics(self, pipeline_name: str, eval_metrics: dict) -> dict:
+    def flatten_eval_metrics(self, pipeline_name: str, eval_metrics: dict, extra_info: dict = None) -> dict:
         """Flattens nested evaluation metrics into a single-level dictionary and appends timestamps & runtimes."""
         flat_metrics = {"Timestamp": time.strftime('%Y-%m-%d %H:%M:%S'), "Pipeline": pipeline_name}
+        
+        if extra_info:
+            flat_metrics.update(extra_info)
         
         for key, value in eval_metrics.items():
             if key == 'timing': continue
@@ -51,7 +54,7 @@ class MetricsTracker:
         return flat_metrics
 
     def save_to_csv(self, data: dict, output_path: Path):
-        """Saves dictionary data to a CSV file. Supports flat dictionaries and dictionaries of lists."""
+        """Saves dictionary data to a CSV file. Appends to existing file."""
         output_path.parent.mkdir(parents=True, exist_ok=True)
         
         # Determine format: if all values are lists, it's already rectangular data
@@ -60,7 +63,24 @@ class MetricsTracker:
         else:
             df = pd.DataFrame([data])
             
-        df.to_csv(output_path, mode='a', index=False, header=not output_path.exists())
+        file_exists = output_path.exists()
+        write_header = not file_exists
+        
+        if file_exists:
+            try:
+                existing_cols = pd.read_csv(output_path, nrows=0).columns.tolist()
+                if list(df.columns) != existing_cols:
+                    # Schema mismatch (e.g. putting timing data in the same file as metrics)
+                    write_header = True
+            except Exception:
+                write_header = True
+
+        df.to_csv(output_path, mode='a', index=False, header=write_header)
+        
+        # Add an extra newline so the rows are easily separated and readable manually
+        with open(output_path, 'a', encoding='utf-8') as f:
+            f.write('\n')
+            
         self.logger.info(f"Saved results to {output_path}")
 
     def print_timing_summary(self):

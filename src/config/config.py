@@ -21,8 +21,8 @@ SRC_DIR = PROJECT_ROOT / "src"
 DATA_DIR = SRC_DIR / "data"
 RESULTS_DIR = SRC_DIR / "results"
 PREPROCESSING_TIME_CSV = RESULTS_DIR / "time_preprocessing.csv"
-BASELINE_TIME_CSV = RESULTS_DIR / "time_baseline.csv"
-RESULTS_CSV = RESULTS_DIR / "results_baseline.csv"
+PIPELINE_TIME_CSV = RESULTS_DIR / "pipeline_time.csv"
+RESULTS_CSV = RESULTS_DIR / "pipeline_results.csv"
 
 PDFS_DIR = DATA_DIR / "train" / "pdfs_train"
 PREPROCESSED_DATA_DIR = DATA_DIR / "preprocessed"
@@ -63,8 +63,7 @@ class BaselineConfig:
     CACHE_DB_PATH: Path = CACHE_DB_PATH
     RESULTS_CSV: Path = RESULTS_CSV
     PREPROCESSING_TIME_CSV: Path = PREPROCESSING_TIME_CSV
-    BASELINE_TIME_CSV: Path = BASELINE_TIME_CSV
-
+    
     PREPROCESSED_CHUNKS_FILE: str = str(PREPROCESSED_CHUNKS_FILE)
 
     # ===== EMBEDDING SETTINGS =====
@@ -73,7 +72,7 @@ class BaselineConfig:
     EMBEDDING_BATCH_SIZE: int = 64
 
     # ===== LLM / GENERATOR SETTINGS =====
-    LLM_MODEL: str = "qwen3:32b"
+    LLM_MODEL: str = "qwen3-vl:8b-instruct"
     OLLAMA_BASE_URL: str = "https://ollama.ux.uis.no"
     OLLAMA_API_KEY: str = os.getenv('OLLAMA_API_KEY', '')
     """API key for Ollama authentication (loaded from .env, empty string if not found)"""
@@ -95,7 +94,7 @@ class BaselineConfig:
 
     # ===== CHUNKING SETTINGS =====
     USE_PREPROCESSED_CHUNKS: bool = True
-    CHUNKING_STRATEGY: str = "semantic"
+    CHUNKING_STRATEGY: str = "fixed_size"
     CHUNK_SIZE: int = 1000
     CHUNK_OVERLAP: int = 200
     CONTEXT_WINDOW: int = 0  # adjacent chunks to prepend/append at retrieval time

@@ -1,0 +1,5 @@
+Timestamp,Pipeline,retrieval_precision@1,retrieval_precision@3,retrieval_precision@5,retrieval_recall@1,retrieval_recall@3,retrieval_recall@5,retrieval_page_recall@1,retrieval_page_recall@3,retrieval_page_recall@5,retrieval_ndcg@1,retrieval_ndcg@3,retrieval_ndcg@5,retrieval_map,retrieval_mrr,generation_exact_match,generation_contains_match,generation_token_f1,generation_bleu,generation_rouge1,generation_rouge2,generation_rougeL,generation_semantic_similarity,Total Runtime (seconds),Test Size,LLM Model,Embedding Model
+2026-04-20 16:20:53,Baseline RAG (Baseline),0.45,0.2,0.12,0.45,0.6,0.6,0.0,0.0,0.0,0.45,0.5315,0.5315,0.5083,0.5083,0.15,0.2,0.2162,0.1754,0.2179,0.0333,0.2121,0.2162,16.8454,20,qwen3-vl:8b-instruct,jinaai/jina-clip-v2
+
+2026-04-20 16:21:32,Baseline RAG (Baseline),0.45,0.2,0.12,0.45,0.6,0.6,0.0,0.0,0.0,0.45,0.5315,0.5315,0.5083,0.5083,0.15,0.2,0.2162,0.1754,0.2179,0.0333,0.2121,0.2162,15.347,20,qwen3-vl:8b-instruct,jinaai/jina-clip-v2
+

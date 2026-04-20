@@ -7,7 +7,8 @@ from typing import Dict, Any, List, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from data.chunk_loader import load_preprocessed_chunks, print_chunk_statistics
-from indexing.embedder import TextEmbedder, create_chunk_embeddings
+from indexing.embedder import TextEmbedder
+from indexing.base_embedder import create_chunk_embeddings
 from indexing.vector_database import QdrantVectorDB
 from indexing.hybrid_retriever import HybridRetriever
 from generation.generator import BaselineGenerator

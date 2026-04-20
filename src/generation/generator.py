@@ -250,6 +250,23 @@ class BaselineGenerator:
         }
         options.update(kwargs.pop("options", {}))
         
+        # Check Cache
+        try:
+            cache_payload = {
+                "messages": messages,
+                "options": options
+            }
+            messages_json = json.dumps(cache_payload, ensure_ascii=False, sort_keys=True)
+            cache_key = self._get_cache_key(messages_json)
+            cached_answer = self._get_cached_answer(cache_key)
+            if cached_answer:
+                logger.info("Cache hit for text generation.")
+                return cached_answer
+        except Exception as e:
+            logger.warning(f"Failed to check cache in chat: {e}")
+            messages_json = None
+            cache_key = None
+            
         def _call_chat(attempt):
             """Internal function to call the chat API with retry handling."""
             try:
@@ -282,6 +299,10 @@ class BaselineGenerator:
         content = getattr(getattr(resp, "message", None), "content", "")
         if not content:
             raise ResponseError("Empty response from Ollama chat API")
+            
+        # Save to Cache
+        if cache_key and messages_json:
+            self._cache_answer(cache_key, messages_json, content)
         
         return content
         #return strip_thinking(content)
@@ -338,7 +359,7 @@ Question: {question}"""
         cache_key = self._get_cache_key(messages_json)
         cached_answer = self._get_cached_answer(cache_key)
         if cached_answer:
-            logger.debug(f"Cache hit for generation with question: {question[:50]}...")
+            logger.info(f"Cache hit for generation with question: {question[:50]}...")
             return cached_answer
         
         try:
@@ -501,6 +522,24 @@ class VisionGenerator(BaselineGenerator):
             options["repeat_penalty"] = 1.1
         options.update(kwargs.pop("options", {}))
 
+        # Check Cache
+        try:
+            cache_payload = {
+                "messages": messages,
+                "options": options,
+                "think": think
+            }
+            messages_json = json.dumps(cache_payload, ensure_ascii=False, sort_keys=True)
+            cache_key = self._get_cache_key(messages_json)
+            cached_answer = self._get_cached_answer(cache_key)
+            if cached_answer:
+                logger.info("Cache hit for VisionGenerator.chat().")
+                return cached_answer
+        except Exception as e:
+            logger.warning(f"Failed to check cache in VisionGenerator.chat: {e}")
+            messages_json = None
+            cache_key = None
+
         def _call_vlm_chat(attempt):
             """Internal function to call VLM chat with error handling."""
             try:
@@ -524,9 +563,16 @@ class VisionGenerator(BaselineGenerator):
                     raise
 
         resp = self._call_with_retries(_call_vlm_chat, max_retries=self.max_retries, retry_delay=self.retry_delay, exponential_backoff=True)
-        content = getattr(getattr(resp, "message", None), "content", "")
+        # Handle dict or object response:
+        content = resp.get("message", {}).get("content", "") if isinstance(resp, dict) else getattr(getattr(resp, "message", None), "content", "")
+        
         if not content:
             raise Exception("Empty response from Ollama chat API")
+        
+        # Save to Cache
+        if cache_key and messages_json:
+            self._cache_answer(cache_key, messages_json, content)
+            
         return content
         # return normalize_ws(content)
 

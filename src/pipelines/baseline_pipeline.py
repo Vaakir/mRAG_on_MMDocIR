@@ -32,7 +32,7 @@ class BaselineRAGPipeline(BaseRAGPipeline):
         # Baseline ALWAYS uses the standard (direct extraction) strategy
         self.prompt_strategy = StandardPromptStrategy(generator=self.generator)
         
-    def run_query(self, question: str, top_k: int = None) -> Dict[str, Any]:
+    def run_query(self, question: str, top_k: int = None, **kwargs) -> Dict[str, Any]:
         """
         Run a single query through the pipeline with timing instrumentation.
         
