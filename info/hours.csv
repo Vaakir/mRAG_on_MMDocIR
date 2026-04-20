@@ -15,6 +15,8 @@ Date,Name,Start,End,Tag,WorkingOn
 13.04.2026,vaakir,09:15,16:15,Refactor,Being able to run all experiements from one file + Refactor + Caching of API calls
 15.04.2026,vaakir,08:45,16:30,Refactor,Fixed Caching of API calls + Refactor + Reproducibility + Report writing
 16.04.2026,vaakir,09:00,15:00,Reproducibility,Ran all experiments (5h) small fix for advanced 
+17.04.2026,vaakir,08:00,15:00,Refactor,Simplification and metrics + timing added to pipeline runs
+20.04.2026,vaakir,08:15,16:00,Refactor,Config into config.py inheritance for SST (singe source of truth)
 
 
 25.03.2026,BaalCat,12:15,14:00,Planning,Planning filestructure etc

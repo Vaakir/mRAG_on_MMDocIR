@@ -15,8 +15,6 @@ from preprocessing.image_processor import load_page_image_chunks, load_figure_ch
 from generation.generator import VisionGenerator
 from query_techniques import get_query_technique
 from retrieval_techniques import MultimodalRetriever
-from evaluation.retrieval_metrics import evaluate_retrieval
-from evaluation.generation_metrics import evaluate_generation
 
 logger = logging.getLogger(__name__)
 
@@ -312,8 +310,22 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
     # Single query
     # ------------------------------------------------------------------
 
-    def run_query(self, question: str, use_technique: bool = True, top_k: Optional[int] = None, is_visual: Optional[bool] = None, doc_name: Optional[str] = None) -> Dict[str, Any]:
+    def run_query(self, question: str, use_technique: bool = True, top_k: Optional[int] = None, is_visual: Optional[bool] = None, doc_name: Optional[str] = None, record: Optional[Dict[str, Any]] = None, **kwargs) -> Dict[str, Any]:
+        """
+        Run a single query through the advanced pipeline retrieval and generation.
+        """
         top_k = top_k or self.config.TOP_K
+
+        # If a full record is passed (e.g. from evaluate), extract advanced properties
+        if record and is_visual is None:
+            types = record.get("types") or []
+            is_visual = any(t in {"Figure", "Chart", "Table"} for t in types)
+            if not types:
+                q = record.get("question", "").lower()
+                is_visual = any(k in q for k in ["logo", "color", "colour", "shown", "figure", "chart", "table"])
+        
+        if record and doc_name is None:
+            doc_name = Path(record["pdf_path"]).stem if record.get("pdf_path") else None
 
         if use_technique:
             retrieved = self.retrieve_with_technique(question, top_k, is_visual=is_visual, doc_name=doc_name)
@@ -322,78 +334,3 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
 
         answer = self._generate(question, retrieved)
         return {"question": question, "retrieved_docs": retrieved, "answer": answer, "num_docs": len(retrieved)}
-
-    # ------------------------------------------------------------------
-    # Evaluation
-    # ------------------------------------------------------------------
-
-    def evaluate(self, test_questions: List[Dict[str, Any]], use_technique: bool = True):
-        """Two-phase evaluation: retrieval → generation."""
-        eval_start = time.time()
-        logger.info(f"Evaluating {len(test_questions)} questions...")
-
-        test_subset = test_questions[:self.config.EVAL_SUBSET_SIZE]
-
-        # Phase 1: Retrieval
-        phase1_start = time.time()
-        all_retrievals = [None] * len(test_subset)
-
-        with ThreadPoolExecutor(max_workers=self.config.RETRIEVAL_WORKERS) as executor:
-            futures = {}
-            for i, tq in enumerate(test_subset):
-                types = tq.get("types") or []
-                is_visual = any(t in {"Figure", "Chart", "Table"} for t in types)
-                if not types:
-                    q = tq.get("question", "").lower()
-                    is_visual = any(k in q for k in ["logo", "color", "colour", "shown", "figure", "chart", "table"])
-                # Extract doc name from pdf_path if available (e.g. "pdf_train/DSA-278777.pdf" → "DSA-278777")
-                doc_name = Path(tq["pdf_path"]).stem if tq.get("pdf_path") else None
-                if use_technique:
-                    futures[executor.submit(self.retrieve_with_technique, tq["question"], self.config.TOP_K, is_visual=is_visual, doc_name=doc_name)] = i
-                else:
-                    futures[executor.submit(self.retrieve, tq["question"], self.config.TOP_K)] = i
-
-            for future in as_completed(futures):
-                idx = futures[future]
-                all_retrievals[idx] = future.result()
-                logger.info(f"  Retrieved {sum(1 for r in all_retrievals if r is not None)}/{len(test_subset)}")
-
-        phase1_time = time.time() - phase1_start
-
-        # Phase 2: Generation
-        phase2_start = time.time()
-        generation_results = []
-
-        with ThreadPoolExecutor(max_workers=self.config.GENERATION_WORKERS) as executor:
-            futures = [
-                (i, tq, executor.submit(self._generate, tq["question"], all_retrievals[i]))
-                for i, tq in enumerate(test_subset)
-            ]
-            for i, tq, future in futures:
-                answer = future.result()
-                print(f"\n{'-'*80}")
-                print(f"Question: {tq['question']}")
-                print(f"Ground Truth: {tq['answer']}")
-                print(f"Generated Answer: {answer}")
-                generation_results.append({
-                    "question": tq["question"],
-                    "answer": answer,
-                    "expected_answer": tq.get("answer", ""),
-                })
-
-        phase2_time = time.time() - phase2_start
-
-        retrieval_metrics = evaluate_retrieval(all_retrievals, test_subset)
-        generation_metrics = evaluate_generation(
-            [r["answer"] for r in generation_results],
-            [r["expected_answer"] for r in generation_results],
-        )
-
-        total_time = time.time() - eval_start
-        logger.info(f"Evaluation done in {total_time:.2f}s")
-
-        return {
-            "retrieval": retrieval_metrics,
-            "generation": generation_metrics,
-            "timing": {"total": total_time, "phase1": phase1_time, "phase2": phase2_time},
-        }
