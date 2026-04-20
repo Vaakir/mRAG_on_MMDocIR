@@ -22,7 +22,7 @@ DATA_DIR = SRC_DIR / "data"
 RESULTS_DIR = SRC_DIR / "results"
 PREPROCESSING_TIME_CSV = RESULTS_DIR / "time_preprocessing.csv"
 BASELINE_TIME_CSV = RESULTS_DIR / "time_baseline.csv"
-RESULTS_CSV = RESULTS_DIR / "results_experiments.csv"
+RESULTS_CSV = RESULTS_DIR / "results_baseline.csv"
 
 PDFS_DIR = DATA_DIR / "train" / "pdfs_train"
 PREPROCESSED_DATA_DIR = DATA_DIR / "preprocessed"
@@ -80,6 +80,9 @@ class BaselineConfig:
     """API key for Ollama authentication (loaded from .env, empty string if not found)"""
     LLM_TEMPERATURE: float = 0.0
     LLM_TOP_P: float = 0.1
+    LLM_MAX_TOKENS: int = 1024
+    LLM_MAX_RETRIES: int = 4
+    LLM_RETRY_DELAY: int = 30
 
     # ===== VECTOR DATABASE SETTINGS =====
     VECTOR_DB_MODE: str = "local"
@@ -134,6 +137,9 @@ class AdvancedConfig(BaselineConfig):
 
     # ===== MULTIMODAL SETTINGS =====
     USE_MULTIMODAL: bool = True
+
+    MAX_VLM_IMAGES: int = 2
+    """Cap images sent to VLM to avoid OOM"""
 
     VLM_MODEL: str = "qwen3-vl:8b-instruct"
     """Vision-language model used when image chunks are retrieved"""

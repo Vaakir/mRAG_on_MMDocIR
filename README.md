@@ -71,8 +71,6 @@ conda remove --name dat560project --all
     │   ├── embedder.py
     │   ├── embedder_bge_large.py
     │   ├── embedder_clip.py
-    │   ├── embedder_jina.py
-    │   ├── embedder_old.py
     │   ├── hybrid_retriever.py
     │   └── vector_database.py
     ├── pipelines/

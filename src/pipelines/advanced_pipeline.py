@@ -44,7 +44,7 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
     # Index building
     # ------------------------------------------------------------------
 
-    def build_index(self, force_rebuild: bool = False):
+    def build_index(self, force_rebuild: bool = True):
         """Build multimodal index: text chunks + page images."""
         logger.info(f"Building multimodal index with {type(self.config).__name__}...")
         start_time = time.time()
@@ -108,7 +108,7 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
                 abs_paths = [str(self.config.DATA_DIR / c["image_path"]) for c in figure_chunks]
                 figure_embeddings = self.embedder.embed_images(abs_paths)
 
-                # Evidence crops
+        # Evidence crops
         evidence_chunks = []
         evidence_embeddings = None
         if self.config.USE_MULTIMODAL and hasattr(self.config, "IMAGES_TRAIN_DIR"):
@@ -179,6 +179,7 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
                         "type": chunk.get("type", "evidence"),
                         "image_path": chunk.get("image_path") or chunk.get("image_paths"),
                         "question_id": chunk.get("question_id"),
+                        "page_num": chunk.get("page_num"),
                         "doc_name": chunk.get("doc_name")
                     },
                 })
@@ -206,6 +207,11 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
             model=self.config.LLM_MODEL,
             api_key=self.config.OLLAMA_API_KEY,
             config=self.config,
+            temperature=self.config.LLM_TEMPERATURE,
+            top_p=self.config.LLM_TOP_P,
+            max_tokens=self.config.LLM_MAX_TOKENS,
+            max_retries=self.config.LLM_MAX_RETRIES,
+            retry_delay=self.config.LLM_RETRY_DELAY
         )
         self.vlm = self.generator
 
@@ -259,8 +265,6 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
     # Generation routing
     # ------------------------------------------------------------------
 
-    MAX_VLM_IMAGES = 2  # cap images sent to VLM to avoid OOM
-
     def _generate(self, question: str, retrieved: List[Dict[str, Any]]) -> str:
         """Route to VLM if page images or figures were retrieved, otherwise prompt strategy."""
         image_types = {"page_image", "figure", "evidence"}
@@ -275,9 +279,9 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
                     ip = [ip]
                 for p in ip:
                     image_paths.append(str(self.config.DATA_DIR / p))
-                    if len(image_paths) >= self.MAX_VLM_IMAGES:
+                    if len(image_paths) >= self.config.MAX_VLM_IMAGES:
                         break
-                if len(image_paths) >= self.MAX_VLM_IMAGES:
+                if len(image_paths) >= self.config.MAX_VLM_IMAGES:
                     break
 
             text_context = "\n\n".join(
@@ -381,8 +385,8 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
 
         retrieval_metrics = evaluate_retrieval(all_retrievals, test_subset)
         generation_metrics = evaluate_generation(
-            [r['answer'] for r in generation_results],
-            [r['expected_answer'] for r in generation_results],
+            [r["answer"] for r in generation_results],
+            [r["expected_answer"] for r in generation_results],
             embedder=self.embedder  # Pass embedder for true semantic similarity (Jina embeddings)
         )
 

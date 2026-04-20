@@ -129,12 +129,17 @@ class HybridRetriever:
         results = []
         for doc_id in top_ids:
             if doc_id in dense_by_id:
-                entry = {**dense_by_id[doc_id], "score": rrf_scores[doc_id]}
+                entry = {
+                    **dense_by_id[doc_id],
+                    "score": rrf_scores[doc_id],
+                    "dense_score": dense_by_id[doc_id]["score"],
+                }
             else:
                 chunk = self.chunks[doc_id]
                 entry = {
                     "id": doc_id,
                     "score": rrf_scores[doc_id],
+                    "dense_score": 0.0,  # BM25-only hit — no dense score
                     "text": chunk["text"],
                     "payload": {
                         "pdf_name": chunk["pdf_name"],

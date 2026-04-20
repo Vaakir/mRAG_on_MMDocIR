@@ -7,7 +7,8 @@ from typing import Dict, Any, List, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from data.chunk_loader import load_preprocessed_chunks, print_chunk_statistics
-from indexing.embedder import TextEmbedder, create_chunk_embeddings
+from indexing.embedder import TextEmbedder
+from indexing.base_embedder import create_chunk_embeddings
 from indexing.vector_database import QdrantVectorDB
 from indexing.hybrid_retriever import HybridRetriever
 from generation.generator import BaselineGenerator
@@ -166,7 +167,12 @@ class BaseRAGPipeline:
         self.generator = BaselineGenerator(
             base_url=self.config.OLLAMA_BASE_URL,
             model=self.config.LLM_MODEL,
-            api_key=self.config.OLLAMA_API_KEY
+            api_key=self.config.OLLAMA_API_KEY,
+            temperature=self.config.LLM_TEMPERATURE,
+            top_p=self.config.LLM_TOP_P,
+            max_tokens=self.config.LLM_MAX_TOKENS,
+            max_retries=self.config.LLM_MAX_RETRIES,
+            retry_delay=self.config.LLM_RETRY_DELAY
         )
 
     def retrieve(self, question: str, top_k: Optional[int] = None) -> List[Dict[str, Any]]:
