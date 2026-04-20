@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import numpy as np
 import matplotlib.pyplot as plt
 import json
-from config.config import PREPROCESSED_DOCUMENTS_FILE, PREPROCESSED_DATA_DIR
+from config.config import PREPROCESSED_DOCUMENTS_FILE, PREPROCESSED_DATA_DIR, BaselineConfig
 try:
     from .pdf_loader import load_read_documents
 except ImportError:
@@ -475,7 +475,7 @@ class Chunking:
 
 
 def chunk_and_save_pdf_data(
-    all_documents: List[Dict[str, Any]], output_dir: str = "../data/preprocessed"
+    all_documents: List[Dict[str, Any]], output_dir: str = BaselineConfig.PREPROCESSED_DATA_DIR
 ) -> Dict[str, Any]:
     """
     Applies multiple chunking methods to the documents and saves each method's result to a JSON file.

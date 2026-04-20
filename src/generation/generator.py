@@ -12,22 +12,10 @@ import hashlib
 from typing import Dict, Optional, List
 from pathlib import Path
 
-from config.config import CACHE_DB_PATH
+from config.config import CACHE_DB_PATH, BaselineConfig
+from ollama import Client, ResponseError
+import httpx
 
-try:
-    from ollama import Client, ResponseError
-except ImportError:
-    raise ImportError(
-        "ollama package not found. Install it with: pip install ollama"
-    )
-
-try:
-    import httpx
-except ImportError:
-    raise ImportError(
-        "httpx package not found. Install it with: pip install httpx"
-    )
-# -------------------------------------------------------------------
 logger = logging.getLogger(__name__)
 
 # -------------------------------------------------------------------
@@ -50,7 +38,12 @@ class BaselineGenerator:
         self,
         base_url: str,
         model: str,
-        api_key: str
+        api_key: str,
+        temperature: float = BaselineConfig.LLM_TEMPERATURE,
+        top_p: float = BaselineConfig.LLM_TOP_P,
+        max_tokens: int = BaselineConfig.LLM_MAX_TOKENS,
+        max_retries: int = BaselineConfig.LLM_MAX_RETRIES,
+        retry_delay: int = BaselineConfig.LLM_RETRY_DELAY
     ):
         """
         Initialize the Ollama client.
@@ -89,6 +82,12 @@ class BaselineGenerator:
         self.base_url = base_url.rstrip('/') # Ensure no trailing slash
         self.model = model # Model name to use for generation
         self.api_key = api_key
+        
+        self.temperature = temperature
+        self.top_p = top_p
+        self.max_tokens = max_tokens
+        self.max_retries = max_retries
+        self.retry_delay = retry_delay
         
         logger.info(f"Loaded API key: {self.api_key[:10]}...")
         
@@ -149,7 +148,7 @@ class BaselineGenerator:
             logger.warning(f"Failed to cache generated answer: {e}")
             
     #-------------------
-    def _call_with_retries(self, func, max_retries=3, retry_delay=10, exponential_backoff=True):
+    def _call_with_retries(self, func, max_retries=None, retry_delay=None, exponential_backoff=True):
         """
         Generic retry helper for calling functions with exponential backoff.
         
@@ -173,7 +172,12 @@ class BaselineGenerator:
         ------
         Exception
             The last exception if all retries exhausted
+        
         """
+        max_retries = max_retries if max_retries is not None else self.max_retries
+        retry_delay = retry_delay if retry_delay is not None else self.retry_delay
+        
+        
         import time as _time
         last_exc = None
         
@@ -239,7 +243,11 @@ class BaselineGenerator:
             If the API request fails and cannot be recovered.
         """
         # Default options for generation
-        options = {"temperature": 0.0, "top_p": 0.1, "num_predict": 1024}
+        options = {
+            "temperature": self.temperature,
+            "top_p": self.top_p,
+            "num_predict": self.max_tokens
+        }
         options.update(kwargs.pop("options", {}))
         
         def _call_chat(attempt):
@@ -268,7 +276,7 @@ class BaselineGenerator:
                     raise
         
         # Call with retries (higher retry_delay for model loading)
-        resp = self._call_with_retries(_call_chat, max_retries=4, retry_delay=30, exponential_backoff=False)
+        resp = self._call_with_retries(_call_chat, max_retries=self.max_retries, retry_delay=self.retry_delay, exponential_backoff=False)
         
         # Extract content from response
         content = getattr(getattr(resp, "message", None), "content", "")
@@ -408,7 +416,18 @@ class VisionGenerator(BaselineGenerator):
     so this class overrides chat() to always disable thinking.
     """
     
-    def __init__(self, base_url: str, model: str, config=None, api_key: str = None):
+    def __init__(
+        self,
+        base_url: str,
+        model: str,
+        config=None,
+        api_key: str = None,
+        temperature: float = BaselineConfig.LLM_TEMPERATURE,
+        top_p: float = BaselineConfig.LLM_TOP_P,
+        max_tokens: int = BaselineConfig.LLM_MAX_TOKENS,
+        max_retries: int = BaselineConfig.LLM_MAX_RETRIES,
+        retry_delay: int = BaselineConfig.LLM_RETRY_DELAY
+    ):
         """
         Initialize the VisionGenerator.
         
@@ -428,7 +447,16 @@ class VisionGenerator(BaselineGenerator):
         ValueError
             If base_url, model, or api_key are None or empty strings
         """
-        super().__init__(base_url=base_url, model=model, api_key=api_key)
+        super().__init__(
+            base_url=base_url,
+            model=model,
+            api_key=api_key,
+            temperature=temperature,
+            top_p=top_p,
+            max_tokens=max_tokens,
+            max_retries=max_retries,
+            retry_delay=retry_delay
+        )
         self.config = config
 
     @staticmethod
@@ -464,7 +492,11 @@ class VisionGenerator(BaselineGenerator):
         if not think:
             messages = self._inject_no_think(messages)
 
-        options = {"temperature": 0.0, "top_p": 0.1}
+        options = {
+            "temperature": self.temperature,
+            "top_p": self.top_p,
+            "num_predict": self.max_tokens
+        }
         if not think:
             options["repeat_penalty"] = 1.1
         options.update(kwargs.pop("options", {}))
@@ -491,7 +523,7 @@ class VisionGenerator(BaselineGenerator):
                 else:
                     raise
 
-        resp = self._call_with_retries(_call_vlm_chat, max_retries=3, retry_delay=10, exponential_backoff=True)
+        resp = self._call_with_retries(_call_vlm_chat, max_retries=self.max_retries, retry_delay=self.retry_delay, exponential_backoff=True)
         content = getattr(getattr(resp, "message", None), "content", "")
         if not content:
             raise Exception("Empty response from Ollama chat API")
@@ -542,8 +574,8 @@ class VisionGenerator(BaselineGenerator):
         text_context: str = "",
         system_prompt: str = None,
         think: bool = False,
-        max_retries: int = 3,
-        retry_delay: int = 10,
+        max_retries: int = None,
+        retry_delay: int = None,
     ) -> str:
         """
         Generate an answer given a question, one or more image paths, and
@@ -563,7 +595,7 @@ class VisionGenerator(BaselineGenerator):
         think : bool
             Whether to enable thinking/reasoning
         max_retries : int
-            Number of retry attempts for failed requests (default: 3)
+            Number of retry attempts for failed requests
         retry_delay : int
             Initial delay in seconds between retries (uses exponential backoff)
         
@@ -574,6 +606,9 @@ class VisionGenerator(BaselineGenerator):
         Exception
             If VLM generation fails after all retries exhausted (does not fall back to text)
         """
+        max_retries = max_retries if max_retries is not None else self.max_retries
+        retry_delay = retry_delay if retry_delay is not None else self.retry_delay
+
         if not system_prompt:
             raise ValueError(
                 "system_prompt is required and cannot be None or empty. "
@@ -631,7 +666,11 @@ class VisionGenerator(BaselineGenerator):
                     "messages": raw_messages,
                     "stream": False,
                     "raw": True,
-                    "options": {"temperature": 0.0, "top_p": 0.1}
+                    "options": {
+                        "temperature": self.temperature,
+                        "top_p": self.top_p,
+                        "num_predict": self.max_tokens
+                    }
                 }
                 
                 with httpx.Client(timeout=300) as client:
