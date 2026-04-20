@@ -215,50 +215,103 @@ def evaluate_generation(
     predictions: List[str],
     ground_truths: List[Any],
     embedder: Optional[Any] = None,
+    raw_predictions: Optional[List[str]] = None
 ) -> Dict[str, float]:
     """
     Evaluate generation performance with comprehensive metrics.
     
+    IMPORTANT: This function supports DUAL EVALUATION to properly handle answer validation:
+    
+    - RAW METRICS (use raw_predictions if provided):
+        * BLEU: Text-level metric; measures actual model output wording
+        * ROUGE: Text-level metric; measures actual model output wording
+        * Token F1: Token-level metric; measures actual model token overlap
+        
+      RATIONALE: These metrics measure surface-level text similarity. If you validate
+      answers first (e.g., "approximately 5" → "5"), you change the wording, which
+      changes n-gram overlap. We measure model output quality, not post-processing quality.
+    
+    - VALIDATED METRICS (use validated predictions):
+        * Exact Match: Semantic correctness matters more than exact wording
+        * Contains Match: Semantic correctness matters
+        * Semantic Similarity: Embeddings are robust to wording variations
+    
     Args:
-        predictions: List of generated answers
+        predictions: List of generated answers (should be VALIDATED answers)
         ground_truths: List of reference answers
         embedder: Optional embedder for semantic similarity calculation
+        raw_predictions: Optional list of RAW answers for BLEU/ROUGE/Token F1 computation
+                        If not provided, will use predictions for all metrics
     
     Returns:
-        Dictionary with all computed metrics
+        Dictionary with all computed metrics, separated by evaluation type
     """
     
-    # Strategy pattern (dict of funcs instead of list)
-    metrics_fns = {
+    # Use validated predictions by default, or fall back if raw not provided
+    if raw_predictions is None:
+        raw_predictions = predictions
+    
+    # Metrics that should use RAW output
+    raw_metrics_fns = {
+        "bleu": bleu_score,
+        "rouge1": lambda p, g: rouge_scores(p, g).get("rouge1", 0.0),
+        "rouge2": lambda p, g: rouge_scores(p, g).get("rouge2", 0.0),
+        "rougeL": lambda p, g: rouge_scores(p, g).get("rougeL", 0.0),
+        "token_f1": token_f1,
+    }
+    
+    # Metrics that should use VALIDATED output
+    validated_metrics_fns = {
         "exact_match": exact_match,
         "contains_match": contains_match,
-        "token_f1": token_f1,
-        "bleu": bleu_score,
-        "rouge_scores": rouge_scores,
         "semantic_similarity": lambda p, g: semantic_similarity(p, g, embedder)
     }
-
-    results = {}
-
-    # Evaluate each query's generation results against the ground truth
-    for i, (pred, gt) in enumerate(zip(predictions, ground_truths)):
-        pred_norm = normalize_answer(pred)
+    
+    raw_results = {}
+    validated_results = {}
+    
+    # Evaluate RAW metrics on raw predictions
+    for i, (pred_raw, gt) in enumerate(zip(raw_predictions, ground_truths)):
+        pred_raw_norm = normalize_answer(pred_raw)
         gt_norm = normalize_answer(gt)
-
-        for name, fn in metrics_fns.items():
-            out = fn(pred_norm, gt_norm)
-            if isinstance(out, dict):
-                for k, v in out.items():
-                    results.setdefault(k, []).append(v)
-            else:
-                results.setdefault(name, []).append(out)
-
-    # Average all the metrics across all queries and compile results into a dictionary
-    averaged = {}
-    for name, scores in results.items():
+        
+        for name, fn in raw_metrics_fns.items():
+            out = fn(pred_raw_norm, gt_norm)
+            if isinstance(out, float):
+                raw_results.setdefault(name, []).append(out)
+    
+    # Evaluate VALIDATED metrics on validated predictions
+    for i, (pred_val, gt) in enumerate(zip(predictions, ground_truths)):
+        pred_val_norm = normalize_answer(pred_val)
+        gt_norm = normalize_answer(gt)
+        
+        for name, fn in validated_metrics_fns.items():
+            out = fn(pred_val_norm, gt_norm)
+            if isinstance(out, float):
+                validated_results.setdefault(name, []).append(out)
+    
+    # Average raw metrics
+    raw_averaged = {}
+    for name, scores in raw_results.items():
         valid_scores = [s for s in scores if s is not None]
         if valid_scores:
-            averaged[name] = float(np.mean(valid_scores))
-            
-    return averaged
+            raw_averaged[name] = float(np.mean(valid_scores))
+    
+    # Average validated metrics
+    validated_averaged = {}
+    for name, scores in validated_results.items():
+        valid_scores = [s for s in scores if s is not None]
+        if valid_scores:
+            validated_averaged[name] = float(np.mean(valid_scores))
+    
+    # Combine results
+    # Structure: raw metrics prefixed with "raw_", validated with "validated_"
+    combined = {}
+    for k, v in raw_averaged.items():
+        combined[k] = v  # Keep original names for backward compatibility
+    for k, v in validated_averaged.items():
+        combined[k] = v
+    
+    return combined
+
 

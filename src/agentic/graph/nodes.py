@@ -132,37 +132,56 @@ def make_query_rewriter_node(agent_llm, retriever, query_techniques_dict, config
             print(f"Last technique (to avoid on retry): {last_technique}")
         
         # Build prompt for LLM to decide which query technique to use
-        prompt = f"""Choose ONE query technique for this question:
+        # Create technique descriptions
+        techniques_info = {
+            "standard": "baseline retrieval (use when question is clear and well-formed)",
+            "multi_query": "multiple paraphrases (use when question can be asked multiple ways)",
+            "rag_fusion": "paraphrases with fusion (use when you need to combine results from multiple reformulations)",
+            "step_back": "abstract to broader concept (use when question is too specific and needs foundational context)",
+            "hyde": "hypothetical documents (use when searching for rare/niche information)",
+            "query_decomposition": "break into sub-questions (use when question has multiple parts or compound structure)",
+            "query_rewriting": "improve phrasing (use when question has grammar issues, unclear wording, or lacks structure)",
+            "query_expansion": "add synonyms (use when question uses domain-specific/niche terminology)"
+        }
+        
+        # On retry, add clear warning about last technique
+        if last_technique and retry_count > 0:
+            avoid_instruction = f"\nMUST AVOID: '{last_technique.upper()}' was already tried and failed. Choose a DIFFERENT technique.\n"
+            strategy_note = f"Since {last_technique} didn't work, try a fundamentally different approach."
+        else:
+            avoid_instruction = ""
+            strategy_note = ""
+        
+        # Build technique list description
+        technique_list = "\n".join([
+            f"- {name}: {desc}"
+            for name, desc in techniques_info.items()
+            if not (last_technique and name.lower() == last_technique.lower() and retry_count > 0)
+        ])
+        
+        prompt = f"""You are deciding which query technique to use for information retrieval.
+
 Question: {question}
+Attempt: {retry_count + 1}{avoid_instruction}
 
-Query Techniques (choose based on question characteristics):
-1. standard - baseline retrieval (use when question is clear and well-formed)
-2. multi_query - multiple paraphrases (use when question can be asked multiple ways; helps with phrasing ambiguity)
-3. rag_fusion - paraphrases with fusion (use when you need to combine results from multiple reformulations)
-4. step_back - abstract to broader concept (use when question is too specific and needs foundational context first)
-5. hyde - hypothetical documents (use when searching for rare/niche information by generating relevant hypothetical docs)
-6. query_decomposition - break into sub-questions (use when question has multiple parts or compound structure [e.g., "X and Y"])
-7. query_rewriting - improve phrasing (use when question has grammar issues, unclear wording, or lacks structure)
-8. query_expansion - add synonyms (use when question uses domain-specific/niche terminology; needs synonym expansion)
+Available Query Techniques:
+{technique_list}
 
-Last technique: {last_technique if last_technique else "none"}
-Attempt: {retry_count + 1}
-
-Select based on question structure and characteristics:
-- Simple/clear questions → standard
+Selection Guidance:
+- Simple/clear questions → standard or multi_query
 - Ambiguous phrasing → multi_query or query_rewriting
-- Multi-part questions ("...and...") → query_decomposition
-- Complex/abstract questions needing background → step_back
+- Multi-part questions (with "and") → query_decomposition or query_expansion
+- Complex/abstract questions → step_back
 - Rare/niche topics → hyde or query_expansion
 - Poorly worded questions → query_rewriting
 
-CRITICAL: Your response MUST be ONLY a valid JSON object. Do NOT include:
-- Any text before the JSON
-- Any text after the JSON
-- Code block markers (```, ```json)
-- Explanations outside JSON
+{strategy_note}
 
-Output the raw JSON only, like: {{"technique":"standard","reasoning":"brief explanation"}}"""
+CRITICAL: Your response MUST be ONLY a valid JSON object:
+{{"technique":"<technique_name>","reasoning":"<brief explanation>"}}
+
+Do NOT include any text before or after the JSON, no code blocks, no extra text.
+Choose a technique name from the list above."""
         
         # Call agent LLM to get a decision on which query technique to use
         try:
@@ -605,36 +624,10 @@ Output raw JSON only, like: {{"strategy":"standard","role_type":"financial_analy
             # Use provided role_type or default to financial_analyst
             strategy_config['role_type'] = strategy_decision.role_type or "financial_analyst"
         
-        # ===== SIMPLIFIED OUTPUT FORMATTING RULES =====
-        # Concise format guidance that's easier for LLM to follow
-        strict_format_rules = """OUTPUT FORMAT INSTRUCTIONS
-
-Output ONLY the answer. NO preamble, NO explanation, NO narrative.
-
-ANSWER TYPES:
-1. Numbers: Output only digits (e.g., "5" or "3.14")
-2. Yes/No: Output "Yes" or "No"
-3. Single percentage: "37%" (with % symbol)
-4. Multiple values: ["item1", "item2"] (JSON list with quotes, e.g., ["62%", "30%"])
-5. Text: Single phrase or word (e.g., "Eating out")
-
-EXAMPLES:
-Q: "How many parts?" → A: 2
-Q: "Is this true?" → A: Yes
-Q: "What percent?" → A: 37%
-Q: "What are the mechanisms?" → A: ["BER", "NER", "MMR"]
-Q: "Which category?" → A: Eating out
-
-RULES:
-- Do NOT repeat characters or words
-- Do NOT add explanation
-- Do NOT use "The answer is..."
-- Do NOT use markdown or code blocks
-- If answer not found: output "Not found"
-
-Context to answer from:
-"""
-        enhanced_context = strict_format_rules + (context or "")
+        # Format rules are now handled by strategy system prompts (CoT, Standard, etc.)
+        # Each strategy.generate() internally applies its own system prompt with complete format guidance.
+        # This eliminates redundancy and removes instruction conflicts that caused hallucinations.
+        enhanced_context = context or ""
         
         # Build the strategy once (works for both image and text generation)
         # The strategy object handles system_prompt internally via get_system_prompt()
@@ -684,6 +677,9 @@ Context to answer from:
         
         # ===== ANSWER FORMAT VALIDATION =====
         # Validate that answer matches expected output format (count, percentage, list, etc.)
+        # IMPORTANT: Store BOTH raw and validated answers for proper evaluation metrics
+        raw_answer = answer  # Save raw answer before validation
+        
         is_valid_format, corrected_answer = validate_answer_format(
             answer=answer,
             question=question,
@@ -693,14 +689,17 @@ Context to answer from:
         if not is_valid_format:
             print("Answer format validation: FAILED - using original answer")
             validation_status = "format_invalid"
+            validated_answer = raw_answer  # Use raw if validation failed
         else:   
             print("Answer format validation: PASSED")
-            answer = corrected_answer  # Use corrected answer if adjusted
+            validated_answer = corrected_answer  # Use corrected answer if valid
             validation_status = "format_valid"
         
         return {
             "retrieved_documents": retrieved_docs,  # Preserve retrieved documents
-            "generated_answer": answer,
+            "generated_answer": validated_answer,  # Use validated for pipeline (for grading/display)
+            "raw_answer": raw_answer,  # Store raw answer for evaluation metrics
+            "validated_answer": validated_answer,  # Store validated answer for evaluation metrics
             "chosen_prompting_strategy": strategy_decision.strategy,
             "generation_confidence": strategy_decision.confidence, # Confidence in the chosen strategy (not the same as grader confidence)
             "grade_confidence": grade_confidence,

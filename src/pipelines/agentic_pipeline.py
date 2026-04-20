@@ -212,6 +212,8 @@ class AgenticRAGPipeline(BaseRAGPipeline):
             result = {
                 "question": question,
                 "answer": final_state.get('generated_answer', ''),
+                "raw_answer": final_state.get('raw_answer', final_state.get('generated_answer', '')),  # Preserve raw answer
+                "validated_answer": final_state.get('validated_answer', final_state.get('generated_answer', '')),  # Preserve validated
                 "agent_decisions": final_state.get('agent_decisions') or {},
                 "retrieved_documents": raw_docs,  # Keep raw Qdrant format for evaluation
                 "retrieved_documents_raw": raw_docs,  # Explicitly mark for retrieval metrics
@@ -223,6 +225,8 @@ class AgenticRAGPipeline(BaseRAGPipeline):
             result = {
                 "question": question,
                 "answer": final_state.generated_answer,
+                "raw_answer": getattr(final_state, 'raw_answer', final_state.generated_answer),  # Preserve raw answer
+                "validated_answer": getattr(final_state, 'validated_answer', final_state.generated_answer),  # Preserve validated
                 "agent_decisions": final_state.agent_decisions or {},
                 "retrieved_documents": raw_docs,  # Keep raw Qdrant format for evaluation
                 "retrieved_documents_raw": raw_docs,  # Explicitly mark for retrieval metrics
@@ -297,12 +301,17 @@ class AgenticRAGPipeline(BaseRAGPipeline):
             )
         
         # Extract predictions and ground truths for generation evaluation
-        predictions = [r.get("answer", "") for r in results]
+        # IMPORTANT: Support DUAL EVALUATION - raw answers for text-based metrics (BLEU/ROUGE/Token F1),
+        # validated answers for semantic metrics (exact match, semantic similarity)
+        predictions = [r.get("answer", "") for r in results]  # validated answer for pipeline
+        raw_predictions = [r.get("raw_answer", r.get("answer", "")) for r in results]  # raw answer for BLEU/ROUGE
         ground_truths = [r.get("ground_truth", "") for r in results]
+        
         generation_metrics = evaluate_generation( 
-            predictions, 
+            predictions,  # validated answers
             ground_truths,
-            embedder=self.embedder
+            embedder=self.embedder,
+            raw_predictions=raw_predictions  # raw answers for surface-level metrics
         )
         
         elapsed = time.time() - eval_start
