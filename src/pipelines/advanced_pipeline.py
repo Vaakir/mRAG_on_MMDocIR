@@ -108,7 +108,7 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
                 abs_paths = [str(self.config.DATA_DIR / c["image_path"]) for c in figure_chunks]
                 figure_embeddings = self.embedder.embed_images(abs_paths)
 
-                # Evidence crops
+        # Evidence crops
         evidence_chunks = []
         evidence_embeddings = None
         if self.config.USE_MULTIMODAL and hasattr(self.config, "IMAGES_TRAIN_DIR"):
@@ -179,6 +179,7 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
                         "type": chunk.get("type", "evidence"),
                         "image_path": chunk.get("image_path") or chunk.get("image_paths"),
                         "question_id": chunk.get("question_id"),
+                        "page_num": chunk.get("page_num"),
                         "doc_name": chunk.get("doc_name")
                     },
                 })
