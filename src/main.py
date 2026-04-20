@@ -54,7 +54,8 @@ def run_single_experiment(
     """Run a single pipeline configuration and log metrics."""
     logger.info(f"\n{'='*80}\nSTARTING EXPERIMENT: {experiment_name}\n{'='*80}")
     
-    tracker = MetricsTracker(logger)
+    full_pipeline_name = f"{experiment_name} ({pipeline_class.__name__})"
+    tracker = MetricsTracker(logger, pipeline_name=full_pipeline_name, model_name=config.LLM_MODEL)
     log_and_time = tracker.log_and_time
     
     pipeline = pipeline_class(config)
@@ -75,24 +76,13 @@ def run_single_experiment(
         
         # Run evaluation
         with log_and_time('Full Evaluation Time'):
-            metrics = pipeline.evaluate(test_data, use_technique=True)
-
-    # Extract pipeline type string to save in CSV
-    pipeline_type = "Advanced" if pipeline_class.__name__ == "AdvancedRAGPipeline" else "Baseline"
+            metrics = pipeline.evaluate(test_data, use_technique=True, experiment_name=experiment_name)
     
-    extra_info = {
-        'Test Size': len(test_data),
-        'LLM Model': getattr(config, 'LLM_MODEL', 'Unknown'),
-        'Embedding Model': getattr(config, 'EMBEDDING_MODEL', 'Unknown')
-    }
-    
-    flat_metrics = tracker.flatten_eval_metrics(f"{experiment_name} ({pipeline_type})", metrics, extra_info=extra_info)
-    
-    tracker.save_to_csv(flat_metrics, results_csv_path)
+    tracker.save_to_csv(metrics, results_csv_path)
     tracker.save_to_csv(tracker.timing_data, time_csv_path)
-    tracker.print_metrics(f"RESULTS FOR: {experiment_name}", flat_metrics)
+    tracker.print_metrics(f"RESULTS FOR: {experiment_name}", metrics)
 
-    return flat_metrics
+    return metrics
 
 def run_experiments(eval_subset_size: int = 50):
     """
@@ -128,19 +118,15 @@ def run_experiments(eval_subset_size: int = 50):
         except Exception as e:
             logger.error(f"Experiment {exp_name} failed: {e}")
 
-    # EXPERIMENT 2: CHUNKING ABLATIONS
-    for strat in ["fixed_size", "sliding_window", "semantic", "hierarchical"]:
-        _run_ablation("2", "Chunk_Ablation", "CHUNKING_STRATEGY", strat)
+    for chuking in ["fixed_size", "sliding_window", "semantic", "hierarchical"]:
+        _run_ablation("2", "Chunk_Ablation", "CHUNKING_STRATEGY", chuking)
 
-    # EXPERIMENT 3: QUERY PROCESSING ABLATIONS
-    for tech in ["standard", "multi_query", "rag_fusion", "step_back", "hyde", "query_decomposition", "query_rewriting", "query_expansion"]:
-        _run_ablation("3", "Query_Ablation", "QUERY_TECHNIQUE", tech)
+    for query_processing in ["standard", "multi_query", "rag_fusion", "step_back", "hyde", "query_decomposition", "query_rewriting", "query_expansion"]:
+        _run_ablation("3", "Query_Ablation", "QUERY_TECHNIQUE", query_processing)
 
-    # EXPERIMENT 4: PROMPTING STRATEGY ABLATIONS
-    for prompt_strat in ["standard", "few_shot", "role", "cot"]:#, "ensemble"]:
-        _run_ablation("4", "Prompt_Ablation", "PROMPTING_STRATEGY", prompt_strat)
+    for prompting_strategy in ["standard", "few_shot", "role", "cot"]:
+        _run_ablation("4", "Prompt_Ablation", "PROMPTING_STRATEGY", prompting_strategy)
 
-    # EXPERIMENT 5: MULTIMODAL VS TEXT
     _run_ablation("5", "Multimodal", "USE_MULTIMODAL", True, 
                   EMBEDDING_MODEL="jinaai/jina-clip-v2", 
                   VECTOR_DB_COLLECTION="baseline_documents_jina")
@@ -186,36 +172,32 @@ if __name__ == "__main__":
     if args.run_experiments:
         run_experiments(eval_subset_size=args.eval_subset)
     else:
+        # How to use:
+        # DAT560project> python -m src\main.py
         
-        config = AdvancedConfig(
-            EVAL_SUBSET_SIZE=1,
-        )
-        
-        train_data = load_train_data(config.TRAIN_JSONL)
-        logger.info(f"Loaded {len(train_data)} questions (all types)")
-        
+            
+        # TO RUN BASELINE:
+        config = BaselineConfig()
+        pure_text_data = load_train_data(config.TRAIN_JSONL)
         run_single_experiment(
-            experiment_name=f"Advanced RAG ({config.QUERY_TECHNIQUE})",
+            experiment_name="Baseline RAG",
             config=config,
-            pipeline_class=AdvancedRAGPipeline,
-            test_data=train_data[:config.EVAL_SUBSET_SIZE],
+            pipeline_class=BaselineRAGPipeline,
+            test_data=pure_text_data[:config.EVAL_SUBSET_SIZE],
             force_rebuild=False,
             run_single_query=True
         )
-    
-    # How to use:
-    # DAT560project> python -m .\src\main.py # <- AdvancedConfig w/BaseConfig settings => Just the BaselinePipeline
-    # DAT560project> python -m .\src\main.py
-    
-    
-    # TO RUN BASELINE:
-    # config = BaselineConfig()
-    # pure_text_data = load_train_data(config.TRAIN_JSONL)
-    # run_single_experiment(
-    #     experiment_name="Baseline RAG",
-    #     config=config,
-    #     pipeline_class=BaselineRAGPipeline,
-    #     test_data=pure_text_data[:config.EVAL_SUBSET_SIZE],
-    #     force_rebuild=False,
-    #     run_single_query=True
-    # )
+
+        # TO RUN ADVANCED
+        # config = AdvancedConfig(EVAL_SUBSET_SIZE=1,)
+        # train_data = load_train_data(config.TRAIN_JSONL)        
+        # run_single_experiment(
+        #     experiment_name=f"Advanced RAG ({config.QUERY_TECHNIQUE})",
+        #     config=config,
+        #     pipeline_class=AdvancedRAGPipeline,
+        #     test_data=train_data[:config.EVAL_SUBSET_SIZE],
+        #     force_rebuild=False,
+        #     run_single_query=True
+        # )
+
+        

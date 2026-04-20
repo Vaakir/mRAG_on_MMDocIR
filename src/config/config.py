@@ -8,7 +8,7 @@ import os
 from dotenv import load_dotenv
 
 # Load environment variables from .env file for API keys
-env_path = Path(__file__).resolve().parent.parent / '.env'
+env_path = Path(__file__).resolve().parent.parent / ".env"
 load_dotenv(dotenv_path=env_path)
 
 # Define paths outside the dataclass for cleaner referencing
@@ -41,10 +41,10 @@ CACHE_DB_PATH = CACHE_DIR / "query_cache.db"
 PREPROCESSED_CHUNKS_FILE = SRC_DIR / "data" / "preprocessed" / "chunks_fixed_size.json"
 
 
-
 @dataclass
 class BaselineConfig:
     """Configuration matching the baseline pipeline."""
+
     HF_TOKEN: str = os.getenv("HF_TOKEN")
 
     # ===== PATHS =====
@@ -63,7 +63,7 @@ class BaselineConfig:
     CACHE_DB_PATH: Path = CACHE_DB_PATH
     RESULTS_CSV: Path = RESULTS_CSV
     PREPROCESSING_TIME_CSV: Path = PREPROCESSING_TIME_CSV
-    
+
     PREPROCESSED_CHUNKS_FILE: str = str(PREPROCESSED_CHUNKS_FILE)
 
     # ===== EMBEDDING SETTINGS =====
@@ -74,7 +74,7 @@ class BaselineConfig:
     # ===== LLM / GENERATOR SETTINGS =====
     LLM_MODEL: str = "qwen3-vl:8b-instruct"
     OLLAMA_BASE_URL: str = "https://ollama.ux.uis.no"
-    OLLAMA_API_KEY: str = os.getenv('OLLAMA_API_KEY', '')
+    OLLAMA_API_KEY: str = os.getenv("OLLAMA_API_KEY", "")
     """API key for Ollama authentication (loaded from .env, empty string if not found)"""
     LLM_TEMPERATURE: float = 0.0
     LLM_TOP_P: float = 0.1
@@ -84,7 +84,7 @@ class BaselineConfig:
 
     # ===== VECTOR DATABASE SETTINGS =====
     VECTOR_DB_MODE: str = "local"
-    VECTOR_DB_PATH: str = str(SRC_DIR / "local_qdrant" )
+    VECTOR_DB_PATH: str = str(SRC_DIR / "local_qdrant")
     VECTOR_DB_COLLECTION: str = "baseline_documents_jina"
     VECTOR_DB_DISTANCE: str = "COSINE"
 
@@ -123,18 +123,21 @@ class BaselineConfig:
 @dataclass
 class AdvancedConfig(BaselineConfig):
     """Configuration for the Advanced RAG Pipeline."""
+
     # ===== ADVANCED APP OVERRIDES =====
     # override the chunk file to use the semantic chunks instead of the fixed-size ones
-    PREPROCESSED_CHUNKS_FILE: str = str(SRC_DIR / "data" / "preprocessed" / "chunks_semantic.json")
+    PREPROCESSED_CHUNKS_FILE: str = str(
+        SRC_DIR / "data" / "preprocessed" / "chunks_semantic.json"
+    )
 
     VECTOR_DB_COLLECTION: str = "advanced_multimodal"
     """Separate collection from baseline so the two don't interfere"""
 
     # Use one model for everything — no server model swapping = no OOM crashes
-    LLM_MODEL: str = "qwen3-vl:8b"
+    LLM_MODEL: str = "qwen3-vl:8b-instruct"  # "qwen3-vl:8b"
 
     # ===== MULTIMODAL SETTINGS =====
-    USE_MULTIMODAL: bool = True
+    USE_MULTIMODAL: bool = False
 
     MAX_VLM_IMAGES: int = 2
     """Cap images sent to VLM to avoid OOM"""
@@ -164,7 +167,9 @@ class AdvancedConfig(BaselineConfig):
     FIGURES_TRAIN_DIR: Path = DATA_DIR / "train" / "figures_train"
 
     # ===== RETRIEVAL FILTER =====
-    ALLOWED_CHUNK_TYPES: List[str] = field(default_factory=lambda: ["text", "page_image", "figure", "evidence"])
+    ALLOWED_CHUNK_TYPES: List[str] = field(
+        default_factory=lambda: ["text", "page_image", "figure", "evidence"]
+    )
 
     # ===== QUERY TECHNIQUE SETTINGS =====
     QUERY_TECHNIQUE: str = "standard"
@@ -185,27 +190,26 @@ class AdvancedConfig(BaselineConfig):
     - 'cot': Chain-of-Thought - explicit step-by-step reasoning
     - 'ensemble': Multiple strategies with voting/consensus
     """
-    
-    PROMPTING_STRATEGY_CONFIG: Dict[str, Any] = field(default_factory=lambda: {
-        # Role strategy
-        'role_type': 'rag_specialist',
-        
-        # CoT strategy
-        'show_reasoning': False,  # set to False to hide reasoning
-        
-        # Ensemble strategy
-        'mode': 'multi_prompt',  # 'multi_prompt' or 'self_consistency'
-        'ensemble_size': 3,
-        'aggregation_method': 'embedding_similarity',  # 'judge', 'combine', 'embedding_similarity'
-        'strategies': ['standard', 'cot', 'few_shot', 'financial_analyst_role'],
-        'include_strategy_metadata': False,
-        'verbose_logging': False,  # Enable detailed ensemble logging
-        'temperatures': {
-            'standard': 0.5,
-            'cot': 0.6,
-            'few_shot': 0.5,
-            'financial_analyst_role': 0.6,
-        }
-    })
-    """Configuration dict for the selected prompting strategy"""
 
+    PROMPTING_STRATEGY_CONFIG: Dict[str, Any] = field(
+        default_factory=lambda: {
+            # Role strategy
+            "role_type": "rag_specialist",
+            # CoT strategy
+            "show_reasoning": False,  # set to False to hide reasoning
+            # Ensemble strategy
+            "mode": "multi_prompt",  # 'multi_prompt' or 'self_consistency'
+            "ensemble_size": 3,
+            "aggregation_method": "embedding_similarity",  # 'judge', 'combine', 'embedding_similarity'
+            "strategies": ["standard", "cot", "few_shot", "financial_analyst_role"],
+            "include_strategy_metadata": False,
+            "verbose_logging": False,  # Enable detailed ensemble logging
+            "temperatures": {
+                "standard": 0.5,
+                "cot": 0.6,
+                "few_shot": 0.5,
+                "financial_analyst_role": 0.6,
+            },
+        }
+    )
+    """Configuration dict for the selected prompting strategy"""

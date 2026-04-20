@@ -1,13 +1,6 @@
-Phase,Duration (seconds),Timestamp
-Index Build/Load,11.819,2026-04-20 16:20:48
-Component Initialization,0.0137,2026-04-20 16:20:48
-Single Query Test,0.5553,2026-04-20 16:20:48
-Full Evaluation Time,4.4574,2026-04-20 16:20:53
-Total Pipeline Runtime,16.8454,2026-04-20 16:20:53
-
-Index Build/Load,10.7782,2026-04-20 16:21:27
-Component Initialization,0.0114,2026-04-20 16:21:27
-Single Query Test,0.4701,2026-04-20 16:21:28
-Full Evaluation Time,4.0865,2026-04-20 16:21:32
-Total Pipeline Runtime,15.347,2026-04-20 16:21:32
-
+Pipeline,model,Index Build/Load,Component Initialization,Single Query Test,Full Evaluation Time,Total Pipeline Runtime
+Baseline RAG (BaselineRAGPipeline),qwen3-vl:8b-instruct,12.2354,0.0137,0.8328,4.5702,17.6531
+Baseline RAG (BaselineRAGPipeline),qwen3-vl:8b-instruct,12.1956,0.0165,0.8063,4.3254,17.347
+Baseline RAG (BaselineRAGPipeline),qwen3-vl:8b-instruct,11.1139,0.0163,0.531,4.0277,15.6889
+Advanced RAG (standard) (AdvancedRAGPipeline),qwen3-vl:8b,1383.7347,0.0174,66.0453,624.5116,2074.31
+Advanced RAG (standard) (AdvancedRAGPipeline),qwen3-vl:8b,16.3057,0.0149,27.0684,666.5763,709.9653

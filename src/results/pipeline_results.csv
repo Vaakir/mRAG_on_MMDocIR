@@ -1,5 +1,5 @@
-Timestamp,Pipeline,retrieval_precision@1,retrieval_precision@3,retrieval_precision@5,retrieval_recall@1,retrieval_recall@3,retrieval_recall@5,retrieval_page_recall@1,retrieval_page_recall@3,retrieval_page_recall@5,retrieval_ndcg@1,retrieval_ndcg@3,retrieval_ndcg@5,retrieval_map,retrieval_mrr,generation_exact_match,generation_contains_match,generation_token_f1,generation_bleu,generation_rouge1,generation_rouge2,generation_rougeL,generation_semantic_similarity,Total Runtime (seconds),Test Size,LLM Model,Embedding Model
-2026-04-20 16:20:53,Baseline RAG (Baseline),0.45,0.2,0.12,0.45,0.6,0.6,0.0,0.0,0.0,0.45,0.5315,0.5315,0.5083,0.5083,0.15,0.2,0.2162,0.1754,0.2179,0.0333,0.2121,0.2162,16.8454,20,qwen3-vl:8b-instruct,jinaai/jina-clip-v2
-
-2026-04-20 16:21:32,Baseline RAG (Baseline),0.45,0.2,0.12,0.45,0.6,0.6,0.0,0.0,0.0,0.45,0.5315,0.5315,0.5083,0.5083,0.15,0.2,0.2162,0.1754,0.2179,0.0333,0.2121,0.2162,15.347,20,qwen3-vl:8b-instruct,jinaai/jina-clip-v2
-
+Pipeline,Timestamp,Test Size,LLM Model,Embedding Model,precision@1,precision@3,precision@5,recall@1,recall@3,recall@5,page_recall@1,page_recall@3,page_recall@5,ndcg@1,ndcg@3,ndcg@5,map,mrr,exact_match,contains_match,token_f1,bleu,rouge1,rouge2,rougeL,semantic_similarity
+Baseline RAG (BaselineRAGPipeline),2026-04-20 20:42:01,20,qwen3-vl:8b-instruct,jinaai/jina-clip-v2,0.45,0.2,0.12,0.45,0.6,0.6,0.0,0.0,0.0,0.45,0.5315,0.5315,0.5083,0.5083,0.15,0.2,0.2162,0.1754,0.2179,0.0333,0.2121,0.2162
+Baseline RAG (BaselineRAGPipeline),2026-04-20 20:43:05,20,qwen3-vl:8b-instruct,jinaai/jina-clip-v2,0.45,0.2,0.12,0.45,0.6,0.6,0.0,0.0,0.0,0.45,0.5315,0.5315,0.5083,0.5083,0.15,0.2,0.2162,0.1754,0.2179,0.0333,0.2121,0.2162
+Advanced RAG (standard) (AdvancedRAGPipeline),2026-04-20 21:18:21,20,qwen3-vl:8b,jinaai/jina-clip-v2,0.7,0.3,0.18,0.7,0.9,0.9,0.5,0.55,0.6,0.7,0.8262,0.8262,0.8,0.8,0.1,0.2,0.2224,0.1812,0.238,0.0567,0.2161,0.2224
+Advanced RAG (standard) (AdvancedRAGPipeline),2026-04-20 21:32:00,20,qwen3-vl:8b,jinaai/jina-clip-v2,0.7,0.3,0.18,0.7,0.9,0.9,0.5,0.55,0.65,0.7,0.8262,0.8262,0.8,0.8,0.1,0.1,0.1662,0.1254,0.1679,0.0333,0.1621,0.1662
