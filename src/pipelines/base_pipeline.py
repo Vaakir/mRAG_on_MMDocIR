@@ -248,7 +248,14 @@ class BaseRAGPipeline:
         # ===== PHASE 2: METRIC COMPUTATION =====
         phase2_start = time.time()
         retrieval_metrics = evaluate_retrieval(all_retrieved, test_subset)
-        generation_metrics = evaluate_generation(all_predictions, all_ground_truths)
+        all_questions = [record["question"] for record in test_subset]
+        generation_metrics = evaluate_generation(
+            all_predictions,
+            all_ground_truths,
+            embedder=self.embedder,
+            questions=all_questions,
+            validate_format=getattr(self.config, 'VALIDATE_ANSWER_FORMAT', False)
+        )
         phase2_time = time.time() - phase2_start
         logger.info(f"Phase 2 (Metric Computation): {phase2_time:.2f}s")
         

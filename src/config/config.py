@@ -137,12 +137,12 @@ class AdvancedConfig(BaselineConfig):
     LLM_MODEL: str = "qwen3-vl:8b-instruct"  # "qwen3-vl:8b"
 
     # ===== MULTIMODAL SETTINGS =====
-    USE_MULTIMODAL: bool = False
+    USE_MULTIMODAL: bool = True
 
     MAX_VLM_IMAGES: int = 2
     """Cap images sent to VLM to avoid OOM"""
 
-    VLM_MODEL: str = "qwen3-vl:8b"
+    VLM_MODEL: str = "qwen3-vl:8b-instruct"
     """Vision-language model used when image chunks are retrieved"""
 
     # Sequential — keeps logs readable and avoids concurrent calls on shared GPU
@@ -213,3 +213,7 @@ class AdvancedConfig(BaselineConfig):
         }
     )
     """Configuration dict for the selected prompting strategy"""
+
+    # ===== ANSWER VALIDATION SETTINGS =====
+    VALIDATE_ANSWER_FORMAT: bool = True
+    """Enable answer format validation for string-comparison metrics (exact_match, contains_match, token_f1)"""
