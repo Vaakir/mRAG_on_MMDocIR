@@ -221,7 +221,7 @@ class BaseRAGPipeline:
         with ThreadPoolExecutor(max_workers=workers) as executor:
             # Submit all questions to the executor using run_query
             futures = {
-                executor.submit(self.run_query, record["question"], **kwargs): (i, record)
+                executor.submit(self.run_query, record["question"], record=record, **kwargs): (i, record)
                 for i, record in enumerate(test_subset)
             }
             
