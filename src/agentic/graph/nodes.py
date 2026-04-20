@@ -135,18 +135,26 @@ def make_query_rewriter_node(agent_llm, retriever, query_techniques_dict, config
         prompt = f"""Choose ONE query technique for this question:
 Question: {question}
 
-Techniques:
-1. standard - baseline retrieval
-2. multi_query - multiple paraphrases
-3. rag_fusion - paraphrases with fusion
-4. step_back - abstract to broader concept
-5. hyde - hypothetical documents
-6. query_decomposition - break into sub-questions
-7. query_rewriting - improve phrasing
-8. query_expansion - add synonyms
+Query Techniques (choose based on question characteristics):
+1. standard - baseline retrieval (use when question is clear and well-formed)
+2. multi_query - multiple paraphrases (use when question can be asked multiple ways; helps with phrasing ambiguity)
+3. rag_fusion - paraphrases with fusion (use when you need to combine results from multiple reformulations)
+4. step_back - abstract to broader concept (use when question is too specific and needs foundational context first)
+5. hyde - hypothetical documents (use when searching for rare/niche information by generating relevant hypothetical docs)
+6. query_decomposition - break into sub-questions (use when question has multiple parts or compound structure [e.g., "X and Y"])
+7. query_rewriting - improve phrasing (use when question has grammar issues, unclear wording, or lacks structure)
+8. query_expansion - add synonyms (use when question uses domain-specific/niche terminology; needs synonym expansion)
 
 Last technique: {last_technique if last_technique else "none"}
 Attempt: {retry_count + 1}
+
+Select based on question structure and characteristics:
+- Simple/clear questions → standard
+- Ambiguous phrasing → multi_query or query_rewriting
+- Multi-part questions ("...and...") → query_decomposition
+- Complex/abstract questions needing background → step_back
+- Rare/niche topics → hyde or query_expansion
+- Poorly worded questions → query_rewriting
 
 CRITICAL: Your response MUST be ONLY a valid JSON object. Do NOT include:
 - Any text before the JSON
@@ -325,7 +333,7 @@ def make_grader_node(agent_llm, config: Dict[str, Any]):
                 doc_summaries.append(f"[Doc {i+1}]: {summary}")
             else:
                 # Giving the Grader enough context to evaluate whether the chunk actually contains the answer (solving the Truncation Mismatch)
-                summary = doc_text[:1500] + "..." if len(doc_text) > 1500 else doc_text
+                summary = doc_text
                 doc_summaries.append(f"[Doc {i+1}]: {summary}")
         
         doc_text = "\n\n".join(doc_summaries) # This represents the retrieved information the Grader has to evaluate for relevance
@@ -597,98 +605,32 @@ Output raw JSON only, like: {{"strategy":"standard","role_type":"financial_analy
             # Use provided role_type or default to financial_analyst
             strategy_config['role_type'] = strategy_decision.role_type or "financial_analyst"
         
-        # ===== ENHANCED OUTPUT FORMATTING RULES =====
-        # Comprehensive, well-structured prompt that guides answer generation by type
-        strict_format_rules = """CRITICAL OUTPUT FORMAT RULES
+        # ===== SIMPLIFIED OUTPUT FORMATTING RULES =====
+        # Concise format guidance that's easier for LLM to follow
+        strict_format_rules = """OUTPUT FORMAT INSTRUCTIONS
 
-You MUST output ONLY the answer in the format specified below. NO NARRATIVE. NO PREAMBLE. NO EXPLANATION.
+Output ONLY the answer. NO preamble, NO explanation, NO narrative.
 
-=====================================
-ANSWER FORMAT BY TYPE
-=====================================
+ANSWER TYPES:
+1. Numbers: Output only digits (e.g., "5" or "3.14")
+2. Yes/No: Output "Yes" or "No"
+3. Single percentage: "37%" (with % symbol)
+4. Multiple values: ["item1", "item2"] (JSON list with quotes, e.g., ["62%", "30%"])
+5. Text: Single phrase or word (e.g., "Eating out")
 
-[TYPE 1: COUNTING / NUMERICAL ANSWERS]
-Question patterns: "How many...", "How much...", "Count...", "Number of..."
-Format: OUTPUT ONLY a single integer with NO other text
-Examples:
-  Q: "How many parts has the prefix N in the packages?"
-  A: 2
-  
-  Q: "How many hand drawn cartoons are included in the slides?"
-  A: 4
+EXAMPLES:
+Q: "How many parts?" → A: 2
+Q: "Is this true?" → A: Yes
+Q: "What percent?" → A: 37%
+Q: "What are the mechanisms?" → A: ["BER", "NER", "MMR"]
+Q: "Which category?" → A: Eating out
 
-[TYPE 2: YES/NO ANSWERS]
-Question patterns: "Is...", "Does...", "Are there..." followed by "yes or no" instruction
-Format: OUTPUT ONLY "Yes" or "No" with NO explanation
-Examples:
-  Q: "Does the mean significance of information flow from the text part to label words always greater than... Answer 'yes' or 'no' directly."
-  A: No
-
-[TYPE 3: PERCENTAGE ANSWERS]
-Question patterns: "What percentage...", "How many %...", "What %..."
-
-Single percentage:
-  Format: OUTPUT ONLY the number with % symbol (e.g., "37%" or "37.5%")
-  Example:
-    Q: "What percentage does Republicans in the United States rate China's response good to COVID-19?"
-    A: 15%
-
-Multiple percentages (when question asks for 2+ percentages with "and"):
-  Format: OUTPUT ONLY as JSON list like ["37%", "42%"] with NO surrounding text
-  Example:
-    Q: "How many % of Rep/Lean Rep people think cases have risen because of more testing and how many % think the federal government should be primarily responsible?"
-    A: [62%, 30%]
-
-[TYPE 4: LIST / ENUMERATED ANSWERS]
-Question patterns: "Which...", "What are...", "List...", "Identify...", "Name..." (multiple items)
-Format: OUTPUT ONLY as JSON list like ["item1", "item2", "item3"] with NO surrounding text
-Examples:
-  Q: "What DNA repair mechanisms does Figure 11 demonstrate?"
-  A: ["Base Excision Repair (BER)", "Nucleotide Excision Repair (NER)", "Mismatch Repair (MMR)", "Direct Reversal Repair", "Recombinational Repair"]
-  
-  Q: "Which figures include line plots in the paper?"
-  A: ["Figure 5", "Figure 6"]
-
-[TYPE 5: DECIMAL/FLOAT ANSWERS]
-Question patterns: Questions expecting decimal values, ratios, or multiples
-Format: OUTPUT ONLY the decimal number with NO other text
-Example:
-  Q: "What multiple of the 2014 e-commerce sales was achieved in 2018?"
-  A: 3.91
-
-[TYPE 6: TEXT / OPEN-ENDED ANSWERS]
-Question patterns: "What is...", "Where...", "Explain...", open-ended questions
-Format: OUTPUT ONLY the answer text (concise, no elaboration or narrative)
-Example:
-  Q: "Which category has the most increase from 2005 to 2010 for time spent on weekends?"
-  A: Eating out
-
-=====================================
-STRICT OUTPUT RULES
-=====================================
-
-MANDATORY:
-✓ Output ONLY the answer in the format specified for its type above
-✓ For numbers: output digits only (e.g., "42" not "forty-two" or "The answer is 42")
-✓ For lists: use JSON format with double quotes ["item1", "item2"]
-✓ For percentages: include the % symbol (e.g., "37%" not "37")
-✓ For yes/no: use exactly "Yes" or "No" (capital Y or N)
-
-PROHIBITED:
-✗ NO preamble ("Based on...", "The answer is...", "According to...", "I found...")
-✗ NO explanations, reasoning, or justification
-✗ NO narrative wrappers, context summaries, or elaboration
-✗ NO apologies or hedging ("I cannot find...", "It appears to be...")
-✗ NO complete sentences for factual answers
-✗ NO markdown formatting or code blocks
-✗ NO quotation marks around single answers (only use quotes in lists)
-
-If the answer is not found in the provided context:
-  Output ONLY: "Not found"
-
-CONSEQUENCE: Violation of these rules results in automatic validation failure and answer rejection.
-
-=====================================
+RULES:
+- Do NOT repeat characters or words
+- Do NOT add explanation
+- Do NOT use "The answer is..."
+- Do NOT use markdown or code blocks
+- If answer not found: output "Not found"
 
 Context to answer from:
 """
@@ -751,7 +693,7 @@ Context to answer from:
         if not is_valid_format:
             print("Answer format validation: FAILED - using original answer")
             validation_status = "format_invalid"
-        else:
+        else:   
             print("Answer format validation: PASSED")
             answer = corrected_answer  # Use corrected answer if adjusted
             validation_status = "format_valid"
