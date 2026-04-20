@@ -5,16 +5,12 @@ This implementation uses the ollama Python library for more robust communication
 with the Ollama server, following the pattern from the generative AI course.
 """
 
-import os
-import re
-import base64
 import logging
 import sqlite3
 import json
 import hashlib
-from typing import Dict, Any, Optional, List
+from typing import Dict, Optional, List
 from pathlib import Path
-from dotenv import load_dotenv
 
 from config.config import CACHE_DB_PATH
 
@@ -24,69 +20,37 @@ except ImportError:
     raise ImportError(
         "ollama package not found. Install it with: pip install ollama"
     )
-# -------------------------------------------------------------------
-# Load environment variables from .env file
-env_path = Path(__file__).parent.parent / '.env'
-load_dotenv(dotenv_path=env_path)
 
+try:
+    import httpx
+except ImportError:
+    raise ImportError(
+        "httpx package not found. Install it with: pip install httpx"
+    )
+# -------------------------------------------------------------------
 logger = logging.getLogger(__name__)
 
 # -------------------------------------------------------------------
-_THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
+# _THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
 
-def normalize_ws(text: str) -> str:
-    """Normalize whitespace in text (collapse multiple spaces/newlines)."""
-    if not text:
-        return text
-    return " ".join(text.split())
+# def normalize_ws(text: str) -> str:
+#     """Normalize whitespace in text (collapse multiple spaces/newlines)."""
+#     if not text:
+#         return text
+#     return " ".join(text.split())
 
-def strip_thinking(text: str) -> str:
-    """Remove <think>...</think> reasoning block that qwen3 models emit."""
-    return normalize_ws(_THINK_RE.sub("", text))
-# -------------------------------------------------------------------
-# Baseline prompt template for the system role
-SYSTEM_PROMPT2 = """You are a helpful assistant that answers questions based on the provided context.
-
-Instructions:
-- Answer the question using ONLY the provided context.
-- If the question requires counting, listing, or comparison:
-  - Identify all relevant items in the context.
-  - Apply the required condition step by step.
-  - Ensure the final count is correct.
-  - But also be conscious of not hallucinating items that are not in the context.
-  - For counting questions, output only the final number and don't over think it.
-- If the answer is partially available, explain what is missing.
-- If the answer cannot be found, say: "I cannot find the answer in the provided context."
-- Be concise but ensure accuracy."""
-
-SYSTEM_PROMPT = """You are a concise assistant. Answer using ONLY the provided context.
-
-Strict Instructions (NON-NEGOTIABLE):
-- Read the whole context and think before answering.
-- NEVER add preamble, explanation, or context. ANSWER ONLY.
-- DO NOT rephrase, explain, or add context.
-- Multiple answers: ONLY output ['answer1', 'answer2', ...]. NOTHING ELSE.
-- For yes/no questions, answer only "Yes" or "No".
-- Do not rely only on explicit statements. If the answer can be derived from the context through calculation (e.g., growth rate, difference, ratio, count), compute it before answering.
-
-Be direct. No padding. No explanations unless specifically asked."""
-
-VISION_PROMPT = """Answer the question using the image(s) provided.
-Output ONLY the direct answer. No explanation, no reasoning, no preamble, no "Based on...".
-
-- Number question → output the number only.
-- Yes/no question → output "Yes" or "No" only.
-- List question → output ["item1", "item2"] only.
-- Single answer → output the answer only."""
+# def strip_thinking(text: str) -> str:
+#     """Remove <think>...</think> reasoning block that qwen3 models emit."""
+#     return normalize_ws(_THINK_RE.sub("", text))
 # -------------------------------------------------------------------
 class BaselineGenerator:
     """LLM-based answer generator using Ollama via the ollama Python library."""
     
     def __init__(
         self,
-        base_url: str = "https://ollama.ux.uis.no",
-        model: str = "qwen3-vl:8b",
-        api_key: str = None
+        base_url: str,
+        model: str,
+        api_key: str
     ):
         """
         Initialize the Ollama client.
@@ -94,22 +58,39 @@ class BaselineGenerator:
         Parameters
         ----------
         base_url : str
-            Base URL of the Ollama server
+            Base URL of the Ollama server (REQUIRED - no defaults)
         model : str
-            Model name to use
-        api_key : str, optional
-            API key for authentication. If None, attempts to load from OLLAMA_API_KEY env var.
+            Model name to use (REQUIRED - no defaults)
+        api_key : str
+            API key for authentication (REQUIRED - no defaults)
+        
+        Raises
+        ------
+        ValueError
+            If base_url, model, or api_key are None or empty strings
         """
+        # Validate required parameters - fail loud if missing
+        if not base_url:
+            raise ValueError(
+                "base_url is required and cannot be None or empty. "
+                "It must be provided by config."
+            )
+        if not model:
+            raise ValueError(
+                "model is required and cannot be None or empty. "
+                "It must be provided by config (LLM_MODEL)."
+            )
+        if not api_key:
+            raise ValueError(
+                "api_key is required and cannot be None or empty. "
+                "It must be provided by config (OLLAMA_API_KEY from .env)."
+            )
+        
         self.base_url = base_url.rstrip('/') # Ensure no trailing slash
         self.model = model # Model name to use for generation
+        self.api_key = api_key
         
-        # Get API key from parameter or environment variable
-        self.api_key = api_key or os.getenv('OLLAMA_API_KEY')
-        
-        if not self.api_key:
-            logger.warning("No OLLAMA_API_KEY found. API calls may fail.")
-        else:
-            logger.info(f"Loaded API key: {self.api_key[:10]}...")
+        logger.info(f"Loaded API key: {self.api_key[:10]}...")
         
         # Initialize the Ollama client with authentication header
         headers = {}
@@ -121,7 +102,7 @@ class BaselineGenerator:
             headers=headers if self.api_key else None,  # Include headers only if API key is provided
             timeout=300,  # 5 min — image calls + model reload can take a long time
         )
-        logger.info(f"Initialized Ollama client for model: {self.model}")
+        logger.info(f"Initialized Ollama client for model: {self.model} at {self.base_url}")
         
         # Initialize Cache Database
         self._init_cache_db()
@@ -168,7 +149,50 @@ class BaselineGenerator:
             logger.warning(f"Failed to cache generated answer: {e}")
             
     #-------------------
-    def _pull_model(self, model_name: str) -> None:
+    def _call_with_retries(self, func, max_retries=3, retry_delay=10, exponential_backoff=True):
+        """
+        Generic retry helper for calling functions with exponential backoff.
+        
+        Parameters
+        ----------
+        func : callable
+            Function to call (should raise Exception on failure)
+        max_retries : int
+            Maximum number of retry attempts (default: 3)
+        retry_delay : int
+            Initial delay in seconds between retries (default: 10)
+        exponential_backoff : bool
+            Whether to use exponential backoff (2^attempt multiplier) (default: True)
+        
+        Returns
+        -------
+        Any
+            Result from successful func call
+        
+        Raises
+        ------
+        Exception
+            The last exception if all retries exhausted
+        """
+        import time as _time
+        last_exc = None
+        
+        for attempt in range(max_retries):
+            try:
+                return func(attempt)
+            except Exception as e:
+                last_exc = e
+                error_type = type(e).__name__
+                logger.warning(f"Attempt {attempt + 1}/{max_retries} failed ({error_type}): {str(e)}")
+                
+                if attempt < max_retries - 1:
+                    delay = retry_delay * (2 ** attempt) if exponential_backoff else retry_delay
+                    logger.info(f"Retrying in {delay} seconds...")
+                    _time.sleep(delay)
+        
+        raise last_exc
+    #-------------------
+    def _pull_model(self, model_name):
         """
         Pull a model from Ollama if it doesn't exist.
         
@@ -215,59 +239,50 @@ class BaselineGenerator:
             If the API request fails and cannot be recovered.
         """
         # Default options for generation
-        options = {"temperature": 0.0, "top_p": 0.1, "num_predict": 1024} # Default to deterministic output for baseline (want these to be low for accurate extraction)
-        options.update(kwargs.pop("options", {})) # Allow overriding options via kwargs
-        #-------------------
-        def _call_chat() -> Any:
-            """Internal function to call the chat API."""
-            return self._client.chat(
-                model=self.model,
-                messages=messages,
-                options=options,
-                stream=False,
-                think=False,
-                **kwargs,
-            )
-        #-------------------
-        # Try to call chat, with retry on 500 (server swapping models) and auto-pull on 404
-        import time as _time
-        max_retries = 4
-        retry_delay = 30  # seconds — gives server time to unload previous model
-        last_exc = None
-        for attempt in range(max_retries):
+        options = {"temperature": 0.0, "top_p": 0.1, "num_predict": 1024}
+        options.update(kwargs.pop("options", {}))
+        
+        def _call_chat(attempt):
+            """Internal function to call the chat API with retry handling."""
             try:
-                resp = _call_chat()
-                last_exc = None
-                break
+                resp = self._client.chat(
+                    model=self.model,
+                    messages=messages,
+                    options=options,
+                    stream=False,
+                    think=False,
+                    **kwargs,
+                )
+                return resp
             except ResponseError as e:
                 status = getattr(e, "status_code", None)
                 if status == 404:
                     logger.warning(f"Model {self.model} not found, pulling...")
                     self._pull_model(self.model)
+                    raise  # Re-raise to trigger retry
                 elif status == 500:
-                    logger.warning(f"Server 500 (attempt {attempt+1}/{max_retries}), retrying in {retry_delay}s...")
-                    last_exc = e
-                    _time.sleep(retry_delay)
+                    logger.warning(f"Server error 500, retrying...")
+                    raise  # Re-raise to trigger retry
                 else:
                     logger.error(f"Ollama API error: {e}")
                     raise
-        if last_exc is not None:
-            raise last_exc
+        
+        # Call with retries (higher retry_delay for model loading)
+        resp = self._call_with_retries(_call_chat, max_retries=4, retry_delay=30, exponential_backoff=False)
         
         # Extract content from response
-        # The response object has a 'message' attribute with content
         content = getattr(getattr(resp, "message", None), "content", "")
-        
         if not content:
             raise ResponseError("Empty response from Ollama chat API")
-
-        return strip_thinking(content)
+        
+        return content
+        #return strip_thinking(content)
     #-------------------
     def generate(
         self,
         question: str,
         context: str,
-        system_prompt: str = SYSTEM_PROMPT2
+        system_prompt: str
     ) -> str:
         """
         Generate an answer given a question and context.
@@ -281,13 +296,23 @@ class BaselineGenerator:
         context : str
             The context/document snippets/chunks to use for answering
         system_prompt : str
-            The system prompt template
+            The system prompt template (REQUIRED - must be provided by prompting strategy)
         
         Returns
         -------
         str
             The generated answer
+        
+        Raises
+        ------
+        ValueError
+            If system_prompt is None or empty
         """
+        if not system_prompt:
+            raise ValueError(
+                "system_prompt is required and cannot be None or empty. "
+                "It must be provided by a prompting strategy."
+            )
         # Construct the user message with context and question
         user_message = f"""Context:
 {context}
@@ -327,7 +352,8 @@ Question: {question}"""
     def generate_batch(
         self,
         questions: list,
-        contexts: list
+        contexts: list,
+        system_prompt: str = None
     ) -> list:
         """
         Generate answers for multiple questions.
@@ -338,16 +364,29 @@ Question: {question}"""
             List of questions
         contexts : list
             List of contexts (one per question)
+        system_prompt : str
+            The system prompt template (REQUIRED - must be provided by prompting strategy)
         
         Returns
         -------
         list
             List of generated answers
+        
+        Raises
+        ------
+        ValueError
+            If system_prompt is None or empty
         """
+        if not system_prompt:
+            raise ValueError(
+                "system_prompt is required and cannot be None or empty. "
+                "It must be provided by a prompting strategy."
+            )
+        
         answers = []
         for i, (q, c) in enumerate(zip(questions, contexts)):
             try:
-                answer = self.generate(q, c)
+                answer = self.generate(q, c, system_prompt)
                 answers.append(answer)
             except Exception as e:
                 logger.error(f"Error generating answer for question {i}: {e}")
@@ -356,33 +395,7 @@ Question: {question}"""
 
 
 # -------------------------------------------------------------------
-from functools import lru_cache
-
-@lru_cache(maxsize=256)
-def _encode_image(image_path: str, max_side: int = 1120, quality: int = 65) -> str:
-    """
-    Read an image, resize so the longest side ≤ max_side (preserving aspect
-    ratio), then return base64-encoded JPEG bytes.
-
-    Results are cached (LRU, 256 entries) so the same page image isn't
-    re-encoded across different questions.
-
-    1120 px is the native tile size qwen3-vl uses internally; sending larger
-    images just bloats the payload without helping quality.
-    quality=65 is sufficient for document pages (text, tables, charts).
-    """
-    from PIL import Image as _Image
-    import io as _io
-
-    img = _Image.open(image_path).convert("RGB")
-    w, h = img.size
-    if max(w, h) > max_side:
-        scale = max_side / max(w, h)
-        img = img.resize((int(w * scale), int(h * scale)), _Image.LANCZOS)
-
-    buf = _io.BytesIO()
-    img.save(buf, format="JPEG", quality=quality)
-    return base64.b64encode(buf.getvalue()).decode("utf-8")
+# Image encoding is now handled by preprocessing.image_processor.encode_image()
 
 
 class VisionGenerator(BaselineGenerator):
@@ -394,6 +407,29 @@ class VisionGenerator(BaselineGenerator):
     qwen3-vl:8b does not support think=True reliably (returns empty responses),
     so this class overrides chat() to always disable thinking.
     """
+    
+    def __init__(self, base_url: str, model: str, config=None, api_key: str = None):
+        """
+        Initialize the VisionGenerator.
+        
+        Parameters
+        ----------
+        base_url : str
+            Base URL of the Ollama server (REQUIRED)
+        model : str
+            Model name to use (REQUIRED - should be a vision model like qwen3-vl:8b)
+        config : object, optional
+            Configuration object with VLM_USE_RAW_CHATML setting
+        api_key : str
+            API key for authentication (REQUIRED)
+        
+        Raises
+        ------
+        ValueError
+            If base_url, model, or api_key are None or empty strings
+        """
+        super().__init__(base_url=base_url, model=model, api_key=api_key)
+        self.config = config
 
     @staticmethod
     def _inject_no_think(messages: list) -> list:
@@ -411,28 +447,32 @@ class VisionGenerator(BaselineGenerator):
 
     def chat(self, messages, think=False, **kwargs):
         """
-        think=False  → image call: injects /no_think, num_predict=2048
-        think=True   → text call:  thinking enabled,  num_predict=4096
+        Chat with VLM, optionally injecting /no_think to suppress reasoning.
+        Uses retry helper for resilience.
+        
+        Parameters
+        ----------
+        messages : list
+            Chat messages
+        think : bool
+            Whether to enable thinking/reasoning
+        **kwargs : dict
+            Additional options
         """
-        import time as _time
-        from ollama import ResponseError
-        kwargs.pop("think", None)  # discard if caller passed it via kwargs
+        kwargs.pop("think", None)
 
         if not think:
             messages = self._inject_no_think(messages)
 
-        options = {"temperature": 0.0, "top_p": 0.1}#, "num_predict": 7200}
+        options = {"temperature": 0.0, "top_p": 0.1}
         if not think:
             options["repeat_penalty"] = 1.1
         options.update(kwargs.pop("options", {}))
 
-        max_retries = 3
-        retry_delay = 10
-        last_exc = None
-        resp = None
-        for attempt in range(max_retries):
+        def _call_vlm_chat(attempt):
+            """Internal function to call VLM chat with error handling."""
             try:
-                resp = self._client.chat(
+                return self._client.chat(
                     model=self.model,
                     messages=messages,
                     options=options,
@@ -440,31 +480,50 @@ class VisionGenerator(BaselineGenerator):
                     think=think,
                     **kwargs,
                 )
-                last_exc = None
-                break
             except ResponseError as e:
                 status = getattr(e, "status_code", None)
                 if status == 404:
+                    logger.warning(f"Model {self.model} not found, pulling...")
                     self._pull_model(self.model)
+                    raise  # Let helper retry immediately after pulling
                 elif status == 500:
-                    logger.warning(f"VLM server 500 (attempt {attempt+1}/{max_retries}), retrying in {retry_delay}s...")
-                    last_exc = e
-                    _time.sleep(retry_delay)
+                    raise  # Let helper retry
                 else:
                     raise
-            except Exception as e:
-                raise
 
-        if last_exc is not None:
-            raise last_exc
-        logger.info(f"resp: {resp}")
+        resp = self._call_with_retries(_call_vlm_chat, max_retries=3, retry_delay=10, exponential_backoff=True)
         content = getattr(getattr(resp, "message", None), "content", "")
         if not content:
             raise Exception("Empty response from Ollama chat API")
-        return normalize_ws(content)
+        return content
+        # return normalize_ws(content)
 
-    def generate(self, question, context, system_prompt=SYSTEM_PROMPT2, think=True):
-        """Text-only generation — enable thinking for better accuracy."""
+    def generate(self, question, context, system_prompt, think=False):
+        """
+        Text-only generation — enable thinking for better accuracy.
+        
+        Parameters
+        ----------
+        question : str
+            The question to answer
+        context : str
+            The context/document snippets/chunks to use for answering
+        system_prompt : str
+            The system prompt template (REQUIRED - must be provided by prompting strategy)
+        think : bool
+            Whether to enable thinking/reasoning
+        
+        Raises
+        ------
+        ValueError
+            If system_prompt is None or empty
+        """
+        if not system_prompt:
+            raise ValueError(
+                "system_prompt is required and cannot be None or empty. "
+                "It must be provided by a prompting strategy."
+            )
+        
         user_message = f"Context:\n{context}\n\nQuestion: {question}"
         messages = [
             {"role": "system", "content": system_prompt},
@@ -481,12 +540,17 @@ class VisionGenerator(BaselineGenerator):
         question: str,
         image_paths: List[str],
         text_context: str = "",
-        system_prompt: str = VISION_PROMPT,
+        system_prompt: str = None,
         think: bool = False,
+        max_retries: int = 3,
+        retry_delay: int = 10,
     ) -> str:
         """
         Generate an answer given a question, one or more image paths, and
-        optional supporting text context.
+        optional supporting text context. Respects VLM_USE_RAW_CHATML config.
+        
+        If image_paths are provided but cannot be loaded, still proceeds with
+        text-only request using the same raw/standard ChatML mode.
 
         Parameters
         ----------
@@ -495,7 +559,28 @@ class VisionGenerator(BaselineGenerator):
         text_context : str
             Any text chunks retrieved alongside the images (may be empty).
         system_prompt : str
+            The system prompt template (REQUIRED - must be provided by prompting strategy)
+        think : bool
+            Whether to enable thinking/reasoning
+        max_retries : int
+            Number of retry attempts for failed requests (default: 3)
+        retry_delay : int
+            Initial delay in seconds between retries (uses exponential backoff)
+        
+        Raises
+        ------
+        ValueError
+            If system_prompt is None or empty
+        Exception
+            If VLM generation fails after all retries exhausted (does not fall back to text)
         """
+        if not system_prompt:
+            raise ValueError(
+                "system_prompt is required and cannot be None or empty. "
+                "It must be provided by a prompting strategy."
+            )
+        from preprocessing.image_processor import encode_image
+        
         # Build user message content
         user_parts = []
         if text_context:
@@ -503,30 +588,86 @@ class VisionGenerator(BaselineGenerator):
         user_parts.append(f"Question: {question}")
         user_content = "\n".join(user_parts)
 
-        # Encode images
+        # Encode images (if any valid paths provided)
         encoded_images = []
-        for path in image_paths:
+        if image_paths:
+            for path in image_paths:
+                try:
+                    encoded_images.append(encode_image(path))
+                except Exception as e:
+                    logger.warning(f"Could not load image {path}: {e}")
+            
+            if not encoded_images:
+                logger.warning(f"No valid images could be encoded from {len(image_paths)} path(s); continuing with text-only request")
+
+        # Check if we should use raw ChatML workaround for qwen3-vl:8b thinking bug
+        use_raw_chatml = getattr(self.config, 'VLM_USE_RAW_CHATML', False) if self.config else False
+
+        if use_raw_chatml:
+            # Use raw ChatML with /no_think to bypass qwen3-vl thinking bug
+            # Format: system prompt + user message with /no_think + prefilled thinking block
+            # Must use direct HTTP call with raw=true (not supported by ollama Python client)
+            user_message_dict = {"role": "user", "content": user_content + "\n/no_think"}
+            if encoded_images:
+                user_message_dict["images"] = encoded_images
+            
+            raw_messages = [
+                {"role": "system", "content": system_prompt},
+                user_message_dict,
+                {"role": "assistant", "content": "<think>\n\n</think>\n\n"},
+            ]
+            
+            def _call_raw_chatml(attempt):
+                """Internal function to call raw ChatML with retries."""
+                logger.info(f"VLM attempt {attempt + 1}/{max_retries} for question: {question[:60]}... (raw ChatML mode)")
+                
+                api_url = f"{self.base_url}/api/chat"
+                headers = {}
+                if self.api_key:
+                    headers['Authorization'] = f'Bearer {self.api_key}'
+                
+                payload = {
+                    "model": self.model,
+                    "messages": raw_messages,
+                    "stream": False,
+                    "raw": True,
+                    "options": {"temperature": 0.0, "top_p": 0.1}
+                }
+                
+                with httpx.Client(timeout=300) as client:
+                    http_response = client.post(api_url, json=payload, headers=headers)
+                    http_response.raise_for_status()
+                    resp_json = http_response.json()
+                    content = resp_json.get("message", {}).get("content", "")
+                    
+                    if not content:
+                        raise Exception("Empty response from VLM (raw ChatML mode)")
+                    return content
+                    #return normalize_ws(content)
+            
             try:
-                encoded_images.append(_encode_image(path))
+                return self._call_with_retries(_call_raw_chatml, max_retries=max_retries, retry_delay=retry_delay, exponential_backoff=True)
             except Exception as e:
-                logger.warning(f"Could not load image {path}: {e}")
-
-        if not encoded_images:
-            # Fall back to text-only generation
-            logger.warning("No images could be loaded; falling back to text generation")
-            return self.generate(question, text_context, system_prompt, think=think)
-
+                logger.error(f"VLM failed after {max_retries} attempts in raw ChatML mode: {e}")
+                raise
+        
+        # Standard mode (use normal chat with think=False)
+        user_message_dict = {"role": "user", "content": user_content}
+        if encoded_images:
+            user_message_dict["images"] = encoded_images
+        
         messages = [
             {"role": "system", "content": system_prompt},
-            {
-                "role": "user",
-                "content": user_content,
-                "images": encoded_images,
-            },
+            user_message_dict,
         ]
 
-        try:
+        def _call_standard_chat(attempt):
+            """Internal function to call standard chat with images."""
+            logger.info(f"VLM attempt {attempt + 1}/{max_retries} for question: {question[:60]}...")
             return self.chat(messages, think)
+        
+        try:
+            return self._call_with_retries(_call_standard_chat, max_retries=max_retries, retry_delay=retry_delay, exponential_backoff=True)
         except Exception as e:
-            logger.error(f"Vision generation error: {e}")
-            return f"Error generating response: {str(e)}"
+            logger.error(f"VLM failed after {max_retries} attempts in standard mode: {e}")
+            raise

@@ -4,7 +4,12 @@ import os
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Dict, Any, List
+import os
 from dotenv import load_dotenv
+
+# Load environment variables from .env file for API keys
+env_path = Path(__file__).resolve().parent.parent / '.env'
+load_dotenv(dotenv_path=env_path)
 
 # Define paths outside the dataclass for cleaner referencing
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -70,6 +75,8 @@ class BaselineConfig:
     # ===== LLM / GENERATOR SETTINGS =====
     LLM_MODEL: str = "qwen3:32b"
     OLLAMA_BASE_URL: str = "https://ollama.ux.uis.no"
+    OLLAMA_API_KEY: str = os.getenv('OLLAMA_API_KEY', '')
+    """API key for Ollama authentication (loaded from .env, empty string if not found)"""
     LLM_TEMPERATURE: float = 0.0
     LLM_TOP_P: float = 0.1
 
@@ -122,17 +129,27 @@ class AdvancedConfig(BaselineConfig):
     """Separate collection from baseline so the two don't interfere"""
 
     # Use one model for everything — no server model swapping = no OOM crashes
-    LLM_MODEL: str = "gorina10.qwen3.5:122b" # qwen3-vl:8b
+    LLM_MODEL: str = "qwen3-vl:8b"
 
     # ===== MULTIMODAL SETTINGS =====
     USE_MULTIMODAL: bool = True
 
-    VLM_MODEL: str = "gorina10.qwen3.5:122b" # qwen3-vl:8b
+    VLM_MODEL: str = "qwen3-vl:8b"
     """Vision-language model used when image chunks are retrieved"""
 
     # Sequential — keeps logs readable and avoids concurrent calls on shared GPU
     GENERATION_WORKERS: int = 1
     RETRIEVAL_WORKERS: int = 1
+
+    # ===== IMAGE RESIZING SETTINGS =====
+    MAX_IMAGE_WIDTH: int = 1024
+    """Maximum width in pixels for image resizing (0 to disable resizing)"""
+    MAX_IMAGE_HEIGHT: int = 1024
+    """Maximum height in pixels for image resizing (0 to disable resizing)"""
+    IMAGE_RESIZE_QUALITY: int = 85
+    """JPEG compression quality (0-100, higher = better quality but larger file size)"""
+    VLM_USE_RAW_CHATML: bool = True
+    """Use raw ChatML with /no_think to bypass qwen3-vl:8b thinking bug (ignores think=false in API)"""
 
     PAGE_IMAGES_TRAIN_DIR: Path = PAGE_IMAGES_TRAIN_DIR
     IMAGES_TRAIN_DIR: Path = IMAGES_TRAIN_DIR
@@ -166,7 +183,7 @@ class AdvancedConfig(BaselineConfig):
     
     PROMPTING_STRATEGY_CONFIG: Dict[str, Any] = field(default_factory=lambda: {
         # Role strategy
-        'role_type': 'financial_analyst',
+        'role_type': 'rag_specialist',
         
         # CoT strategy
         'show_reasoning': False,  # set to False to hide reasoning

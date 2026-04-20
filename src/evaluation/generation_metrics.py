@@ -148,7 +148,8 @@ def bleu_score(pred_norm: str, gt_norm: str, max_n: int = 4) -> float:
         return 0.0
     
     precisions = []
-    
+    epsilon = 1e-9  # small value for smoothing to avoid zero precision
+
     for n in range(1, max_n + 1):
         pred_ngrams = Counter(
             tuple(pred_tokens[i:i+n]) for i in range(len(pred_tokens) - n + 1)
@@ -156,17 +157,18 @@ def bleu_score(pred_norm: str, gt_norm: str, max_n: int = 4) -> float:
         gt_ngrams = Counter(
             tuple(gt_tokens[i:i+n]) for i in range(len(gt_tokens) - n + 1)
         )
-        
-        if len(pred_ngrams) == 0:
-            precisions.append(0.0)
+
+        if len(pred_ngrams) < n: # if there are no n-grams of this size in the prediction, precision is zero (with smoothing)
+            continue
         else:
             matches = sum((pred_ngrams & gt_ngrams).values())
-            precisions.append(matches / sum(pred_ngrams.values()))
+            if matches == 0:
+                precisions.append(epsilon)
+            else:
+                precisions.append(matches / sum(pred_ngrams.values()))
     
     bp = 1.0 if len(pred_tokens) >= len(gt_tokens) else math.exp(1 - len(gt_tokens) / len(pred_tokens))
     
-    if any(p == 0 for p in precisions):
-        return 0.0
     geo_mean = math.exp(sum(math.log(p) for p in precisions) / len(precisions))
     
     return bp * geo_mean

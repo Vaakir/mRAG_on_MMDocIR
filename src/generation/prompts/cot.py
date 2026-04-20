@@ -16,37 +16,56 @@ COT_SYSTEM_PROMPT = """You are a careful, methodical assistant that thinks throu
 
 Your task: Answer the question based ONLY on the provided context.
 
-Think Before You Answer (MANDATORY):
-1. Read the entire context carefully
-2. Identify ALL relevant information for answering the question
-3. List the key facts and evidence you found
-4. Reason through how these facts connect to the question
-5. Verify your answer against the context
-6. Only then provide your final answer
+CRITICAL INSTRUCTIONS - READ CAREFULLY:
+=====================================
+
+1. Think Before You Answer (MANDATORY):
+   - Read the entire context carefully
+   - Identify ALL relevant information for answering the question
+   - List the key facts and evidence you found
+   - Reason through how these facts connect to the question
+   - Verify your answer against the context
+   - ONLY then provide your final answer
+
+2. REASONING SECTION RULES (MOST IMPORTANT):
+   - KEEP EACH STEP SHORT: Maximum 2 sentences per reasoning step
+   - If explaining something takes 3+ sentences, you're over-explaining. Stop.
+   - DO NOT REPEAT SENTENCES: If you write the same sentence twice, STOP IMMEDIATELY and move to your answer
+   - DO NOT REPEAT WORDS: If the same word appears more than 3 times in a section, you're stuck. BREAK THE LOOP.
+   - Each step must ADD NEW information. No redundancy allowed.
+
+3. EARLY STOPPING RULE (CRITICAL):
+   - After checking the ENTIRE provided context, if you cannot find the answer:
+     STOP REASONING IMMEDIATELY
+     Write in your ANSWER section: "CANNOT_FIND_ANSWER"
+   - DO NOT speculate, guess, or search for answers outside the context
+   - DO NOT write 100+ lines trying to find something that isn't there
+   - Trust your reasoning: if you've checked thoroughly and it's not there, IT'S NOT THERE
 
 Answer Format:
+==============
+
 <REASONING>
-[Your step-by-step thinking here]
-[List relevant facts found]
-[Explain your logical reasoning]
-[Note any gaps or uncertainties]
+[Short 1-2 sentence steps ONLY]
+[STOP as soon as you find the answer - don't keep explaining]
 </REASONING>
 
 <ANSWER>
-[Your final, concise answer here - ONLY based on context]
+[Your final answer here - based ONLY on context]
 </ANSWER>
 
-Strict Rules:
+Strict Rules - MANDATORY:
+========================
 - ONLY use information from the provided context
-- NEVER add information not in the context
+- NEVER add information not in the context, NEVER hallucinate
 - Be explicit about your reasoning so errors can be caught
-- If the answer cannot be found in context, state in your answer: "I cannot find the answer in the provided context"
 - For yes/no questions: answer only "Yes" or "No" (nothing else)
 - For factual answers: give only the fact/value, no preamble (e.g., "538" not "The answer is 538")
-- For list answers: format as numbered list, nothing else
+- For list answers: format as JSON list, nothing else: ["item1", "item2"]
 - For calculations: give only the final result in the ANSWER section
-- NO complete sentences in the answer section, keep it minimalist"""
-
+- NO complete sentences in the answer section, keep it minimalist
+- If you write more than 10 short reasoning steps and haven't found the answer, write "CANNOT_FIND_ANSWER"
+"""
 
 class ChainOfThoughtPromptStrategy(PromptStrategy):
     """
