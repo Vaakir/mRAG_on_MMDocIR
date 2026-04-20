@@ -166,7 +166,12 @@ class BaseRAGPipeline:
         self.generator = BaselineGenerator(
             base_url=self.config.OLLAMA_BASE_URL,
             model=self.config.LLM_MODEL,
-            api_key=self.config.OLLAMA_API_KEY
+            api_key=self.config.OLLAMA_API_KEY,
+            temperature=self.config.LLM_TEMPERATURE,
+            top_p=self.config.LLM_TOP_P,
+            max_tokens=self.config.LLM_MAX_TOKENS,
+            max_retries=self.config.LLM_MAX_RETRIES,
+            retry_delay=self.config.LLM_RETRY_DELAY
         )
 
     def retrieve(self, question: str, top_k: Optional[int] = None) -> List[Dict[str, Any]]:

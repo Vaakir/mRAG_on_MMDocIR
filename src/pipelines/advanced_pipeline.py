@@ -206,6 +206,11 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
             model=self.config.LLM_MODEL,
             api_key=self.config.OLLAMA_API_KEY,
             config=self.config,
+            temperature=self.config.LLM_TEMPERATURE,
+            top_p=self.config.LLM_TOP_P,
+            max_tokens=self.config.LLM_MAX_TOKENS,
+            max_retries=self.config.LLM_MAX_RETRIES,
+            retry_delay=self.config.LLM_RETRY_DELAY
         )
         self.vlm = self.generator
 
@@ -259,8 +264,6 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
     # Generation routing
     # ------------------------------------------------------------------
 
-    MAX_VLM_IMAGES = 2  # cap images sent to VLM to avoid OOM
-
     def _generate(self, question: str, retrieved: List[Dict[str, Any]]) -> str:
         """Route to VLM if page images or figures were retrieved, otherwise prompt strategy."""
         image_types = {"page_image", "figure", "evidence"}
@@ -275,9 +278,9 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
                     ip = [ip]
                 for p in ip:
                     image_paths.append(str(self.config.DATA_DIR / p))
-                    if len(image_paths) >= self.MAX_VLM_IMAGES:
+                    if len(image_paths) >= self.config.MAX_VLM_IMAGES:
                         break
-                if len(image_paths) >= self.MAX_VLM_IMAGES:
+                if len(image_paths) >= self.config.MAX_VLM_IMAGES:
                     break
 
             text_context = "\n\n".join(
