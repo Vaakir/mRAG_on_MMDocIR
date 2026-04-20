@@ -17,7 +17,7 @@ DATA_DIR = SRC_DIR / "data"
 RESULTS_DIR = SRC_DIR / "results"
 PREPROCESSING_TIME_CSV = RESULTS_DIR / "time_preprocessing.csv"
 BASELINE_TIME_CSV = RESULTS_DIR / "time_baseline.csv"
-RESULTS_CSV = RESULTS_DIR / "results_experiments.csv"
+RESULTS_CSV = RESULTS_DIR / "results_baseline.csv"
 
 PDFS_DIR = DATA_DIR / "train" / "pdfs_train"
 PREPROCESSED_DATA_DIR = DATA_DIR / "preprocessed"
