@@ -170,34 +170,34 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     if args.run_experiments:
-        run_experiments(eval_subset_size=args.eval_subset)
-    else:
-        # How to use:
-        # DAT560project> python -m src\main.py
-        
-            
-        # TO RUN BASELINE:
-        config = BaselineConfig()
-        pure_text_data = load_train_data(config.TRAIN_JSONL)
+        config = AdvancedConfig(
+            QUERY_TECHNIQUE=args.technique,
+            prompting_strategy=args.prompting_strategy,
+            EVAL_SUBSET_SIZE=args.eval_subset,
+        )
+        train_data = load_train_data(config.TRAIN_JSONL)        
         run_single_experiment(
-            experiment_name="Baseline RAG",
+            experiment_name=f"Advanced RAG ({config.QUERY_TECHNIQUE})",
             config=config,
-            pipeline_class=BaselineRAGPipeline,
-            test_data=pure_text_data[:config.EVAL_SUBSET_SIZE],
-            force_rebuild=False,
+            pipeline_class=AdvancedRAGPipeline,
+            test_data=train_data[:config.EVAL_SUBSET_SIZE],
+            force_rebuild=args.force_rebuild,
             run_single_query=True
         )
-
-        # TO RUN ADVANCED
-        # config = AdvancedConfig(EVAL_SUBSET_SIZE=1,)
-        # train_data = load_train_data(config.TRAIN_JSONL)        
+    else:
+        # How to use - DAT560project> python src/main.py:
+         
+        # # TO RUN BASELINE:
+        # config = BaselineConfig()
+        # pure_text_data = load_train_data(config.TRAIN_JSONL)
         # run_single_experiment(
-        #     experiment_name=f"Advanced RAG ({config.QUERY_TECHNIQUE})",
+        #     experiment_name="Baseline RAG",
         #     config=config,
-        #     pipeline_class=AdvancedRAGPipeline,
-        #     test_data=train_data[:config.EVAL_SUBSET_SIZE],
+        #     pipeline_class=BaselineRAGPipeline,
+        #     test_data=pure_text_data[:config.EVAL_SUBSET_SIZE],
         #     force_rebuild=False,
         #     run_single_query=True
         # )
 
-        
+        # # TO RUN ALL ABLATION TESTS - DAT560project> python src/main.py:
+        run_experiments(eval_subset_size=2)
