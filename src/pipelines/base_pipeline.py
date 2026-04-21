@@ -96,7 +96,8 @@ class BaseRAGPipeline:
             # Initialize remaining components
             self._initialize_retriever()
             return  # EXIT early
-        
+        return # WE should have ran preprocessing pipeline first..
+    
         logger.info("Building new index...")
         
         logger.info("=" * 80)
