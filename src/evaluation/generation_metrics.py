@@ -36,7 +36,7 @@ def normalize_answer(answer: Any) -> str:
     # Remove commas in numbers (1,358,000 → 1358000)
     text = re.sub(r'(\d),(\d)', r'\1\2', text)
     # Strip common unit suffixes after numbers (714.3 million --> 714.3)
-    #text = re.sub(r'(\d+\.?\d*)\s*(million|billion|usd|%)', r'\1', text)
+    text = re.sub(r'(\d+\.?\d*)\s*(million|billion|usd|%)', r'\1', text)
     # Strip punctuation except digits and letters
     text = re.sub(r'[^\w\s\.\-]', ' ', text)
     # Collapse whitespace
@@ -178,7 +178,7 @@ def semantic_similarity(pred_norm: str, gt_norm: str, embedder: Optional[Any] = 
     """
     Calculate semantic similarity between prediction and ground truth.
     
-    If embedder provided: uses embedding-based cosine similarity (LLM-based)
+    If embedder provided: uses embedding-based cosine similarity
     Otherwise: falls back to token F1 (text-based similarity)
     
     Args:
@@ -242,7 +242,7 @@ def evaluate_generation(
                         If not provided, will use predictions for all metrics
     
     Returns:
-        Dictionary with all computed metrics
+        Dictionary with all computed metrics, separated by evaluation type
     """
     
     # Use validated predictions by default, or fall back if raw not provided

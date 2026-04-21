@@ -42,6 +42,8 @@ class TextEmbedder(BaseEmbedder):
             all_embeddings.append(embeddings)
             if torch.backends.mps.is_available():
                 torch.mps.empty_cache()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
         return np.vstack(all_embeddings)
 
     def embed_query(self, query: str) -> np.ndarray:
@@ -85,5 +87,7 @@ class TextEmbedder(BaseEmbedder):
             all_embeddings.append(embeddings)
             if torch.backends.mps.is_available():
                 torch.mps.empty_cache()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
         return np.vstack(all_embeddings)
 
