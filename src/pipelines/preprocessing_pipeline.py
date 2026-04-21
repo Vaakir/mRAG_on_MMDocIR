@@ -18,7 +18,7 @@ from preprocessing.build_multimodal_indexes import build_for_strategy, STRATEGIE
 logger = logging.getLogger(__name__)
 
 
-def preprocessing_pipeline(skip_chunking: bool = False, skip_indexing: bool = False, force_rebuild: bool = False):
+def preprocessing_pipeline(force_chunking: bool = False, force_indexing: bool = False):
     """
     Full preprocessing pipeline:
       Stage 1 — PDF extraction + all chunking strategies  (skippable with skip_chunking)
@@ -34,7 +34,7 @@ def preprocessing_pipeline(skip_chunking: bool = False, skip_indexing: bool = Fa
     with log_and_time('Total Pipeline Runtime'):
 
         # ── Stage 1: PDF extraction + chunking ────────────────────────────
-        if not skip_chunking:
+        if force_chunking:
             with log_and_time('Extracting PDFs using docling'):
                 all_documents = process_all_pdfs(config.PDFS_DIR)
 
@@ -55,10 +55,10 @@ def preprocessing_pipeline(skip_chunking: bool = False, skip_indexing: bool = Fa
             logger.info("Skipping Stage 1 (PDF extraction + chunking)")
 
         # ── Stage 2: Multimodal index building ────────────────────────────
-        if not skip_indexing:
+        if force_indexing:
             for strategy in STRATEGIES:
                 with log_and_time(f"Building multimodal index: {strategy}"):
-                    build_for_strategy(strategy, force_rebuild=force_rebuild)
+                    build_for_strategy(strategy)
         else:
             logger.info("Skipping Stage 2 (multimodal index building)")
 
@@ -76,9 +76,8 @@ def preprocessing_pipeline(skip_chunking: bool = False, skip_indexing: bool = Fa
 if __name__ == "__main__":
 
     result = preprocessing_pipeline(
-        skip_chunking=True,
-        skip_indexing=False,
-        force_rebuild=False,
+        force_chunking=False,
+        force_indexing=True,
     )
     print(f"Preprocessing pipeline completed: {result['status']}")
 
