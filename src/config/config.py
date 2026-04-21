@@ -84,7 +84,7 @@ class BaselineConfig:
 
     # ===== VECTOR DATABASE SETTINGS =====
     VECTOR_DB_MODE: str = "local"
-    VECTOR_DB_PATH: str = str(PROJECT_ROOT / "local_qdrant")
+    VECTOR_DB_PATH: str = str(SRC_DIR / "local_qdrant")
     VECTOR_DB_COLLECTION: str = "baseline_documents_jina"
     VECTOR_DB_DISTANCE: str = "COSINE"
 
