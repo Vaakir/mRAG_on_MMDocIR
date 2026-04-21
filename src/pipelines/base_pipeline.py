@@ -12,6 +12,7 @@ from indexing.base_embedder import create_chunk_embeddings
 from indexing.vector_database import QdrantVectorDB
 from indexing.hybrid_retriever import HybridRetriever
 from generation.generator import BaselineGenerator
+from generation.answer_validator import AnswerValidator
 from evaluation.retrieval_metrics import evaluate_retrieval
 from evaluation.generation_metrics import evaluate_generation
 
@@ -245,16 +246,29 @@ class BaseRAGPipeline:
         phase1_time = time.time() - phase1_start
         logger.info(f"Phase 1 (Parallel Retrieval + Generation): {phase1_time:.2f}s")
         
+        # ===== PHASE 1.5: ANSWER VALIDATION (Optional) =====
+        all_questions = [record["question"] for record in test_subset]
+        validate_enabled = getattr(self.config, 'VALIDATE_ANSWER_FORMAT', False)
+        
+        if validate_enabled:
+            all_validated_predictions = []
+            for pred, question, gt in zip(all_predictions, all_questions, all_ground_truths):
+                is_valid, pred_validated, msg = AnswerValidator.validate(pred, question, gt)
+                all_validated_predictions.append(pred_validated)
+            raw_preds_for_metrics = all_predictions  # Keep raw for token_f1, bleu, rouge
+            validated_preds_for_metrics = all_validated_predictions
+        else:
+            raw_preds_for_metrics = None  # Signal to metrics function to use predictions for all
+            validated_preds_for_metrics = all_predictions
+        
         # ===== PHASE 2: METRIC COMPUTATION =====
         phase2_start = time.time()
         retrieval_metrics = evaluate_retrieval(all_retrieved, test_subset)
-        all_questions = [record["question"] for record in test_subset]
         generation_metrics = evaluate_generation(
-            all_predictions,
-            all_ground_truths,
+            predictions=validated_preds_for_metrics,
+            ground_truths=all_ground_truths,
             embedder=self.embedder,
-            questions=all_questions,
-            validate_format=getattr(self.config, 'VALIDATE_ANSWER_FORMAT', False)
+            raw_predictions=raw_preds_for_metrics
         )
         phase2_time = time.time() - phase2_start
         logger.info(f"Phase 2 (Metric Computation): {phase2_time:.2f}s")

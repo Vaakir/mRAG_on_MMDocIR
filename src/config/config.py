@@ -127,7 +127,7 @@ class AdvancedConfig(BaselineConfig):
     # ===== ADVANCED APP OVERRIDES =====
     # override the chunk file to use the semantic chunks instead of the fixed-size ones
     PREPROCESSED_CHUNKS_FILE: str = str(
-        SRC_DIR / "data" / "preprocessed" / "chunks_semantic.json"
+        SRC_DIR / "data" / "preprocessed" / "chunks_fixed_size.json"
     )
 
     VECTOR_DB_COLLECTION: str = "advanced_multimodal"

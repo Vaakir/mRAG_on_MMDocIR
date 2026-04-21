@@ -209,8 +209,6 @@ def semantic_similarity(pred_norm: str, gt_norm: str, embedder: Optional[Any] = 
         return token_f1(pred_norm, gt_norm)
 
 # -------------------------------------------------------------------
-
-# -------------------------------------------------------------------
 def evaluate_generation(
     predictions: List[str],
     ground_truths: List[Any],
@@ -223,24 +221,24 @@ def evaluate_generation(
     IMPORTANT: This function supports DUAL EVALUATION to properly handle answer validation:
     
     - RAW METRICS (use raw_predictions if provided):
-        * BLEU: Text-level metric; measures actual model output wording
-        * ROUGE: Text-level metric; measures actual model output wording
-        * Token F1: Token-level metric; measures actual model token overlap
-        
+        * token_f1: Measures actual model token output overlap
+        * bleu: Measures actual model output wording
+        * rouge1, rouge2, rougeL: Measure actual model output wording
+      
       RATIONALE: These metrics measure surface-level text similarity. If you validate
       answers first (e.g., "approximately 5" → "5"), you change the wording, which
       changes n-gram overlap. We measure model output quality, not post-processing quality.
     
     - VALIDATED METRICS (use validated predictions):
-        * Exact Match: Semantic correctness matters more than exact wording
-        * Contains Match: Semantic correctness matters
-        * Semantic Similarity: Embeddings are robust to wording variations
+        * exact_match: Semantic correctness matters more than exact wording
+        * contains_match: Semantic correctness matters
+        * semantic_similarity: Embeddings are robust to wording variations
     
     Args:
         predictions: List of generated answers (should be VALIDATED answers)
         ground_truths: List of reference answers
         embedder: Optional embedder for semantic similarity calculation
-        raw_predictions: Optional list of RAW answers for BLEU/ROUGE/Token F1 computation
+        raw_predictions: Optional list of RAW answers for token_f1/BLEU/ROUGE computation
                         If not provided, will use predictions for all metrics
     
     Returns:
@@ -253,11 +251,11 @@ def evaluate_generation(
     
     # Metrics that should use RAW output
     raw_metrics_fns = {
+        "token_f1": token_f1,
         "bleu": bleu_score,
         "rouge1": lambda p, g: rouge_scores(p, g).get("rouge1", 0.0),
         "rouge2": lambda p, g: rouge_scores(p, g).get("rouge2", 0.0),
         "rougeL": lambda p, g: rouge_scores(p, g).get("rougeL", 0.0),
-        "token_f1": token_f1,
     }
     
     # Metrics that should use VALIDATED output
@@ -304,14 +302,10 @@ def evaluate_generation(
         if valid_scores:
             validated_averaged[name] = float(np.mean(valid_scores))
     
-    # Combine results
-    # Structure: raw metrics prefixed with "raw_", validated with "validated_"
+    # Combine results (raw metrics first, then validated)
     combined = {}
-    for k, v in raw_averaged.items():
-        combined[k] = v  # Keep original names for backward compatibility
-    for k, v in validated_averaged.items():
-        combined[k] = v
+    combined.update(raw_averaged)
+    combined.update(validated_averaged)
     
     return combined
-
 
