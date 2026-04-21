@@ -172,43 +172,35 @@ All settings are in `src/config/config.py`. Key parameters:
 ├── info/
 │   ├── hours.csv
 │   └── mRAG.md
+│   └── summary.ipynb
 └── src/
-    ├── run_experiments.py
     ├── main.py
-    ├── main_agentic.py
-    ├── agentic/
-    │   ├── graph/
-    │   │   ├── builder.py
-    │   │   ├── nodes.py
-    │   │   └── state.py
-    │   └── tools/
     ├── config/
-    │   └── config.py
     ├── data/
-    │   ├── chunk_loader.py
-    │   └── data_loader.py
     ├── evaluation/
-    │   ├── retrieval_metrics.py
-    │   └── generation_metrics.py
     ├── generation/
+    │   ├── answer_validator.py
     │   ├── generator.py
     │   └── prompts/
     ├── indexing/
-    │   ├── base_embedder.py
     │   ├── embedder.py
+    │   ├── embedder_bge_large.py
+    │   ├── embedder_clip.py
     │   ├── hybrid_retriever.py
     │   └── vector_database.py
+    ├── notebooks/
     ├── pipelines/
+    │   ├── advanced_pipeline.py
+    │   ├── agentic_pipeline.py
     │   ├── base_pipeline.py
     │   ├── baseline_pipeline.py
-    │   ├── advanced_pipeline.py
     │   └── preprocessing_pipeline.py
     ├── preprocessing/
-    │   ├── pdf_loader.py
-    │   ├── pdf_chunker.py
-    │   ├── image_processor.py
+    │   ├── build_multimodal_indexes.py
     │   ├── extract_figures.py
-    │   └── build_multimodal_indexes.py
+    │   ├── image_processor.py
+    │   ├── pdf_chunker.py
+    │   └── pdf_loader.py
     ├── query_techniques/
     ├── retrieval_techniques/
     │   └── multimodal.py
