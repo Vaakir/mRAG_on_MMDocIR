@@ -108,7 +108,7 @@ def run_experiments(eval_subset_size: int = 50):
         
         chunk_strat = opts["CHUNKING_STRATEGY"]
         opts["PREPROCESSED_CHUNKS_FILE"] = str(Path(baseline_cfg.SRC_DIR) / "data" / "preprocessed" / f"chunks_{chunk_strat}.json")
-        opts["VECTOR_DB_COLLECTION"] = opts.get("VECTOR_DB_COLLECTION", f"bge_collection_{chunk_strat}")
+        opts["VECTOR_DB_COLLECTION"] = opts.get("VECTOR_DB_COLLECTION", f"advanced_{chunk_strat}")
         
         cfg = AdvancedConfig(**opts)
         exp_name = f"{exp_id}_{exp_desc}_{param_val}"
@@ -118,7 +118,7 @@ def run_experiments(eval_subset_size: int = 50):
         except Exception as e:
             logger.error(f"Experiment {exp_name} failed: {e}")
 
-    for chunking in ["sliding_window", "semantic", "hierarchical"]:
+    for chunking in ["sliding_window", "semantic", "hierarchical", "enhanced_hierarchical"]:
         _run_ablation("2", "Chunk_Ablation", "CHUNKING_STRATEGY", chunking)
 
     for query_processing in ["multi_query", "rag_fusion", "step_back", "hyde", "query_decomposition", "query_rewriting", "query_expansion"]:

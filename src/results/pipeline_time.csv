@@ -13,3 +13,17 @@ Pipeline,model,Index Build/Load,Component Initialization,Single Query Test,Full 
 4_Prompt_Ablation_role (AdvancedRAGPipeline),qwen3-vl:8b-instruct,19.8091,0.0282,3.2589,507.5786,530.6748
 4_Prompt_Ablation_cot (AdvancedRAGPipeline),qwen3-vl:8b-instruct,21.0472,0.0167,3.8392,506.3676,531.2866
 5_Multimodal_True (AdvancedRAGPipeline),qwen3-vl:8b-instruct,21.0988,0.0285,2.0096,407.843,430.9799
+1_Baseline (BaselineRAGPipeline),qwen3-vl:8b-instruct,45.8012,0.0158,0.9621,77.4237,124.2028
+2_Chunk_Ablation_sliding_window (AdvancedRAGPipeline),qwen3-vl:8b-instruct,43.5951,0.0135,1.4864,241.9458,287.0409
+2_Chunk_Ablation_semantic (AdvancedRAGPipeline),qwen3-vl:8b-instruct,52.1082,0.0158,1.3504,216.6868,270.1612
+2_Chunk_Ablation_hierarchical (AdvancedRAGPipeline),qwen3-vl:8b-instruct,44.568,0.0295,0.608,111.0101,156.2155
+2_Chunk_Ablation_enhanced_hierarchical (AdvancedRAGPipeline),qwen3-vl:8b-instruct,57.4848,0.0197,1.9327,238.4471,297.8843
+3_Query_Ablation_multi_query (AdvancedRAGPipeline),qwen3-vl:8b-instruct,50.5924,0.0177,1.7943,287.2127,339.6172
+3_Query_Ablation_rag_fusion (AdvancedRAGPipeline),qwen3-vl:8b-instruct,50.4469,0.0212,1.806,302.3411,354.6152
+3_Query_Ablation_step_back (AdvancedRAGPipeline),qwen3-vl:8b-instruct,52.1548,0.0209,0.9022,190.0842,243.162
+3_Query_Ablation_hyde (AdvancedRAGPipeline),qwen3-vl:8b-instruct,50.1457,0.0191,0.7408,131.9696,182.8752
+3_Query_Ablation_query_decomposition (AdvancedRAGPipeline),qwen3-vl:8b-instruct,51.3524,0.0153,1.6245,299.6719,352.6641
+3_Query_Ablation_query_rewriting (AdvancedRAGPipeline),qwen3-vl:8b-instruct,49.5442,0.0194,0.9312,172.7806,223.2753
+3_Query_Ablation_query_expansion (AdvancedRAGPipeline),qwen3-vl:8b-instruct,50.2205,0.0232,1.5789,258.3494,310.1721
+4_Prompt_Ablation_few_shot (AdvancedRAGPipeline),qwen3-vl:8b-instruct,51.5251,0.0167,0.6255,111.5888,163.756
+4_Prompt_Ablation_role (AdvancedRAGPipeline),qwen3-vl:8b-instruct,58.386,0.0272,0.8716,111.7207,171.0056
