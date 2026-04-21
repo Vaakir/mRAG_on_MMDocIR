@@ -188,16 +188,16 @@ if __name__ == "__main__":
     else:
         # How to use - DAT560project> python src/main.py:
         # TO RUN BASELINE:
-        config = BaselineConfig()
-        pure_text_data = load_train_data(config.TEST_JSONL)
-        run_single_experiment(
-            experiment_name="Baseline RAG",
-            config=config,
-            pipeline_class=BaselineRAGPipeline,
-            test_data=pure_text_data[:config.EVAL_SUBSET_SIZE],
-            force_rebuild=False,
-            run_single_query=True
-        )
+        # config = BaselineConfig()
+        # pure_text_data = load_train_data(config.TEST_JSONL)
+        # run_single_experiment(
+        #     experiment_name="Baseline RAG",
+        #     config=config,
+        #     pipeline_class=BaselineRAGPipeline,
+        #     test_data=pure_text_data[:config.EVAL_SUBSET_SIZE],
+        #     force_rebuild=False,
+        #     run_single_query=True
+        # )
 
         # # TO RUN ALL ABLATION TESTS - DAT560project> python src/main.py:
         run_experiments(eval_subset_size=1000)
