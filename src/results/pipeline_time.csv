@@ -1,0 +1,8 @@
+Pipeline,model,Index Build/Load,Component Initialization,Single Query Test,Full Evaluation Time,Total Pipeline Runtime
+Baseline RAG (BaselineRAGPipeline),qwen3-vl:8b-instruct,12.2354,0.0137,0.8328,4.5702,17.6531
+Baseline RAG (BaselineRAGPipeline),qwen3-vl:8b-instruct,12.1956,0.0165,0.8063,4.3254,17.347
+Baseline RAG (BaselineRAGPipeline),qwen3-vl:8b-instruct,11.1139,0.0163,0.531,4.0277,15.6889
+Advanced RAG (standard) (AdvancedRAGPipeline),qwen3-vl:8b,1383.7347,0.0174,66.0453,624.5116,2074.31
+Advanced RAG (standard) (AdvancedRAGPipeline),qwen3-vl:8b,16.3057,0.0149,27.0684,666.5763,709.9653
+Baseline RAG (BaselineRAGPipeline),qwen3-vl:8b-instruct,16.5898,0.0184,0.9678,4.5394,22.1154
+1_Baseline (BaselineRAGPipeline),qwen3-vl:8b-instruct,17.299,0.013,1.0431,0.4578,18.8129

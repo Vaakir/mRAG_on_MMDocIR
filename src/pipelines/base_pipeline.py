@@ -222,7 +222,7 @@ class BaseRAGPipeline:
         with ThreadPoolExecutor(max_workers=workers) as executor:
             # Submit all questions to the executor using run_query
             futures = {
-                executor.submit(self.run_query, record["question"], **kwargs): (i, record)
+                executor.submit(self.run_query, record["question"], record=record, **kwargs): (i, record)
                 for i, record in enumerate(test_subset)
             }
             
@@ -248,20 +248,25 @@ class BaseRAGPipeline:
         # ===== PHASE 2: METRIC COMPUTATION =====
         phase2_start = time.time()
         retrieval_metrics = evaluate_retrieval(all_retrieved, test_subset)
-        generation_metrics = evaluate_generation(all_predictions, all_ground_truths)
+        all_questions = [record["question"] for record in test_subset]
+        generation_metrics = evaluate_generation(
+            all_predictions,
+            all_ground_truths,
+            embedder=self.embedder,
+            questions=all_questions,
+            validate_format=getattr(self.config, 'VALIDATE_ANSWER_FORMAT', False)
+        )
         phase2_time = time.time() - phase2_start
         logger.info(f"Phase 2 (Metric Computation): {phase2_time:.2f}s")
         
-        eval_total_time = time.time() - eval_total_start
-        
-        all_metrics = {
-            'retrieval': retrieval_metrics,
-            'generation': generation_metrics,
-            'timing': {
-                'phase1': phase1_time,
-                'phase2': phase2_time,
-                'total': eval_total_time
-            }
+        flat_metrics = {
+            'Pipeline': f"{kwargs.get('experiment_name', 'Unknown')} ({self.__class__.__name__})",
+            'Timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
+            'Test Size': len(test_subset),
+            'LLM Model': getattr(self.config, 'LLM_MODEL', 'Unknown'),
+            'Embedding Model': getattr(self.config, 'EMBEDDING_MODEL', 'Unknown'),
+            **{k: round(v, 4) for k, v in retrieval_metrics.items()},
+            **{k: round(v, 4) for k, v in generation_metrics.items()}
         }
         
-        return all_metrics
+        return flat_metrics

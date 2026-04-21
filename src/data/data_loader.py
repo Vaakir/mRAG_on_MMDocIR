@@ -27,6 +27,7 @@ def load_train_data(train_path: Path, pure_text=False) -> List[Dict[str, Any]]:
         logger.info(f"Loaded {len(train_data)} qs, filtered to {len(pure_text_data)} pure-text")
         return pure_text_data
     else:
+        logger.info(f"Loaded {len(train_data)} questions (all types)")
         return train_data
 
 def load_test_data(test_path: Path) -> List[Dict[str, Any]]:
