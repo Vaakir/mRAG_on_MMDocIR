@@ -375,14 +375,6 @@ RELEVANCE CRITERIA (STRICT):
 - PARTIALLY RELEVANT (if document discusses topic but lacks the exact answer needed)
 - IRRELEVANT (if extraction impossible or answer not in document)
 
-Examples:
-- Q: "What is Costco's FY2021 debt?" 
-  - Doc says "Costco debt $7692M" from different year = PARTIALLY relevant (wrong time period)
-  - Doc shows "Costco FY2021 balance sheet, total debt: $11407M" = RELEVANT (exact answer)
-- Q: "How many X are in figure Y?"
-  - Doc discusses figure Y but no count = PARTIALLY relevant
-  - Doc shows count "4 items in figure Y" = RELEVANT
-
 Then output:
 - Which documents are RELEVANT (has extractable answer)?
 - Which are PARTIALLY relevant (topic-related but incomplete)?
