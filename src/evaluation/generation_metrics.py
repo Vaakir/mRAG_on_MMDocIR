@@ -7,7 +7,6 @@ from collections import Counter
 import math
 import json
 from rouge_score import rouge_scorer
-from generation.answer_validator import AnswerValidator
 
 
 # -------------------------------------------------------------------
@@ -210,147 +209,103 @@ def semantic_similarity(pred_norm: str, gt_norm: str, embedder: Optional[Any] = 
         return token_f1(pred_norm, gt_norm)
 
 # -------------------------------------------------------------------
-# def accuracy(prediction: str, ground_truth: Any) -> float:
-#     """
-#     Binary accuracy: 1.0 if prediction is exactly correct (after normalization), 0.0 otherwise.
-#     Similar to exact_match but named differently for clarity.
-    
-#     Args:
-#         prediction: The generated answer to evaluate
-#         ground_truth: The reference answer (can be string or list)
-    
-#     Returns:
-#         1.0 if exact match, else 0.0
-#     """
-#     # Accuracy is essentially the same as exact match for generation evaluation, since we want to know if the prediction is correct or not. We can reuse the exact_match function for this purpose.
-#     return exact_match(prediction, ground_truth)
-# -------------------------------------------------------------------
-def faithfulness_prompt() -> str:
-    """
-    Return the system prompt for evaluating faithfulness of a generated answer.
-    Faithfulness checks if the answer is grounded in the provided context.
-    By "grounded" we mean that all factual claims in the answer are supported by or 
-    derivable from the context, and that the answer does not contradict the context or 
-    introduce facts that are not found in the context.
-    """
-    return """You are an expert evaluator of text generation systems. Your task is to assess the FAITHFULNESS of a generated answer.
-
-FAITHFULNESS measures whether the generated answer is grounded in the provided context. An answer is faithful if:
-1. All factual claims in the answer are supported by or derivable from the context
-2. The answer does not contradict the context
-3. The answer does not introduce facts not found in the context
-
-You will be given:
-- A CONTEXT (retrieved documents)
-- A GENERATED ANSWER
-- A REFERENCE ANSWER (ground truth)
-
-Output a JSON with:
-{
-    "score": <float between 0 and 1>,
-    "explanation": "<brief explanation of why this score>",
-    "issues": ["<list of unfaithful claims if any>"]
-}
-
-Be strict: only give a score above 0.7 if the answer is clearly grounded in the context."""
-
-# NOTE: The faithfulness evaluation relies on the LLM evaluator's ability to understand 
-# the context and assess the generated answer against it. The prompt is designed to guide 
-# the LLM to focus on factual grounding and consistency with the context when assigning 
-# a faithfulness score.
-# -------------------------------------------------------------------
 def evaluate_generation(
     predictions: List[str],
     ground_truths: List[Any],
-    contexts: Optional[List[str]] = None,
     embedder: Optional[Any] = None,
-    llm_evaluator: Optional[Any] = None,
-    questions: Optional[List[str]] = None,
-    validate_format: bool = False
+    raw_predictions: Optional[List[str]] = None
 ) -> Dict[str, float]:
     """
     Evaluate generation performance with comprehensive metrics.
     
+    IMPORTANT: This function supports DUAL EVALUATION to properly handle answer validation:
+    
+    - RAW METRICS (use raw_predictions if provided):
+        * token_f1: Measures actual model token output overlap
+        * bleu: Measures actual model output wording
+        * rouge1, rouge2, rougeL: Measure actual model output wording
+      
+      RATIONALE: These metrics measure surface-level text similarity. If you validate
+      answers first (e.g., "approximately 5" → "5"), you change the wording, which
+      changes n-gram overlap. We measure model output quality, not post-processing quality.
+    
+    - VALIDATED METRICS (use validated predictions):
+        * exact_match: Semantic correctness matters more than exact wording
+        * contains_match: Semantic correctness matters
+        * semantic_similarity: Embeddings are robust to wording variations
+    
     Args:
-        predictions: List of generated answers
+        predictions: List of generated answers (should be VALIDATED answers)
         ground_truths: List of reference answers
-        contexts: Optional list of retrieved contexts for each query
         embedder: Optional embedder for semantic similarity calculation
-        llm_evaluator: Optional LLM evaluator for faithfulness scoring
-                      (should have generate() method taking (prompt, context) and returning JSON)
-        questions: Optional list of original questions for validation context
-        validate_format: Whether to apply format validation to string-comparison metrics
+        raw_predictions: Optional list of RAW answers for token_f1/BLEU/ROUGE computation
+                        If not provided, will use predictions for all metrics
     
     Returns:
         Dictionary with all computed metrics
     """
     
-    # Strategy pattern (dict of funcs instead of list)
-    metrics_fns = {
-        "exact_match": exact_match,
-        "contains_match": contains_match,
+    # Use validated predictions by default, or fall back if raw not provided
+    if raw_predictions is None:
+        raw_predictions = predictions
+    
+    # Metrics that should use RAW output
+    raw_metrics_fns = {
         "token_f1": token_f1,
         "bleu": bleu_score,
-        "rouge_scores": rouge_scores,
+        "rouge1": lambda p, g: rouge_scores(p, g).get("rouge1", 0.0),
+        "rouge2": lambda p, g: rouge_scores(p, g).get("rouge2", 0.0),
+        "rougeL": lambda p, g: rouge_scores(p, g).get("rougeL", 0.0),
+    }
+    
+    # Metrics that should use VALIDATED output
+    validated_metrics_fns = {
+        "exact_match": exact_match,
+        "contains_match": contains_match,
         "semantic_similarity": lambda p, g: semantic_similarity(p, g, embedder)
     }
-
-    results = {}
-
-    # Evaluate each query's generation results against the ground truth
-    for i, (pred, gt) in enumerate(zip(predictions, ground_truths)):
-        # Validation layer (if enabled)
-        if validate_format and questions and i < len(questions):
-            is_valid, pred_validated = AnswerValidator.validate(
-                answer=pred,
-                question=questions[i],
-                ground_truth=gt
-            )[:2]
-            pred_for_comparison = pred_validated
-        else:
-            pred_for_comparison = pred
-        
-        # Normalize for comparison
-        pred_norm_validated = normalize_answer(pred_for_comparison)
-        pred_norm_raw = normalize_answer(pred)
+    
+    raw_results = {}
+    validated_results = {}
+    
+    # Evaluate RAW metrics on raw predictions
+    for i, (pred_raw, gt) in enumerate(zip(raw_predictions, ground_truths)):
+        pred_raw_norm = normalize_answer(pred_raw)
         gt_norm = normalize_answer(gt)
-
-        for name, fn in metrics_fns.items():
-            # String-comparison metrics use validated prediction if enabled
-            if validate_format and name in {"exact_match", "contains_match"}:
-                out = fn(pred_norm_validated, gt_norm)
-            else:
-                # Format-agnostic metrics use raw prediction
-                out = fn(pred_norm_raw, gt_norm)
-            
-            if isinstance(out, dict):
-                for k, v in out.items():
-                    results.setdefault(k, []).append(v)
-            else:
-                results.setdefault(name, []).append(out)
         
-        # Faithfulness evaluation (if context and LLM evaluator available)
-        if contexts and llm_evaluator and i < len(contexts):
-            try:
-                context = contexts[i]
-                prompt = faithfulness_prompt()
-                evaluation = llm_evaluator.generate(
-                    prompt,
-                    f"CONTEXT:\n{context}\n\nGENERATED ANSWER:\n{pred}\n\nREFERENCE ANSWER:\n{gt}"
-                )
-                
-                eval_json = json.loads(evaluation)
-                results.setdefault("faithfulness", []).append(eval_json.get("score", 0.5))
-            except Exception as e:
-                print(f"Warning: Faithfulness evaluation failed for sample {i}: {e}")
-                results.setdefault("faithfulness", []).append(None)
-
-    # Average all the metrics across all queries and compile results into a dictionary
-    averaged = {}
-    for name, scores in results.items():
+        for name, fn in raw_metrics_fns.items():
+            out = fn(pred_raw_norm, gt_norm)
+            if isinstance(out, float):
+                raw_results.setdefault(name, []).append(out)
+    
+    # Evaluate VALIDATED metrics on validated predictions
+    for i, (pred_val, gt) in enumerate(zip(predictions, ground_truths)):
+        pred_val_norm = normalize_answer(pred_val)
+        gt_norm = normalize_answer(gt)
+        
+        for name, fn in validated_metrics_fns.items():
+            out = fn(pred_val_norm, gt_norm)
+            if isinstance(out, float):
+                validated_results.setdefault(name, []).append(out)
+    
+    # Average raw metrics
+    raw_averaged = {}
+    for name, scores in raw_results.items():
         valid_scores = [s for s in scores if s is not None]
         if valid_scores:
-            averaged[name] = float(np.mean(valid_scores))
-            
-    return averaged
+            raw_averaged[name] = float(np.mean(valid_scores))
+    
+    # Average validated metrics
+    validated_averaged = {}
+    for name, scores in validated_results.items():
+        valid_scores = [s for s in scores if s is not None]
+        if valid_scores:
+            validated_averaged[name] = float(np.mean(valid_scores))
+    
+    # Combine results (raw metrics first, then validated)
+    combined = {}
+    combined.update(raw_averaged)
+    combined.update(validated_averaged)
+    
+    return combined
 
