@@ -55,6 +55,7 @@ def build_index(config: AdvancedConfig):
     t0 = time.time()
 
     embedder = TextEmbedder(config.EMBEDDING_MODEL)
+    config.USE_MULTIMODAL=True # in preprocessing we want it to build anyway
     vector_db = QdrantVectorDB(config)
 
     # ── Text chunks ──────────────────────────────────────────────────────────

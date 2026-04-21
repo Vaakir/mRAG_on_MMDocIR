@@ -1,27 +1,4 @@
 Pipeline,model,Index Build/Load,Component Initialization,Single Query Test,Full Evaluation Time,Total Pipeline Runtime
-Baseline RAG (BaselineRAGPipeline),qwen3-vl:8b-instruct,12.2354,0.0137,0.8328,4.5702,17.6531
-Baseline RAG (BaselineRAGPipeline),qwen3-vl:8b-instruct,12.1956,0.0165,0.8063,4.3254,17.347
-Baseline RAG (BaselineRAGPipeline),qwen3-vl:8b-instruct,11.1139,0.0163,0.531,4.0277,15.6889
-Advanced RAG (standard) (AdvancedRAGPipeline),qwen3-vl:8b,1383.7347,0.0174,66.0453,624.5116,2074.31
-Advanced RAG (standard) (AdvancedRAGPipeline),qwen3-vl:8b,16.3057,0.0149,27.0684,666.5763,709.9653
-Baseline RAG (BaselineRAGPipeline),qwen3-vl:8b-instruct,16.5898,0.0184,0.9678,4.5394,22.1154
-1_Baseline (BaselineRAGPipeline),qwen3-vl:8b-instruct,17.299,0.013,1.0431,0.4578,18.8129
-2_Chunk_Ablation_fixed_size (AdvancedRAGPipeline),qwen3-vl:8b-instruct,283.2223,0.0201,2.1038,3.1036,288.4499
-1_Baseline (BaselineRAGPipeline),qwen3-vl:8b-instruct,20.3543,0.0142,1.0468,0.5449,21.9612
-1_Baseline (BaselineRAGPipeline),qwen3-vl:8b-instruct,13.9674,0.0138,0.827,0.4407,15.2489
-2_Chunk_Ablation_semantic (AdvancedRAGPipeline),qwen3-vl:8b-instruct,28.3626,0.023,1.9079,3.0849,33.3793
-2_Chunk_Ablation_hierarchical (AdvancedRAGPipeline),qwen3-vl:8b-instruct,411.929,0.0383,1.2229,5.2311,418.4213
-3_Query_Ablation_multi_query (AdvancedRAGPipeline),qwen3-vl:8b-instruct,27.6539,0.0296,3.2828,6.6167,37.587
-3_Query_Ablation_rag_fusion (AdvancedRAGPipeline),qwen3-vl:8b-instruct,23.908,0.0301,3.0537,3.0769,30.0693
-3_Query_Ablation_step_back (AdvancedRAGPipeline),qwen3-vl:8b-instruct,23.1584,0.016,2.5043,4.0923,29.7733
-3_Query_Ablation_hyde (AdvancedRAGPipeline),qwen3-vl:8b-instruct,25.1793,0.0186,6.644,11.2449,43.0873
-3_Query_Ablation_query_decomposition (AdvancedRAGPipeline),qwen3-vl:8b-instruct,24.8334,0.0176,3.3977,6.5493,34.798
-3_Query_Ablation_query_rewriting (AdvancedRAGPipeline),qwen3-vl:8b-instruct,23.9109,0.0149,2.2,3.624,29.7503
-3_Query_Ablation_query_expansion (AdvancedRAGPipeline),qwen3-vl:8b-instruct,20.4563,0.0663,3.9395,6.7321,31.1941
-4_Prompt_Ablation_few_shot (AdvancedRAGPipeline),qwen3-vl:8b-instruct,22.9795,0.022,1.541,2.3922,26.9348
-4_Prompt_Ablation_role (AdvancedRAGPipeline),qwen3-vl:8b-instruct,23.0649,0.0402,1.6958,3.2347,28.0355
-4_Prompt_Ablation_cot (AdvancedRAGPipeline),qwen3-vl:8b-instruct,24.8025,0.0218,2.5937,4.5488,31.9668
-5_Multimodal_True (AdvancedRAGPipeline),qwen3-vl:8b-instruct,23.0284,0.0243,2.3258,3.4551,28.8337
 1_Baseline (BaselineRAGPipeline),qwen3-vl:8b-instruct,20.5563,0.0167,7.8044,106.0626,134.44
 2_Chunk_Ablation_semantic (AdvancedRAGPipeline),qwen3-vl:8b-instruct,20.714,0.0312,1.7194,193.6302,216.0948
 2_Chunk_Ablation_hierarchical (AdvancedRAGPipeline),qwen3-vl:8b-instruct,21.8087,0.0276,1.4352,171.9307,195.2021

@@ -137,7 +137,7 @@ class AdvancedConfig(BaselineConfig):
     LLM_MODEL: str = "qwen3-vl:8b-instruct"  # "qwen3-vl:8b"
 
     # ===== MULTIMODAL SETTINGS =====
-    USE_MULTIMODAL: bool = True
+    USE_MULTIMODAL: bool = False
 
     MAX_VLM_IMAGES: int = 2
     """Cap images sent to VLM to avoid OOM"""

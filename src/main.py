@@ -134,6 +134,7 @@ def run_experiments(eval_subset_size: int = 50):
     logger.info("\nAll experiments completed! Check experiments_results.csv for details.")
 
 
+
 if __name__ == "__main__":
     import argparse
     
@@ -186,8 +187,7 @@ if __name__ == "__main__":
         )
     else:
         # How to use - DAT560project> python src/main.py:
-         
-        # # TO RUN BASELINE:
+        # TO RUN BASELINE:
         # config = BaselineConfig()
         # pure_text_data = load_train_data(config.TEST_JSONL)
         # run_single_experiment(
