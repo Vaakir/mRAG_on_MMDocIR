@@ -217,3 +217,22 @@ class AdvancedConfig(BaselineConfig):
     # ===== ANSWER VALIDATION SETTINGS =====
     VALIDATE_ANSWER_FORMAT: bool = True
     """Enable answer format validation for string-comparison metrics (exact_match, contains_match, token_f1)"""
+
+@dataclass
+class AgenticConfig(AdvancedConfig):
+    """Configuration for System 3 Agentic RAG Pipeline."""
+    
+    # ===== AGENT SETTINGS =====
+    AGENT_MAX_RETRIES: int = 1
+    """Maximum number of retry iterations for query rewriting (total attempts = retries + 1)"""
+    
+    RETRY_ON_LOW_CONFIDENCE: bool = True
+    """Whether to retry retrieval if grader confidence is below threshold"""
+    
+    GRADER_CONFIDENCE_THRESHOLD: float = 0.51
+    """Minimum confidence threshold (0.0-1.0) for document relevance grading"""
+    
+    AGENT_DECISION_LOGGING: bool = True
+    """Whether to log all agent decisions (query rewriter, grader, generator) for analysis"""
+    
+    AGENT_LLM_MODEL: str = "qwen3-vl:8b-instruct"  # Lightweight LLM for agent decisions (Query Rewriter, Grader, Generator strategy)

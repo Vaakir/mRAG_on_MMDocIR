@@ -35,3 +35,10 @@ matplotlib
 
 # Metrics
 rouge-score
+
+# LangChain & LangGraph
+langchain>=0.1.0
+langchain-community>=0.0.10
+langchain-ollama>=0.1.0
+langgraph>=0.1.0
+# langsmith>=0.1.0

@@ -64,7 +64,7 @@ class MultimodalRetriever:
     # Public API
     # ------------------------------------------------------------------
 
-    def retrieve(self, question: str, top_k: int = 5, is_visual: Optional[bool] = None) -> List[Dict[str, Any]]:
+    def retrieve(self, question: str, top_k: int = 5, is_visual: Optional[bool] = None, technique=None) -> List[Dict[str, Any]]:
         _trace(f"Question: {question[:120]}")
 
         is_visual = self._classify_visual(question) if is_visual is None else is_visual
@@ -75,7 +75,9 @@ class MultimodalRetriever:
             text_k, image_k = self._split_text_image_k(top_k, self.text_ratio_non_visual)
 
         _trace(f"Text retrieval (text_k={text_k})...")
-        text_results = self.query_technique.retrieve(question, text_k)
+        # Use provided technique or fall back to the initialized one
+        query_technique = technique if technique is not None else self.query_technique
+        text_results = query_technique.retrieve(question, text_k)
         _trace(f"Got {len(text_results)} text results")
 
         if image_k <= 0:
