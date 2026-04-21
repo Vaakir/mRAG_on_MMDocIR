@@ -27,3 +27,5 @@ Pipeline,model,Index Build/Load,Component Initialization,Single Query Test,Full 
 3_Query_Ablation_query_expansion (AdvancedRAGPipeline),qwen3-vl:8b-instruct,50.2205,0.0232,1.5789,258.3494,310.1721
 4_Prompt_Ablation_few_shot (AdvancedRAGPipeline),qwen3-vl:8b-instruct,51.5251,0.0167,0.6255,111.5888,163.756
 4_Prompt_Ablation_role (AdvancedRAGPipeline),qwen3-vl:8b-instruct,58.386,0.0272,0.8716,111.7207,171.0056
+4_Prompt_Ablation_cot (AdvancedRAGPipeline),qwen3-vl:8b-instruct,52.5619,0.0179,0.7344,113.4645,166.7798
+5_Multimodal_True (AdvancedRAGPipeline),qwen3-vl:8b-instruct,49.3055,0.0303,0.5386,117.1804,167.0548
