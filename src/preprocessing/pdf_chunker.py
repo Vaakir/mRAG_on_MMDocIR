@@ -1,5 +1,8 @@
-from typing import List, Dict, Any, Tuple
+import sys
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from typing import List, Dict, Any, Tuple
 from types import SimpleNamespace
 import numpy as np
 import matplotlib.pyplot as plt
@@ -240,7 +243,7 @@ class Chunking:
                 page_numbers = {"page_numbers": set()}
                 text_len = overlap_chars
 
-        return chunks
+        return self._split_oversized(chunks)
 
     def semantic(self) -> List[Dict[str, Any]]:
         """
