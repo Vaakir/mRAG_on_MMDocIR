@@ -46,7 +46,7 @@ STRATEGIES = [
 ]
 
 
-def build_index(config: AdvancedConfig, force_rebuild: bool = False):
+def build_index(config: AdvancedConfig):
     """
     Build one multimodal Qdrant collection from the chunk file specified in config.
     Indexes text chunks, page images, extracted figures, and evidence crops.
@@ -56,16 +56,6 @@ def build_index(config: AdvancedConfig, force_rebuild: bool = False):
 
     embedder = TextEmbedder(config.EMBEDDING_MODEL)
     vector_db = QdrantVectorDB(config)
-
-    # Reuse existing collection if present
-    if not force_rebuild:
-        try:
-            count = vector_db.count_documents()
-            if count > 0:
-                logger.info(f"Collection '{config.VECTOR_DB_COLLECTION}' already has {count} docs — skipping.")
-                return
-        except Exception:
-            pass
 
     # ── Text chunks ──────────────────────────────────────────────────────────
     chunks_path = Path(config.PREPROCESSED_CHUNKS_FILE)
@@ -179,7 +169,7 @@ def build_index(config: AdvancedConfig, force_rebuild: bool = False):
     )
 
 
-def build_for_strategy(strategy: str, force_rebuild: bool):
+def build_for_strategy(strategy: str):
     chunks_file = SRC_DIR / "data" / "preprocessed" / f"chunks_{strategy}.json"
     if not chunks_file.exists():
         logger.error(f"Chunk file not found, skipping: {chunks_file}")
@@ -195,7 +185,7 @@ def build_for_strategy(strategy: str, force_rebuild: bool):
     logger.info(f"Collection: {config.VECTOR_DB_COLLECTION}")
     logger.info("=" * 70)
 
-    build_index(config, force_rebuild=force_rebuild)
+    build_index(config)
     logger.info(f"Finished: {strategy}\n")
 
 
@@ -203,14 +193,13 @@ def main():
     parser = argparse.ArgumentParser(
         description="Build multimodal Qdrant indexes for all chunking strategies."
     )
-    parser.add_argument("--force", action="store_true", help="Rebuild even if collection already exists")
     parser.add_argument("--strategy", choices=STRATEGIES, help="Build only this strategy (default: all)")
     args = parser.parse_args()
 
     targets = [args.strategy] if args.strategy else STRATEGIES
     t0 = time.time()
     for strategy in targets:
-        build_for_strategy(strategy, force_rebuild=args.force)
+        build_for_strategy(strategy)
     logger.info(f"All done in {time.time() - t0:.1f}s")
 
 
