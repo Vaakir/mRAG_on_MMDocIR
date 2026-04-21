@@ -92,7 +92,7 @@ def run_experiments(eval_subset_size: int = 50):
     
     # EXPERIMENT 1: BASELINE
     baseline_cfg = BaselineConfig(EVAL_SUBSET_SIZE=eval_subset_size)
-    train_data = load_train_data(baseline_cfg.TRAIN_JSONL)
+    train_data = load_train_data(baseline_cfg.TEST_JSONL)
     run_single_experiment("1_Baseline", baseline_cfg, BaselineRAGPipeline, train_data)
 
     # Helper function to run ablation variations cleanly
@@ -118,13 +118,13 @@ def run_experiments(eval_subset_size: int = 50):
         except Exception as e:
             logger.error(f"Experiment {exp_name} failed: {e}")
 
-    for chuking in ["fixed_size", "sliding_window", "semantic", "hierarchical"]:
-        _run_ablation("2", "Chunk_Ablation", "CHUNKING_STRATEGY", chuking)
+    for chunking in ["sliding_window", "semantic", "hierarchical"]:
+        _run_ablation("2", "Chunk_Ablation", "CHUNKING_STRATEGY", chunking)
 
-    for query_processing in ["standard", "multi_query", "rag_fusion", "step_back", "hyde", "query_decomposition", "query_rewriting", "query_expansion"]:
+    for query_processing in ["multi_query", "rag_fusion", "step_back", "hyde", "query_decomposition", "query_rewriting", "query_expansion"]:
         _run_ablation("3", "Query_Ablation", "QUERY_TECHNIQUE", query_processing)
 
-    for prompting_strategy in ["standard", "few_shot", "role", "cot"]:
+    for prompting_strategy in ["few_shot", "role", "cot"]:
         _run_ablation("4", "Prompt_Ablation", "PROMPTING_STRATEGY", prompting_strategy)
 
     _run_ablation("5", "Multimodal", "USE_MULTIMODAL", True, 
@@ -175,7 +175,7 @@ if __name__ == "__main__":
             PROMPTING_STRATEGY=args.prompting_strategy,
             EVAL_SUBSET_SIZE=args.eval_subset,
         )
-        train_data = load_train_data(config.TRAIN_JSONL)        
+        train_data = load_train_data(config.TEST_JSONL)        
         run_single_experiment(
             experiment_name=f"Advanced RAG ({config.QUERY_TECHNIQUE})",
             config=config,
@@ -189,7 +189,7 @@ if __name__ == "__main__":
          
         # # TO RUN BASELINE:
         # config = BaselineConfig()
-        # pure_text_data = load_train_data(config.TRAIN_JSONL)
+        # pure_text_data = load_train_data(config.TEST_JSONL)
         # run_single_experiment(
         #     experiment_name="Baseline RAG",
         #     config=config,
@@ -200,4 +200,4 @@ if __name__ == "__main__":
         # )
 
         # # TO RUN ALL ABLATION TESTS - DAT560project> python src/main.py:
-        run_experiments(eval_subset_size=2)
+        run_experiments(eval_subset_size=1000)
