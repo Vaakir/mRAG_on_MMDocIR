@@ -438,9 +438,6 @@ Output ONLY the raw JSON starting with {{ and ending with }}, like this:
             # If parsing fails, treat all docs as relevant
             relevant_doc_indices = list(range(1, len(retrieved_docs) + 1))
         
-        print(f"Grade: {grade.relevant} (confidence: {grade.confidence})")
-        print(f"Reasoning: {grade.reasoning}")
-        
         # Get existing agent_decisions and retry count safely (handle both dict and AgenticRAGState)
         if isinstance(state, dict):
             existing_decisions = state.get('agent_decisions') or {} # Existing decisions from previous nodes
