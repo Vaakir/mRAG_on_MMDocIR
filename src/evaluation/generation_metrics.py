@@ -7,6 +7,7 @@ from collections import Counter
 import math
 import json
 from rouge_score import rouge_scorer
+from generation.answer_validator import AnswerValidator
 
 
 # -------------------------------------------------------------------
@@ -36,7 +37,7 @@ def normalize_answer(answer: Any) -> str:
     # Remove commas in numbers (1,358,000 → 1358000)
     text = re.sub(r'(\d),(\d)', r'\1\2', text)
     # Strip common unit suffixes after numbers (714.3 million --> 714.3)
-    text = re.sub(r'(\d+\.?\d*)\s*(million|billion|usd|%)', r'\1', text)
+    #text = re.sub(r'(\d+\.?\d*)\s*(million|billion|usd|%)', r'\1', text)
     # Strip punctuation except digits and letters
     text = re.sub(r'[^\w\s\.\-]', ' ', text)
     # Collapse whitespace
@@ -263,7 +264,9 @@ def evaluate_generation(
     ground_truths: List[Any],
     contexts: Optional[List[str]] = None,
     embedder: Optional[Any] = None,
-    llm_evaluator: Optional[Any] = None
+    llm_evaluator: Optional[Any] = None,
+    questions: Optional[List[str]] = None,
+    validate_format: bool = False
 ) -> Dict[str, float]:
     """
     Evaluate generation performance with comprehensive metrics.
@@ -275,6 +278,8 @@ def evaluate_generation(
         embedder: Optional embedder for semantic similarity calculation
         llm_evaluator: Optional LLM evaluator for faithfulness scoring
                       (should have generate() method taking (prompt, context) and returning JSON)
+        questions: Optional list of original questions for validation context
+        validate_format: Whether to apply format validation to string-comparison metrics
     
     Returns:
         Dictionary with all computed metrics
@@ -294,11 +299,30 @@ def evaluate_generation(
 
     # Evaluate each query's generation results against the ground truth
     for i, (pred, gt) in enumerate(zip(predictions, ground_truths)):
-        pred_norm = normalize_answer(pred)
+        # Validation layer (if enabled)
+        if validate_format and questions and i < len(questions):
+            is_valid, pred_validated = AnswerValidator.validate(
+                answer=pred,
+                question=questions[i],
+                ground_truth=gt
+            )[:2]
+            pred_for_comparison = pred_validated
+        else:
+            pred_for_comparison = pred
+        
+        # Normalize for comparison
+        pred_norm_validated = normalize_answer(pred_for_comparison)
+        pred_norm_raw = normalize_answer(pred)
         gt_norm = normalize_answer(gt)
 
         for name, fn in metrics_fns.items():
-            out = fn(pred_norm, gt_norm)
+            # String-comparison metrics use validated prediction if enabled
+            if validate_format and name in {"exact_match", "contains_match"}:
+                out = fn(pred_norm_validated, gt_norm)
+            else:
+                # Format-agnostic metrics use raw prediction
+                out = fn(pred_norm_raw, gt_norm)
+            
             if isinstance(out, dict):
                 for k, v in out.items():
                     results.setdefault(k, []).append(v)

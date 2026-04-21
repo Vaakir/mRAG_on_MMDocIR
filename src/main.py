@@ -172,7 +172,7 @@ if __name__ == "__main__":
     if args.run_experiments:
         config = AdvancedConfig(
             QUERY_TECHNIQUE=args.technique,
-            prompting_strategy=args.prompting_strategy,
+            PROMPTING_STRATEGY=args.prompting_strategy,
             EVAL_SUBSET_SIZE=args.eval_subset,
         )
         train_data = load_train_data(config.TEST_JSONL)        

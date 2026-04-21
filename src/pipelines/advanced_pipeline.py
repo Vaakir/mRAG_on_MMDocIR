@@ -177,6 +177,7 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
                         "type": chunk.get("type", "evidence"),
                         "image_path": chunk.get("image_path") or chunk.get("image_paths"),
                         "question_id": chunk.get("question_id"),
+                        "page_num": chunk.get("page_num"),
                         "doc_name": chunk.get("doc_name")
                     },
                 })

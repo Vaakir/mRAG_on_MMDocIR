@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 # JSONL evidence_images paths contain a "crops/" segment that does not exist on
 # disk — files sit directly in the question folder.
 _CROPS_RE = re.compile(r"/crops/")
+_PAGE_RE = re.compile(r"__page_(\d+)__")
 
 
 def resize_image(image_path: str, max_width: int = 1120, max_height: int = 1120, quality: int = 85) -> bytes:
@@ -249,11 +250,13 @@ def load_evidence_chunks(images_dir: Path, data_dir: Path) -> List[Dict[str, Any
                     # Keep it relative to data_dir for Qdrant portability
                     rel_path = str(img_file.relative_to(data_dir))
                     
+                    page_match = _PAGE_RE.search(img_file.stem)
                     chunks.append({
                         "type": "evidence",
                         "text": question,
                         "image_path": rel_path,
                         "question_id": question_id,
+                        "page_num": int(page_match.group(1)) if page_match else None,
                         "doc_name": doc_name,
                     })
 
