@@ -42,7 +42,7 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
     # Index building
     # ------------------------------------------------------------------
 
-    def build_index(self, force_rebuild: bool = True):
+    def build_index(self, force_rebuild: bool = False):
         """Build multimodal index: text chunks + page images."""
         logger.info(f"Building multimodal index with {type(self.config).__name__}...")
         start_time = time.time()
@@ -106,7 +106,7 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
                 abs_paths = [str(self.config.DATA_DIR / c["image_path"]) for c in figure_chunks]
                 figure_embeddings = self.embedder.embed_images(abs_paths)
 
-                # Evidence crops
+        # Evidence crops
         evidence_chunks = []
         evidence_embeddings = None
         if self.config.USE_MULTIMODAL and hasattr(self.config, "IMAGES_TRAIN_DIR"):
