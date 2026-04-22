@@ -39,3 +39,4 @@ Enhanced_hierar_rag_fusion_cot_multimodal (AdvancedRAGPipeline),qwen3-vl:8b-inst
 semantic_rag_fusion_cot_multimodal (AdvancedRAGPipeline),qwen3-vl:8b-instruct,44.1489,0.0141,1.9702,604.1899,650.3242
 fixed_rag_fusion_cot_multimodal (AdvancedRAGPipeline),qwen3-vl:8b-instruct,31.2836,0.0236,1.5927,586.0769,618.9767
 semantic_hyde_cot_multimodal (AdvancedRAGPipeline),qwen3-vl:8b-instruct,28.7333,0.023,2.8112,876.4164,907.9839
+fixed_hyde_cot_multimodal (AdvancedRAGPipeline),qwen3-vl:8b-instruct,72.538,0.0189,2.5156,546.5552,621.6277
