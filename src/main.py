@@ -7,6 +7,7 @@ import time
 import logging
 from typing import Optional, Dict, Any, List
 from pathlib import Path
+import gc
 
 # Fix OpenMP library conflict
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
@@ -336,20 +337,102 @@ if __name__ == "__main__":
         # run_incremental_addition(eval_subset_size=1000, target_metric='token_f1')
         
         # TO RUN MOST INTUITIVE POWERFUL COMBINATION:
+        # 1.
+        # config = AdvancedConfig(
+        #     CHUNKING_STRATEGY="enhanced_hierarchical", # or "semantic"
+        #     QUERY_TECHNIQUE="rag_fusion",      # or "hyde"
+        #     PROMPTING_STRATEGY="cot",          # Chain of Thought
+        #     USE_MULTIMODAL=True,
+        #     EVAL_SUBSET_SIZE=150
+        # )
+        # run_single_experiment(
+        #     experiment_name="Enhanced_hierar_rag_fusion_cot_multimodal",
+        #     config=config,
+        #     pipeline_class=AdvancedRAGPipeline,
+        #     test_data=pure_text_data, #[:config.EVAL_SUBSET_SIZE],
+        #     force_rebuild=False,
+        #     run_single_query=True
+        # )
+        
+        # gc.collect()
+        # time.sleep(1)
+        
+        # # 2.        
+        # config = AdvancedConfig(
+        #     CHUNKING_STRATEGY="semantic", # or "semantic"
+        #     QUERY_TECHNIQUE="rag_fusion",      # or "hyde"
+        #     PROMPTING_STRATEGY="cot",          # Chain of Thought
+        #     USE_MULTIMODAL=True,
+        #     EVAL_SUBSET_SIZE=150
+        # )
+        # run_single_experiment(
+        #     experiment_name="semantic_rag_fusion_cot_multimodal",
+        #     config=config,
+        #     pipeline_class=AdvancedRAGPipeline,
+        #     test_data=pure_text_data, #[:config.EVAL_SUBSET_SIZE],
+        #     force_rebuild=False,
+        #     run_single_query=True
+        # )
+        
+        # gc.collect()
+        # time.sleep(1)
+        
+        # # 3.
+        # config = AdvancedConfig(
+        #     CHUNKING_STRATEGY="fixed_size", # or "semantic"
+        #     QUERY_TECHNIQUE="rag_fusion",      # or "hyde"
+        #     PROMPTING_STRATEGY="cot",          # Chain of Thought
+        #     USE_MULTIMODAL=True,
+        #     EVAL_SUBSET_SIZE=150
+        # )
+        # pure_text_data = load_train_data(config.TEST_JSONL)
+        # run_single_experiment(
+        #     experiment_name="fixed_rag_fusion_cot_multimodal",
+        #     config=config,
+        #     pipeline_class=AdvancedRAGPipeline,
+        #     test_data=pure_text_data, #[:config.EVAL_SUBSET_SIZE],
+        #     force_rebuild=False,
+        #     run_single_query=True
+        # )
+        
+        # gc.collect()
+        # time.sleep(1)
+        
+        # # 4. 
+        # config = AdvancedConfig(
+        #     CHUNKING_STRATEGY="semantic", # or "semantic"
+        #     QUERY_TECHNIQUE="hyde",      # or "hyde"
+        #     PROMPTING_STRATEGY="cot",          # Chain of Thought
+        #     USE_MULTIMODAL=True,
+        #     EVAL_SUBSET_SIZE=150
+        # )
+        # run_single_experiment(
+        #     experiment_name="semantic_hyde_cot_multimodal",
+        #     config=config,
+        #     pipeline_class=AdvancedRAGPipeline,
+        #     test_data=pure_text_data, #[:config.EVAL_SUBSET_SIZE],
+        #     force_rebuild=False,
+        #     run_single_query=True
+        # )
+        
+        # gc.collect()
+        # time.sleep(1)
+        
+        #5.
         config = AdvancedConfig(
-            CHUNKING_STRATEGY="enhanced_hierarchical", # or "semantic"
-            QUERY_TECHNIQUE="rag_fusion",      # or "hyde"
+            CHUNKING_STRATEGY="fixed_size", # or "semantic"
+            QUERY_TECHNIQUE="hyde",      # or "hyde"
             PROMPTING_STRATEGY="cot",          # Chain of Thought
-            USE_MULTIMODAL=True
+            USE_MULTIMODAL=True,
+            EVAL_SUBSET_SIZE=150
         )
         pure_text_data = load_train_data(config.TEST_JSONL)
         run_single_experiment(
-            experiment_name="Baseline RAG",
+            experiment_name="fixed_hyde_cot_multimodal",
             config=config,
-            pipeline_class=BaselineRAGPipeline,
+            pipeline_class=AdvancedRAGPipeline,
             test_data=pure_text_data, #[:config.EVAL_SUBSET_SIZE],
             force_rebuild=False,
             run_single_query=True
         )
-        
         
