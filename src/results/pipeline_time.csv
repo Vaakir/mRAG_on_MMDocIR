@@ -32,6 +32,7 @@ Step3_PromptOpt_standard (AdvancedRAGPipeline),qwen3-vl:8b-instruct,49.064,0.024
 Step3_PromptOpt_few_shot (AdvancedRAGPipeline),qwen3-vl:8b-instruct,54.8576,0.0206,3.1641,577.5591,635.6039
 Step3_PromptOpt_role (AdvancedRAGPipeline),qwen3-vl:8b-instruct,49.3809,0.0174,2.8315,660.49,712.7219
 Step3_PromptOpt_cot (AdvancedRAGPipeline),qwen3-vl:8b-instruct,60.4913,0.0174,3.6746,701.5659,765.7492
+Step4_Multimodal (AdvancedRAGPipeline),qwen3-vl:8b-instruct,67.5329,0.0698,22.0608,2764.2451,2853.9085
 INTUITIVE (RAGPipeline),qwen3-vl:8b-instruct,50.4247,0.0228,563.3697,136.1469,749.9652
 Enhanced_hierar_rag_fusion_cot_multimodal (AdvancedRAGPipeline),qwen3-vl:8b-instruct,53.5973,0.0272,509.8263,419.9603,983.4121
 semantic_rag_fusion_cot_multimodal (AdvancedRAGPipeline),qwen3-vl:8b-instruct,56.041,0.0149,18.4061,369.226,443.6881

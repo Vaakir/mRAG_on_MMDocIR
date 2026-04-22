@@ -419,16 +419,33 @@ if __name__ == "__main__":
         # time.sleep(1)
         
         #5.
+        # config = AdvancedConfig(
+        #     CHUNKING_STRATEGY="fixed_size", # or "semantic"
+        #     QUERY_TECHNIQUE="hyde",      # or "hyde"
+        #     PROMPTING_STRATEGY="cot",          # Chain of Thought
+        #     USE_MULTIMODAL=True,
+        #     EVAL_SUBSET_SIZE=150
+        # )
+        # pure_text_data = load_train_data(config.TEST_JSONL)
+        # run_single_experiment(
+        #     experiment_name="fixed_hyde_cot_multimodal",
+        #     config=config,
+        #     pipeline_class=AdvancedRAGPipeline,
+        #     test_data=pure_text_data, #[:config.EVAL_SUBSET_SIZE],
+        #     force_rebuild=False,
+        #     run_single_query=True
+        # )
+        
         config = AdvancedConfig(
-            CHUNKING_STRATEGY="fixed_size", # or "semantic"
-            QUERY_TECHNIQUE="hyde",      # or "hyde"
-            PROMPTING_STRATEGY="cot",          # Chain of Thought
+            CHUNKING_STRATEGY="sliding_window", # or "semantic"
+            QUERY_TECHNIQUE="rag_fusion",      # or "hyde"
+            PROMPTING_STRATEGY="standard",          # Chain of Thought
             USE_MULTIMODAL=True,
             EVAL_SUBSET_SIZE=150
         )
         pure_text_data = load_train_data(config.TEST_JSONL)
         run_single_experiment(
-            experiment_name="fixed_hyde_cot_multimodal",
+            experiment_name="Step4_Multimodal",
             config=config,
             pipeline_class=AdvancedRAGPipeline,
             test_data=pure_text_data, #[:config.EVAL_SUBSET_SIZE],
