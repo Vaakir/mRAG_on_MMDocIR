@@ -130,14 +130,14 @@ class AdvancedConfig(BaselineConfig):
         SRC_DIR / "data" / "preprocessed" / "chunks_fixed_size.json"
     )
 
-    VECTOR_DB_COLLECTION: str = "advanced_multimodal"
+    VECTOR_DB_COLLECTION: str = "advanced_semantic"
     """Separate collection from baseline so the two don't interfere"""
 
     # Use one model for everything — no server model swapping = no OOM crashes
     LLM_MODEL: str = "qwen3-vl:8b-instruct"  # "qwen3-vl:8b"
 
     # ===== MULTIMODAL SETTINGS =====
-    USE_MULTIMODAL: bool = False
+    USE_MULTIMODAL: bool = True
 
     MAX_VLM_IMAGES: int = 2
     """Cap images sent to VLM to avoid OOM"""

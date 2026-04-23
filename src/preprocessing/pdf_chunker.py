@@ -190,25 +190,29 @@ class Chunking:
                 continue
 
             # Split oversized blocks into sub-chunks of max 1700 chars
-            if len(text) > 1700:
-                sub_texts = [text[j:j+1700] for j in range(0, len(text), 1700)]
+            if len(text) > max_chars:
+                sub_texts = [text[j:j+max_chars] for j in range(0, len(text), max_chars)]
             else:
                 sub_texts = [text]
 
             for sub_text in sub_texts:
-                text_len += len(sub_text)
-                current_texts.append(sub_text)
-                if text_len > max_chars:
-                    page_numbers = {"page_numbers": list(page_numbers["page_numbers"])}
-                    chunks.append(Chunking._make_chunk(current_texts, page_numbers))
+                # Check BEFORE adding if the current chunk would exceed limit
+                if text_len + len(sub_text) > max_chars and current_texts:
+                    # Flush current chunk
+                    page_numbers_list = {"page_numbers": list(page_numbers["page_numbers"])}
+                    chunks.append(Chunking._make_chunk(current_texts, page_numbers_list))
                     current_texts = []
                     page_numbers = {"page_numbers": set()}
                     text_len = 0
+            
+                # Now add the sub_text
+                current_texts.append(sub_text)
+                text_len += len(sub_text)
 
         if current_texts:
             page_numbers = {"page_numbers": list(page_numbers["page_numbers"])}
             chunks.append(Chunking._make_chunk(current_texts, page_numbers))
-        return self._merge_small_chunks(chunks)
+        return chunks
 
     def sliding_window(
         self, window_charts: int = 1000, overlap_chars: int = 200
