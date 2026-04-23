@@ -215,40 +215,80 @@ class Chunking:
         return chunks
 
     def sliding_window(
-        self, window_charts: int = 1000, overlap_chars: int = 200
+        self, max_chars: int = 1000, overlap_chars: int = 200
     ) -> List[Dict[str, Any]]:
         """
-        Fixed-size windows with overlap so context at chunk boundaries
-        is not lost. Good for dense text documents.
+        Block-based sliding window.
+        Behaves like fixed_size (stacks whole blocks up to max_chars), but 
+        carries over previous blocks to satisfy the overlap_chars requirement 
+        for the next chunk.
         """
-        current_texts, chunks = [], []
-        text_len, blocks_count = 0, len(self.blocks)
-        page_numbers = {"page_numbers": set()}
+        current_blocks = []  # Stores tuples of (text, page_num)
+        chunks = []
+        text_len = 0
+        
         for i, block in enumerate(self.blocks):
             text = block.text.strip()
-            page_numbers["page_numbers"].add(block.page_number)
+            page_num = getattr(block, "page_number", 0)
+            
             if not text:
                 continue
 
-            text_len += len(text)
-            current_texts.append(text)
-            if text_len > window_charts or i == blocks_count - 1:
-                if chunks:
-                    prev_text = chunks[-1]["text"][
-                        -overlap_chars:
-                    ]  # use the actual text from the last chunk
-                    current_texts = [prev_text] + current_texts
-                else:
-                    prev_text = ""
-                page_numbers = {"page_numbers": list(page_numbers["page_numbers"])}
-                current_texts.append(prev_text)
-                chunks.append(Chunking._make_chunk(current_texts, page_numbers))
-                current_texts = []
-                page_numbers = {"page_numbers": set()}
-                text_len = overlap_chars
+            # If a single block is massive, slice it into smaller pieces 
+            # (the size of overlap_chars) so the overlap logic can grab exact amounts.
+            if len(text) > max_chars:
+                # E.g., chops the 200k block into 200-character pieces
+                sub_texts = [text[j:j+overlap_chars] for j in range(0, len(text), overlap_chars)]
+            else:
+                sub_texts = [text]
 
-        return self._split_oversized(chunks)
+            for sub_text in sub_texts:
+                # If adding this block exceeds the limit, flush and calculate overlap
+                if text_len + len(sub_text) > max_chars and current_blocks:
+                    
+                    # 1. Package and flush the current chunk
+                    chunk_texts = [b[0] for b in current_blocks]
+                    chunk_pages = set(b[1] for b in current_blocks)
+                    chunks.append(
+                        Chunking._make_chunk(
+                            chunk_texts, 
+                            extra_meta={"page_numbers": sorted(list(chunk_pages))}
+                        )
+                    )
+                    
+                    # 2. Carry over blocks from the end until we hit the overlap target
+                    overlap_blocks = []
+                    overlap_len = 0
+                    
+                    # Go backwards through the blocks we just flushed
+                    for past_block in reversed(current_blocks):
+                        overlap_blocks.insert(0, past_block)
+                        overlap_len += len(past_block[0])
+                        # Stop once we've grabbed enough text to satisfy the overlap
+                        if overlap_len >= overlap_chars:
+                            break
+                    
+                    # 3. Reset state for the next chunk, starting with the overlap
+                    current_blocks = overlap_blocks
+                    text_len = overlap_len
 
+                # Append the new text
+                current_blocks.append((sub_text, page_num))
+                text_len += len(sub_text)
+
+        # Flush anything remaining at the end
+        if current_blocks:
+            chunk_texts = [b[0] for b in current_blocks]
+            chunk_pages = set(b[1] for b in current_blocks)
+            chunks.append(
+                Chunking._make_chunk(
+                    chunk_texts, 
+                    extra_meta={"page_numbers": sorted(list(chunk_pages))}
+                )
+            )
+            
+        return chunks
+    
     def semantic(self) -> List[Dict[str, Any]]:
         """
         Group blocks into sections separated by title/header elements.
