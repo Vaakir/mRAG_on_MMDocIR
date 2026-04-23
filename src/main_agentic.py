@@ -137,7 +137,7 @@ def main():
         print(f"\nRunning evaluation on {args.eval_size} queries...")
         
         # Load test data
-        test_data = load_train_data(config.TRAIN_JSONL)
+        test_data = load_train_data(config.TEST_JSONL)
         
         # Run evaluation
         eval_summary = pipeline.evaluate(test_data)
