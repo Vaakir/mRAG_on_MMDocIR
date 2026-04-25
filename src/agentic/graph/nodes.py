@@ -20,10 +20,8 @@ from generation.generator import VisionGenerator
 logger = logging.getLogger(__name__)
 
 
-# ============================================================================
-# HELPER FUNCTION: Clean LLM responses
-# ============================================================================
 
+# Helper function cleans the LLM response and extracts JSON, handling common formatting issues
 def clean_and_extract_json(response_text: str) -> dict:
     """
     Cleaning the LLM response and extract JSON.
@@ -78,7 +76,6 @@ def clean_and_extract_json(response_text: str) -> dict:
 
 # ============================================================================
 # QUERY REWRITER NODE
-# - Decides which QueryTechnique to use based on the question
 # ============================================================================
 
 def make_query_rewriter_node(agent_llm, retriever, query_techniques_dict, config: Dict[str, Any]):
@@ -131,7 +128,6 @@ def make_query_rewriter_node(agent_llm, retriever, query_techniques_dict, config
         if last_technique:
             print(f"Last technique (to avoid on retry): {last_technique}")
         
-        # Build prompt for LLM to decide which query technique to use
         # Create technique descriptions
         techniques_info = {
             "standard": "baseline retrieval (use when question is clear and well-formed)",
@@ -159,6 +155,8 @@ def make_query_rewriter_node(agent_llm, retriever, query_techniques_dict, config
             if not (last_technique and name.lower() == last_technique.lower() and retry_count > 0)
         ])
         
+        
+        # Build prompt for LLM to decide which query technique to use
         prompt = f"""You are deciding which query technique to use for information retrieval.
 
 Question: {question}
@@ -287,7 +285,6 @@ Choose a technique name from the list above."""
 
 # ============================================================================
 # GRADER NODE
-# Decides if retrieved documents are relevant to the question
 # ============================================================================
 
 def make_grader_node(agent_llm, config: Dict[str, Any]):
@@ -295,8 +292,7 @@ def make_grader_node(agent_llm, config: Dict[str, Any]):
     Factory function to create the grader node.
     
     The grader agent evaluates whether retrieved documents are relevant
-    to the user's question. (Enhanced version evaluates ALL documents
-    with multi-criteria scoring (not just top 3).)
+    to the user's question.
     
     Args:
         agent_llm: Lightweight LLM instance for decision-making
@@ -357,6 +353,7 @@ def make_grader_node(agent_llm, config: Dict[str, Any]):
         
         doc_text = "\n\n".join(doc_summaries) # This represents the retrieved information the Grader has to evaluate for relevance
         
+        # Grading criteria:
         prompt = f"""You are a strict evaluator. Grade these documents on whether they CONTAIN THE SPECIFIC ANSWER TO THE QUESTION.
 
 Question: {question}
@@ -467,8 +464,7 @@ Output ONLY the raw JSON starting with {{ and ending with }}, like this:
             # If parsing failed, keep all docs
             filtered_docs = retrieved_docs
             
-        # Format the newly filtered text so that the Generator only receives relevant docs;
-        # otherwise it will still use the old un-filtered 'retrieved_text' from the Query Rewriter.
+        # Format the newly filtered text so that the Generator only receives relevant docs (otherwise it will still use the old un-filtered 'retrieved_text' from the Query Rewriter)
         filtered_text = "\n\n".join([
             f"[Document {i+1}]:\n{doc.get('text', '')}"
             for i, doc in enumerate(filtered_docs)
@@ -505,7 +501,6 @@ Output ONLY the raw JSON starting with {{ and ending with }}, like this:
 
 # ============================================================================
 # GENERATOR NODE
-# Decides which prompting strategy to use and generates answer
 # ============================================================================
 
 def make_generator_node(agent_llm, generator, config: Dict[str, Any]):
@@ -565,7 +560,6 @@ Strategies:
 2. cot - step-by-step reasoning (use for complex questions)
 3. few_shot - example-based (use when patterns are clear)
 4. role - expert perspective (use for domain-specific topics)
-5. ensemble - combined approach (use when uncertain)
 
 If you choose 'role' strategy, also specify a role_type (pick the MOST appropriate):
 - financial_analyst: for financial/numerical questions
@@ -575,7 +569,7 @@ If you choose 'role' strategy, also specify a role_type (pick the MOST appropria
 - technical_writer: for technical/structured communication
 
 Select the best strategy based on question complexity, context quality, and grader confidence.
-If grader confidence < 0.6, consider using ensemble or cot for more reasoning.
+If grader confidence < 0.6, consider using cot for more reasoning.
 
 CRITICAL: Your response MUST be ONLY a valid JSON object. Do NOT include:
 - Any text before the JSON
@@ -583,14 +577,18 @@ CRITICAL: Your response MUST be ONLY a valid JSON object. Do NOT include:
 - Code block markers (```, ```json)
 - Explanations or reasoning outside JSON
 
-Output raw JSON only, like: {{"strategy":"standard","role_type":"financial_analyst","reasoning":"straightforward","needs_more_context":false,"confidence":0.9}}"""
+Output raw JSON only, like: {{"strategy":"standard","role_type":"financial_analyst","reasoning":"straightforward","confidence":0.9}}"""
         
         try:
             response = agent_llm.invoke(prompt) # Call agent LLM to decide on prompting strategy
             response_text = response.content if hasattr(response, 'content') else str(response)
             
             # Parse JSON
-            strategy_dict = clean_and_extract_json(response_text)   
+            strategy_dict = clean_and_extract_json(response_text)
+            if "reasoning" not in strategy_dict:
+                strategy_dict["reasoning"] = "Fallback strategy selected"
+            if "confidence" not in strategy_dict:
+                strategy_dict["confidence"] = 0.5
             strategy_decision = GeneratorDecision(**strategy_dict) # Validate and create Pydantic model for the strategy decision
             
         except Exception as e:
@@ -598,7 +596,6 @@ Output raw JSON only, like: {{"strategy":"standard","role_type":"financial_analy
             strategy_decision = GeneratorDecision( # Default to 'standard' strategy if parsing fails
                 strategy="standard",
                 reasoning="Error in selection, using default",
-                needs_more_context=False,
                 confidence=0.5
             )
         
@@ -613,21 +610,17 @@ Output raw JSON only, like: {{"strategy":"standard","role_type":"financial_analy
             # Use provided role_type or default to financial_analyst
             strategy_config['role_type'] = strategy_decision.role_type or "financial_analyst"
         
-        # Format rules are now handled by strategy system prompts (CoT, Standard, etc.)
-        # Each strategy.generate() internally applies its own system prompt with complete format guidance.
-        # This eliminates redundancy and removes instruction conflicts that caused hallucinations.
+        # Note: Format rules are handled by strategy system prompts (CoT, Standard, etc.)
         enhanced_context = context or ""
         
         # Build the strategy once (works for both image and text generation)
-        # The strategy object handles system_prompt internally via get_system_prompt()
         strategy = get_prompt_strategy(
             strategy_decision.strategy,
             generator,
             strategy_config
         )
         
-        # CHECK FOR IMAGE HANDLING
-        # If we have images and the generator supports vision, use image-aware generation
+        # Check for image handling; if we have images and the generator supports vision, use image-aware generation
         use_image_generation = (
             detected_image_types and  # Only consider image generation if we detected image types in the retrieved documents
             image_paths and # Ensure we have valid image paths to pass to the generator
@@ -638,14 +631,13 @@ Output raw JSON only, like: {{"strategy":"standard","role_type":"financial_analy
         if use_image_generation:
             print(f"Using image-aware generation (detected: {detected_image_types})")
             try:
-                # Use strategy's generate_with_images(), which handles system_prompt internally
                 answer = strategy.generate_with_images(
                     question=question,
                     image_paths=image_paths,
                     text_context=enhanced_context
                 )
                 print(f"Generated answer from images: {len(answer)} chars")
-                generation_method = "vision" # Track that we used the vision generation path for analysis
+                generation_method = "vision" # Track that we used the vision generation path
             except Exception as e:
                 print(f"Image generation failed: {e}, falling back to text generation")
                 # Fallback to text-only generation
@@ -664,10 +656,9 @@ Output raw JSON only, like: {{"strategy":"standard","role_type":"financial_analy
         else:
             existing_decisions = state.agent_decisions or {}
         
-        # ===== ANSWER FORMAT VALIDATION =====
-        # Validate that answer matches expected output format (count, percentage, list, etc.)
-        # IMPORTANT: Store BOTH raw and validated answers for proper evaluation metrics
-        raw_answer = answer  # Save raw answer before validation
+        # Answer format validation (validating that answer matches expected output format (count, percentage, list, etc.))
+        # Note: We store both raw and validated answers for proper evaluation metrics
+        raw_answer = answer  # Save raw answer before performing validation
         
         is_valid_format, corrected_answer = validate_answer_format(
             answer=answer,
@@ -686,11 +677,11 @@ Output raw JSON only, like: {{"strategy":"standard","role_type":"financial_analy
         
         return {
             "retrieved_documents": retrieved_docs,  # Preserve retrieved documents
-            "generated_answer": validated_answer,  # Use validated for pipeline (for grading/display)
+            "generated_answer": validated_answer,  # Use validated for pipeline (for grading/display purposes)
             "raw_answer": raw_answer,  # Store raw answer for evaluation metrics
             "validated_answer": validated_answer,  # Store validated answer for evaluation metrics
             "chosen_prompting_strategy": strategy_decision.strategy,
-            "generation_confidence": strategy_decision.confidence, # Confidence in the chosen strategy (not the same as grader confidence)
+            "generation_confidence": strategy_decision.confidence, # Confidence in the chosen strategy (not the same as Grader confidence)
             "grade_confidence": grade_confidence,
             "answer_format_validation": validation_status,  # Track validation status
             "agent_decisions": {
@@ -712,8 +703,7 @@ Output raw JSON only, like: {{"strategy":"standard","role_type":"financial_analy
 
 
 # ============================================================================
-# ROUTING FUNCTION
-# Decides whether to continue or retry
+# ROUTING FUNCTION (Decides whether to continue to generator, or retry)
 # ============================================================================
 
 def route_after_grading(state: AgenticRAGState) -> Literal["generator", "query_rewriter"]:
@@ -740,7 +730,7 @@ def route_after_grading(state: AgenticRAGState) -> Literal["generator", "query_r
     
     # Check both grade_decision and confidence threshold
     # Retry if: (1) documents marked not relevant, or (2) confidence too low AND there are retries remaining
-    # Note: Config values are passed via state from the grader node
+    # Note: Config values are passed via state from the Grader node
     confidence_threshold = state.get('confidence_threshold', 0.6) if isinstance(state, dict) else getattr(state, 'confidence_threshold', 0.6)
     retry_on_low_confidence = state.get('retry_on_low_confidence', True) if isinstance(state, dict) else getattr(state, 'retry_on_low_confidence', True)
     confidence_too_low = grade_confidence < confidence_threshold if retry_on_low_confidence else False

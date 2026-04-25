@@ -58,10 +58,10 @@ def build_agentic_graph(
     graph.add_node("grader", grader)
     graph.add_node("generator", generator_node)
     
-    # Add edges, with conditional routing after grader
-    graph.add_edge(START, "query_rewriter") # Start -> query_rewriter    
-    graph.add_edge("query_rewriter", "grader") # query_rewriter -> grader
-    graph.add_conditional_edges( # grader -> (conditional routing)
+    # Add edges, with conditional routing after Grader
+    graph.add_edge(START, "query_rewriter") # Start --> query_rewriter    
+    graph.add_edge("query_rewriter", "grader") # query_rewriter --> grader
+    graph.add_conditional_edges( # grader --> (conditional routing)
         "grader",
         route_after_grading,
         {
@@ -69,9 +69,9 @@ def build_agentic_graph(
             "generator": "generator"
         }
     )
-    graph.add_edge("generator", END) # generator -> END
+    graph.add_edge("generator", END) # generator --> END
     
-    # Compiling the graph (with async support)
+    # Compiling the graph
     compiled_graph = graph.compile()
     
     logger.info("Agentic RAG graph built successfully")

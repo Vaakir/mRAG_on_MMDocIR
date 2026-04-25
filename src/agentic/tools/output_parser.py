@@ -50,7 +50,7 @@ class GeneratorDecision(BaseModel):
     """Structured output from generator agent."""
     
     # Prompting strategy to use for generation
-    strategy: Literal["standard", "few_shot", "cot", "role", "ensemble"] = Field(
+    strategy: Literal["standard", "few_shot", "cot", "role"] = Field(
         description="Prompting strategy to use"
     )
     
@@ -61,16 +61,14 @@ class GeneratorDecision(BaseModel):
     )
     
     # Reasoning for the choice of prompting strategy
-    reasoning: str = Field(description="Why this strategy?")
-    
-    # Check if generator thinks more context is needed (for potential retry)
-    needs_more_context: bool = Field(
-        default=False,
-        description="Does generator need more documents?"
+    reasoning: str = Field(
+        default="Fallback strategy selected",
+        description="Why this strategy?"
     )
     
     # Confidence value in the prompting strategy choice (0.0 to 1.0)
     confidence: float = Field(
+        default=0.5,
         ge=0.0, le=1.0,
         description="Confidence in answer quality"
     )

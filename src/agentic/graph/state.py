@@ -1,4 +1,4 @@
-"""State definition for agentic RAG system."""
+"""State definition for agentic mRAG system."""
 
 from typing import Annotated, List, Dict, Any, Optional
 from langgraph.graph.message import add_messages
@@ -8,16 +8,13 @@ from langchain_core.messages import BaseMessage
 
 class AgenticRAGState(MessagesState):
     """
-    Extended state for the agentic RAG pipeline.
+    Extended state for the agentic mRAG pipeline.
     
     Extends 'MessagesState' (which has 'messages' field) with additional tracking fields
     for retrieval, grading, and generation decisions.
     """
     
-    # Messages tracking (inherited from MessagesState, but explicit here for clarity)
-    # messages: Annotated[List[BaseMessage], add_messages]  # Already in MessagesState
-    
-    # ===== RETRIEVAL TRACKING =====
+    # RETRIEVAL TRACKING:
     original_question: str = ""
     """Original user question before any rewriting"""
     
@@ -30,7 +27,7 @@ class AgenticRAGState(MessagesState):
     retrieved_text: str = ""
     """Formatted concatenated text consisting of all retrieved documents"""
     
-    # ===== GRADING TRACKING =====
+    # GRADING TRACKING:
     grade_decision: str = ""
     """Grader's decision on whether docs are relevant: 'yes' or 'no'"""
     
@@ -43,19 +40,19 @@ class AgenticRAGState(MessagesState):
     grade_reasoning: str = ""
     """Grader's reasoning for the decision"""
     
-    # ===== RETRY TRACKING =====
+    # RETRY TRACKING:
     retry_count: int = 0
     """Number of retry attempts made (incremented by rewriter node)"""
     
     max_retries: int = 2
-    """Maximum number of retries allowed before forcing generation (default: 2 --> 3 total attempts)"""
+    """Maximum number of retries allowed before forcing generation"""
     
     last_technique_used: str = ""
     """Name of last technique used (for technique rotation on retry)"""
     
-    # ===== GENERATION TRACKING =====
+    # GENERATION TRACKING:
     chosen_prompting_strategy: str = ""
-    """Name of the prompting strategy chosen ('standard', 'cot', 'few_shot', 'role', 'ensemble')"""
+    """Name of the prompting strategy chosen ('standard', 'cot', 'few_shot', 'role')"""
     
     generated_answer: str = ""
     """Final generated answer"""
@@ -63,7 +60,7 @@ class AgenticRAGState(MessagesState):
     generation_confidence: float = 0.0
     """Generator's confidence in the answer (0.0 to 1.0)"""
     
-    # ===== IMAGE HANDLING (for multimodal support) =====
+    # IMAGE HANDLING (for multimodal support):
     detected_image_types: List[str] = None
     """List of image chunk types detected in the retrieved documents (page_image, figure, evidence)"""
     
@@ -73,10 +70,10 @@ class AgenticRAGState(MessagesState):
     image_paths: List[str] = None
     """List of paths to images for image-aware generation"""
     
-    # ===== AGENT DECISIONS (for reporting) =====
+    # AGENT DECISIONS:
     agent_decisions: Dict[str, Dict[str, Any]] = None
     """
-    Track what each agent decided during the pipeline (for analysis/reporting).
+    Track what each agent decided during the pipeline.
     
     Structure:
     {
