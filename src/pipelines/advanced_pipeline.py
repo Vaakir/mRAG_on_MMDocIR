@@ -70,8 +70,6 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
             self._initialize_retriever()
             logger.info(f"Index loaded in {time.time() - start_time:.2f}s")
             return
-        
-        return
 
         # WE should have ran preprocessing pipeline first..
         # ---------- Build from scratch ----------

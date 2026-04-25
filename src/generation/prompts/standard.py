@@ -3,22 +3,14 @@ Standard prompting strategy - direct extraction without special prompting.
 """
 
 from typing import List
-from .base import PromptStrategy
+from .base import PromptStrategy, STANDARD_OUTPUT_CONSTRAINTS
 import logging
 
 logger = logging.getLogger(__name__)
 
-STANDARD_SYSTEM_PROMPT = """You are a concise assistant. Answer using ONLY the provided context.
+STANDARD_SYSTEM_PROMPT = f"""You are a concise assistant. Answer using ONLY the provided context.
 
-Strict Instructions (NON-NEGOTIABLE):
-- Read the whole context and think before answering.
-- NEVER add preamble, explanation, or context. ANSWER ONLY.
-- DO NOT rephrase, explain, or add context.
-- Multiple answers: ONLY output ['answer1', 'answer2', ...]. NOTHING ELSE.
-- For yes/no questions, answer only "Yes" or "No".
-- Do not rely only on explicit statements. If the answer can be derived from the context through calculation (e.g., growth rate, difference, ratio, count), compute it before answering.
-
-Be direct. No padding. No explanations unless specifically asked."""
+{STANDARD_OUTPUT_CONSTRAINTS}"""
 
 
 class StandardPromptStrategy(PromptStrategy):
