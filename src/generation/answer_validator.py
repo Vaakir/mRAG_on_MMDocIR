@@ -6,12 +6,32 @@ Validates that generated answers match expected output format:
 - Proportion questions: ensure output is percentage with units
 - List questions: ensure output is properly formatted list
 - Text questions: basic non-empty validation
+
+Note: The motivation behind the following validation logic is that during development, 
+we observed that the LLM sometimes outputs answers in unexpected formats (e.g., "2 students" instead of "2", or 
+"27 percent" instead of "27%"). This validation layer is designed to catch common formatting issues 
+and correct them when possible, while also providing feedback on any validation failures.
+
+From a metrics evaluation standpoint, particularly for generation metrics like Exact Match or F1, having a consistent answer format is crucial.
+For example, if the ground truth answer is "27%" but the model outputs "27 percent", a strict Exact Match would fail even though the answer is semantically correct. 
+By validating and correcting the format to a standard representation (e.g., always using "27%"), 
+we can ensure that our evaluation metrics more accurately reflect the model's performance rather 
+than being skewed by formatting inconsistencies. 
+
+In other words, doing this validation and correction step allows us to better assess the true quality 
+of the generated answers, rather than penalizing the model for minor formatting variations that do not 
+affect the overall correctness of the answer.
+
+When questioned whether this is considered fair, it's important to note that the goal of this validation layer is 
+not to give the model an unfair advantage, but rather to ensure that we are evaluating the model's understanding 
+and reasoning capabilities rather than its ability to guess the exact formatting of the answer.
 """
 
 import logging
 import re
 import json
 from typing import Any, Tuple
+import ast
 
 logger = logging.getLogger(__name__)
 
@@ -37,12 +57,11 @@ class AnswerValidator:
         
         answer = answer.strip()
         
-        # Detect question type from ground truth or question text
+        # Detect question type from the ground truth or question text
         question_lower = question.lower() if question else ""
         
-        # ===== EXPLICIT LIST QUESTIONS (HIGHEST PRIORITY) =====
+        # Scenario: EXPLICIT LIST QUESTIONS
         # Keywords: "list", "enumerate", "which", "names", "items", "examples"
-        # Also check if answer appears to contain multiple items (commas, semicolons, bracketed)
         is_explicit_list = (
             "list" in question_lower or 
             "enumerate" in question_lower or
@@ -54,11 +73,12 @@ class AnswerValidator:
             "tell me" in question_lower
         )
         
-        # Check if answer contains multiple items (comma/semicolon delimited)
+        # Also check if answer contains multiple items (commas, semicolons, bracketed)
         has_multiple_items = (
             ',' in answer or ';' in answer or answer.startswith('[')
         )
         
+        # If question explicitly asks for a list OR answer contains multiple items, validate as list
         if is_explicit_list or (has_multiple_items and "[" in answer):
             is_valid, corrected = AnswerValidator._validate_list(answer)
             if is_valid:
@@ -66,7 +86,7 @@ class AnswerValidator:
             else:
                 return False, answer, f"Invalid list format. Expected ['item1', 'item2'], got: {answer}"
         
-        # ===== COUNT QUESTIONS =====
+        # Scenario: COUNT QUESTIONS
         # Keywords: "how many", "how much", "count", "number of"
         if ("how many" in question_lower or 
             "how much" in question_lower or 
@@ -79,10 +99,9 @@ class AnswerValidator:
             else:
                 return False, answer, f"Invalid count format. Expected integer, got: {answer}"
         
-        # ===== PROPORTION/PERCENTAGE QUESTIONS =====
+        # Scenario: PROPORTION/PERCENTAGE QUESTIONS
         # Keywords: "percentage", "percent", "%", "how many %", "what percentage"
-        # CRITICAL: Check if QUESTION asks for MULTIPLE percentages (e.g., "how many % ... and how many %")
-        # This is important for questions like "How many % ... and how many % ..."
+        # Also, check if the question asks for MULTIPLE percentages (e.g., "how many % ... and how many %")
         num_how_many_percent = question_lower.count("how many %")
         num_what_percent = question_lower.count("what %")
         asks_multiple_percentages = (
@@ -91,30 +110,30 @@ class AnswerValidator:
             (num_how_many_percent > 0 and " and " in question_lower and ("how many %" in question_lower or "what %" in question_lower))
         )
         
-        # Also check if ANSWER contains multiple values (commas, "and", bracketed)
+        # Also check if the answer contains multiple values (commas, "and", bracketed)
         has_multiple_percentages_in_answer = (
             (',' in answer and '%' in answer) or 
             (' and ' in answer and '%' in answer) or
             answer.startswith('[')
         )
         
+        
         if ("percentage" in question_lower or 
             "percent" in question_lower or 
             "what %" in question_lower or
             "how many %" in question_lower):
             
-            # If question asks for multiple percentages OR answer contains multiple values, treat as list
+            # If question asks for multiple percentages OR answer contains multiple values --> treat as list
             if asks_multiple_percentages or has_multiple_percentages_in_answer:
                 # For multi-percentage answers with prose text, try to extract all percentages
                 if not answer.startswith('[') and '%' in answer:
                     # Try to extract multiple percentages from prose: look for "number%" or "number percent"
                     percentages = re.findall(r'(\d+(?:\.\d+)?)\s*(?:%|percent)', answer, re.IGNORECASE)
-                    if percentages and len(percentages) > 1:
+                    if percentages and len(percentages) > 1:  # Found multiple percentages in prose, format as list
                         # Format as JSON list with % symbols
                         formatted = json.dumps([f"{p}%" for p in percentages])
                         return True, formatted, "Valid list format (extracted percentages from prose)"
-                    elif percentages:
-                        # Only one percentage found despite multiple being asked for
+                    elif percentages: # Only one percentage found, despite multiple being asked for
                         # Still process it as list in case LLM provided alternate format
                         formatted = json.dumps([f"{p}%" for p in percentages])
                         return True, formatted, "Valid list format (single percentage found, expected multiple)"
@@ -126,15 +145,15 @@ class AnswerValidator:
                 else:
                     return False, answer, f"Invalid list format. Expected ['item1', 'item2'], got: {answer}"
             
-            # Single percentage question
+            # If single percentage question
             is_valid, corrected = AnswerValidator._validate_percentage(answer)
             if is_valid:
                 return True, corrected, "Valid percentage format"
             else:
                 return False, answer, f"Invalid percentage format. Expected X% or X percent, got: {answer}"
         
-        # ===== YES/NO QUESTIONS (ONLY IF EXPLICIT) =====
-        # Must have BOTH yes/no or be clear inverted question
+        # Scenario: YES/NO QUESTIONS (ONLY IF EXPLICIT)
+        # Must have BOTH yes/no, or be clear inverted question
         # But NOT questions with "Figure", "Table", "what", or other list-like patterns
         is_likely_yes_no = (
             ("yes" in question_lower and "no" in question_lower) or
@@ -152,6 +171,7 @@ class AnswerValidator:
             "graph" in question_lower
         )
         
+        # If it looks like a yes/no question and doesn't have list/count/percentage keywords or visual content, validate as yes/no
         if is_likely_yes_no and not is_visual_question and not has_multiple_items:
             is_valid, corrected = AnswerValidator._validate_yes_no(answer)
             if is_valid:
@@ -159,17 +179,21 @@ class AnswerValidator:
             else:
                 return False, answer, f"Invalid yes/no format. Expected 'Yes' or 'No', got: {answer}"
         
-        # ===== DEFAULT: TEXT ANSWER =====
+        # Scenario: DEFAULT --> TEXT ANSWER 
         # For other questions, just ensure non-empty
         if len(answer) > 0:
             return True, answer, "Valid text answer"
         else:
             return False, answer, "Empty answer"
     
+    # ---------------------------------------------------------------------------
+    # Helper validation functions for specific formats
+    
+    # Helper function for validating "counting-like" answers (should be an integer, but may be in various formats)
     @staticmethod
     def _validate_count(answer: str) -> Tuple[bool, str]:
         """
-        Validate that answer is a valid integer.
+        Validate that the answer is a valid integer.
         
         Returns:
             (is_valid, corrected_answer)
@@ -204,16 +228,17 @@ class AnswerValidator:
         }
         
         answer_lower = answer.lower().strip()
-        for word, num in word_nums.items():
-            if word in answer_lower:
+        for word, num in word_nums.items(): # Check if any "number word" is present in the answer
+            if word in answer_lower: # If we find a number word, we can attempt to parse it (this is a simple approach and may not handle complex cases like "twenty one")
                 return True, str(num)
         
-        return False, answer
+        return False, answer # If we can't extract a valid integer, return False with original answer for logging
     
+    # Helper function for validating "percentage-like" answers (should be a percentage, but may be in various formats)
     @staticmethod
     def _validate_percentage(answer: str) -> Tuple[bool, str]:
         """
-        Validate that answer is a valid percentage format.
+        Validate that the answer is a valid percentage format.
         
         Expected formats: "27%", "27 percent", "27.5%", etc.
         
@@ -225,17 +250,17 @@ class AnswerValidator:
         # Try direct percentage parse (with %)
         match = re.search(r'(\d+(?:\.\d+)?)\s*%', answer)
         if match:
-            num = float(match.group(1))
+            num = float(match.group(1)) # Allow for decimal percentages like "27.5%"
             # Return with % symbol
             if num == int(num):
                 return True, f"{int(num)}%"
-            else:
+            else: # Keep decimal if present
                 return True, f"{num}%"
         
         # Try "percent" format (e.g., "27 percent")
         match = re.search(r'(\d+(?:\.\d+)?)\s*percent', answer, re.IGNORECASE)
         if match:
-            num = float(match.group(1))
+            num = float(match.group(1)) # Allow for decimal percentages like "27.5 percent"
             if num == int(num):
                 return True, f"{int(num)}%"
             else:
@@ -252,10 +277,11 @@ class AnswerValidator:
         
         return False, answer
     
+   # Helper function for validating "list-like" answers (should be a list, but may be in various formats)
     @staticmethod
     def _validate_list(answer: str) -> Tuple[bool, str]:
         """
-        Validate that answer is a properly formatted list.
+        Validate that the answer is a properly formatted list.
         
         Expected formats:
         - ["item1", "item2"]
@@ -273,22 +299,21 @@ class AnswerValidator:
         # Already a JSON list (with single or double quotes)
         if answer.startswith('[') and answer.endswith(']'):
             try:
-                # Try parsing as-is first (double quotes)
+                # Try parsing as-is first (double quotes (""))
                 parsed = json.loads(answer)
             except json.JSONDecodeError:
                 try:
-                    # If double quotes fail, try converting single quotes to double quotes
-                    # This handles LLM outputs like ['item1', 'item2']
+                    # If double quotes fail, try converting single quotes ('') to double quotes (e.g. handles LLM outputs like ['item1', 'item2'])
                     converted = answer.replace("'", '"')
                     parsed = json.loads(converted)
                 except json.JSONDecodeError:
                     # If both fail, treat as literal Python list
-                    try:
-                        import ast
+                    try:                        
                         parsed = ast.literal_eval(answer)
                     except (ValueError, SyntaxError):
                         parsed = None
             
+            # If we successfully parsed a list, ensure all items are strings and preserve all items (even if some are empty after stripping)
             if parsed is not None and isinstance(parsed, list):
                 # Ensure all items are strings and preserve all items
                 items = [str(item).strip() for item in parsed]
@@ -296,24 +321,24 @@ class AnswerValidator:
                 if items:
                     return True, json.dumps(items)
         
-        # Comma-separated list: "item1, item2, item3"
+        # If comma-separated list: "item1, item2, item3"
         if ',' in answer and not answer.startswith('['):
             items = [item.strip().strip('\'"') for item in answer.split(',')]
-            items = [item for item in items if item]  # Remove empty items
+            items = [item for item in items if item]  
             if items:
                 return True, json.dumps(items)
         
-        # Semicolon-separated list: "item1; item2; item3"
+        # If semicolon-separated list: "item1; item2; item3"
         if ';' in answer and not answer.startswith('['):
             items = [item.strip().strip('\'"') for item in answer.split(';')]
-            items = [item for item in items if item]  # Remove empty items
+            items = [item for item in items if item]  
             if items:
                 return True, json.dumps(items)
         
-        # "and"-separated list: "item1 and item2"
+        # If "and"-separated list: "item1 and item2"
         if ' and ' in answer and not answer.startswith('['):
             items = [item.strip().strip('\'"') for item in answer.split(' and ')]
-            items = [item for item in items if item]  # Remove empty items
+            items = [item for item in items if item]  
             if items:
                 return True, json.dumps(items)
         
@@ -325,10 +350,11 @@ class AnswerValidator:
         
         return False, answer
     
+    # Helper function for validating "yes/no-like" answers (should be "Yes" or "No", but may be in various formats)
     @staticmethod
     def _validate_yes_no(answer: str) -> Tuple[bool, str]:
         """
-        Validate that answer is "Yes" or "No".
+        Validate that the answer is "Yes" or "No".
         
         Handles variations: yes, no, Yes, No, YES, NO, Yes., No.
         
@@ -340,6 +366,7 @@ class AnswerValidator:
         # Remove trailing punctuation
         answer_clean = answer.rstrip('.!?').strip().lower()
         
+        # Check for yes/no variations
         if answer_clean in ['yes', 'y', 'true']:
             return True, "Yes"
         elif answer_clean in ['no', 'n', 'false']:
@@ -348,10 +375,8 @@ class AnswerValidator:
         return False, answer
 
 
-# ============================================================================
-# INTEGRATION FUNCTION
-# ============================================================================
 
+# Main validation function to be called externally
 def validate_answer_format(
     answer: str,
     question: str = "",
@@ -362,7 +387,7 @@ def validate_answer_format(
     Validate and correct answer format.
     
     Args:
-        answer: The generated answer string
+        answer: The generated/predicted answer string
         question: The original question (for context)
         ground_truth: Expected answer format (optional)
         log_issues: Log validation issues to logger
@@ -370,8 +395,8 @@ def validate_answer_format(
     Returns:
         Tuple of (is_valid, corrected_answer)
     """
-    validator = AnswerValidator()
-    is_valid, corrected, message = validator.validate(answer, question, ground_truth)
+    validator = AnswerValidator() # Instantiate the validator 
+    is_valid, corrected, message = validator.validate(answer, question, ground_truth) # Validate the answer format, and get the corrected answer and validation message
     
     if not is_valid and log_issues:
         logger.warning(f"Answer format validation failed: {message}")
