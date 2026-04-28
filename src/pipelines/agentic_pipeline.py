@@ -147,7 +147,7 @@ class AgenticRAGPipeline(BaseRAGPipeline):
         self.agentic_graph = build_agentic_graph( # Build the LangGraph StateGraph using the builder function, passing all dependencies
             self.agent_llm,  # LLM for agent decisions
             self.embedder,
-            self.multimodal_retriever or self.hybrid_retriever,  # Use multimodal if available, otherwise fall hybrid
+            self.multimodal_retriever or self.hybrid_retriever,  # Use multimodal if available, otherwise hybrid
             self.generator,  # LLM for final answer generation (VisionGenerator if multimodal enabled)
             query_techniques_dict,
             config_dict
