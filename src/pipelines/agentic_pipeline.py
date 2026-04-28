@@ -49,7 +49,7 @@ class AgenticRAGPipeline(BaseRAGPipeline):
         query_technique = get_query_technique(
             self.config.QUERY_TECHNIQUE,
             self.embedder,
-            self.hybrid_retriever or getattr(self, "retriever", None),
+            self.hybrid_retriever,
             self.generator,
             self.config.QUERY_TECHNIQUE_CONFIG,
         )
@@ -108,7 +108,7 @@ class AgenticRAGPipeline(BaseRAGPipeline):
                 technique = get_query_technique( # Factory function to get the appropriate technique instance
                     technique_name,
                     self.embedder,
-                    self.hybrid_retriever or self.retriever,
+                    self.hybrid_retriever,
                     self.generator,
                     self.config.QUERY_TECHNIQUE_CONFIG
                 )
@@ -147,7 +147,7 @@ class AgenticRAGPipeline(BaseRAGPipeline):
         self.agentic_graph = build_agentic_graph( # Build the LangGraph StateGraph using the builder function, passing all dependencies
             self.agent_llm,  # LLM for agent decisions
             self.embedder,
-            self.multimodal_retriever or self.hybrid_retriever or self.retriever,  # Use multimodal if available, otherwise fall back
+            self.multimodal_retriever or self.hybrid_retriever,  # Use multimodal if available, otherwise fall hybrid
             self.generator,  # LLM for final answer generation (VisionGenerator if multimodal enabled)
             query_techniques_dict,
             config_dict
