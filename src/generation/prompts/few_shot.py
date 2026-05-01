@@ -7,7 +7,8 @@ These strategies demonstrate the difference between:
 """
 
 from typing import List
-from .base import PromptStrategy
+import json
+from .base import PromptStrategy, STANDARD_OUTPUT_CONSTRAINTS
 import logging
 
 logger = logging.getLogger(__name__)
@@ -65,10 +66,16 @@ class FewShotPromptStrategy(PromptStrategy):
 
         examples_text = ""
         for i, example in enumerate(self.examples, 1):
+            answer = example['answer']
+            answer_text = (
+                json.dumps(answer, ensure_ascii=False)
+                if isinstance(answer, list)
+                else str(answer)
+            )
             examples_text += f"""
 Example {i}:
 Question: {example['question']}
-Answer: {example['answer']}"""
+Answer: {answer_text}"""
         
         return f"""You are a helpful assistant that answers questions based on the provided context.
 
@@ -81,9 +88,9 @@ Instructions:
 - Answer ONLY using the provided context
 - Follow the same format as the examples (concise and direct)
 - If the answer is not in the context, say: "I cannot find the answer in the provided context"
-- For yes/no questions: answer only "Yes" or "No"
-- For facts: give only the fact, no explanation
-- For lists: format as numbered list"""
+- For lists: use JSON list format if there are multiple items
+
+{STANDARD_OUTPUT_CONSTRAINTS}"""
     
     def generate(self, question: str, context: str) -> str:
         """

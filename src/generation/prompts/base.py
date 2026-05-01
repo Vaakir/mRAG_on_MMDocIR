@@ -10,6 +10,16 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+STANDARD_OUTPUT_CONSTRAINTS = """Strict Instructions (NON-NEGOTIABLE):
+- Read the whole context and think before answering.
+- NEVER add preamble, explanation, or context. ANSWER ONLY.
+- DO NOT rephrase, explain, or add context.
+- Multiple answers: ONLY output ['answer1', 'answer2', ...]. NOTHING ELSE.
+- For yes/no questions, answer only "Yes" or "No".
+- Do not rely only on explicit statements. If the answer can be derived from the context through calculation (e.g., growth rate, difference, ratio, count), compute it before answering.
+
+Be direct. No padding. No explanations unless specifically asked."""
+
 
 class PromptStrategy(ABC):
     """

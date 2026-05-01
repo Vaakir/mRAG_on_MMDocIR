@@ -32,6 +32,29 @@ Step3_PromptOpt_standard (AdvancedRAGPipeline),qwen3-vl:8b-instruct,49.064,0.024
 Step3_PromptOpt_few_shot (AdvancedRAGPipeline),qwen3-vl:8b-instruct,54.8576,0.0206,3.1641,577.5591,635.6039
 Step3_PromptOpt_role (AdvancedRAGPipeline),qwen3-vl:8b-instruct,49.3809,0.0174,2.8315,660.49,712.7219
 Step3_PromptOpt_cot (AdvancedRAGPipeline),qwen3-vl:8b-instruct,60.4913,0.0174,3.6746,701.5659,765.7492
+Advanced RAG (standard) (AdvancedRAGPipeline),qwen3-vl:8b-instruct,1278.6959,0.0209,1.6493,433.0971,1713.4631
+Advanced RAG (standard) (AdvancedRAGPipeline),qwen3-vl:8b-instruct,81.3424,0.0288,3.7989,551.316,636.4861
+Advanced RAG (standard) (AdvancedRAGPipeline),qwen3-vl:8b-instruct,62.614,0.0144,2.8865,520.2151,585.7299
+Advanced RAG (standard) (AdvancedRAGPipeline),qwen3-vl:8b-instruct,1521.0369,0.0137,1.9296,1625.9525,3148.9342
+Advanced RAG (standard) (AdvancedRAGPipeline),qwen3-vl:8b-instruct,88.2817,0.0729,3.758,643.3778,735.4923
+Advanced RAG (standard) (AdvancedRAGPipeline),qwen3-vl:8b-instruct,75.0297,0.0442,4.2884,401.1496,480.5119
+Advanced RAG (standard) (AdvancedRAGPipeline),qwen3-vl:8b-instruct,71.32,0.0132,8.2832,520.3505,599.9668
+Advanced RAG (standard) (AdvancedRAGPipeline),qwen3-vl:8b-instruct,1161.5903,0.023,186.1345,402.3729,1750.1217
+Advanced RAG (hyde) (AdvancedRAGPipeline),qwen3-vl:8b-instruct,124.4426,0.0358,9.316,452.6636,586.458
+Advanced RAG (standard) (AdvancedRAGPipeline),qwen3-vl:8b-instruct,87.8844,0.0179,1.5541,362.3286,451.785
+Advanced RAG (multi_query) (AdvancedRAGPipeline),qwen3-vl:8b-instruct,80.5439,0.013,3.5842,611.667,695.8082
+Advanced RAG (step_back) (AdvancedRAGPipeline),qwen3-vl:8b-instruct,89.2853,0.0124,2.8097,463.1464,555.2544
+Advanced RAG (rag_fusion) (AdvancedRAGPipeline),qwen3-vl:8b-instruct,92.2022,0.0144,1224.3082,7277.497,8594.0218
+Advanced RAG (query_rewriting) (AdvancedRAGPipeline),qwen3-vl:8b-instruct,87.2624,0.0235,3.5182,415.8043,506.6084
+Advanced RAG (query_decomposition) (AdvancedRAGPipeline),qwen3-vl:8b-instruct,81.151,0.0144,3.3131,580.3673,664.8458
+Advanced RAG (query_expansion) (AdvancedRAGPipeline),qwen3-vl:8b-instruct,88.5642,0.0123,3.4187,525.4075,617.4027
+Advanced RAG (standard) (AdvancedRAGPipeline),qwen3-vl:8b-instruct,103.6697,0.0393,11.4729,610.5543,725.7362
+Advanced RAG (standard) (AdvancedRAGPipeline),qwen3-vl:8b-instruct,78.3455,0.0125,2.4675,391.5581,472.3836
+Advanced RAG (standard) (AdvancedRAGPipeline),qwen3-vl:8b-instruct,86.7336,0.0135,13.2914,590.055,690.0936
+Advanced RAG (standard) (AdvancedRAGPipeline),qwen3-vl:8b-instruct,91.8419,0.0153,2.4262,526.3729,620.6562
+Advanced RAG (standard) (AdvancedRAGPipeline),qwen3-vl:8b-instruct,103.5856,0.0264,5.3111,463.9418,572.8651
+Baseline RAG (BaselineRAGPipeline),qwen3-vl:8b-instruct,87.7704,0.0135,2.9055,209.8762,300.5657
+Advanced RAG (standard) (AdvancedRAGPipeline),qwen3-vl:8b-instruct,103.0531,0.0849,3.3118,213.875,320.3248
 Step4_Multimodal (AdvancedRAGPipeline),qwen3-vl:8b-instruct,67.5329,0.0698,22.0608,2764.2451,2853.9085
 INTUITIVE (RAGPipeline),qwen3-vl:8b-instruct,50.4247,0.0228,563.3697,136.1469,749.9652
 Enhanced_hierar_rag_fusion_cot_multimodal (AdvancedRAGPipeline),qwen3-vl:8b-instruct,53.5973,0.0272,509.8263,419.9603,983.4121

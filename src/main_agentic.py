@@ -1,7 +1,7 @@
 """
 System 3: Agentic mRAG Pipeline Main Entry Point
 
-This script runs the full agentic RAG pipeline with agent-based decision making:
+This runs the full agentic RAG pipeline with agent-based decision making:
 - Query Rewriter Agent: Decides which query technique to use
 - Grader Agent: Evaluates document relevance and decides if retry is needed
 - Generator Agent: Decides prompting strategy and generates answer
@@ -137,7 +137,7 @@ def main():
         print(f"\nRunning evaluation on {args.eval_size} queries...")
         
         # Load test data
-        test_data = load_train_data(config.TRAIN_JSONL)
+        test_data = load_train_data(config.TEST_JSONL)
         
         # Run evaluation
         eval_summary = pipeline.evaluate(test_data)

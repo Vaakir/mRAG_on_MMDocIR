@@ -1,5 +1,3 @@
-"""System 3: Agentic RAG Pipeline - extends BaseRAGPipeline with agent orchestration"""
-
 import logging
 import time
 from pathlib import Path
@@ -22,8 +20,7 @@ logger = logging.getLogger(__name__)
 class AgenticRAGPipeline(BaseRAGPipeline):
     """
     Agentic RAG Pipeline: Orchestrates agents for query rewriting, grading, and generation.
-    
-    Extends BaseRAGPipeline to reuse index building and component initialization.
+        
     """
     
     def __init__(self, config: Union[AdvancedConfig, AgenticConfig]):
@@ -52,7 +49,7 @@ class AgenticRAGPipeline(BaseRAGPipeline):
         query_technique = get_query_technique(
             self.config.QUERY_TECHNIQUE,
             self.embedder,
-            self.hybrid_retriever or getattr(self, "retriever", None),
+            self.hybrid_retriever,
             self.generator,
             self.config.QUERY_TECHNIQUE_CONFIG,
         )
@@ -82,7 +79,7 @@ class AgenticRAGPipeline(BaseRAGPipeline):
     def _initialize_retriever(self):
         """Initialize hybrid retriever first (parent), then optionally build multimodal retriever."""
         super()._initialize_retriever()  # This builds self.hybrid_retriever
-        # MultimodalRetriever will be built in initialize_components() after query_technique is ready
+        # MultimodalRetriever will be built in initialize_components(), after query_technique is ready
     
     def build_query_techniques_dict(self) -> Dict[str, Any]:
         """
@@ -111,7 +108,7 @@ class AgenticRAGPipeline(BaseRAGPipeline):
                 technique = get_query_technique( # Factory function to get the appropriate technique instance
                     technique_name,
                     self.embedder,
-                    self.hybrid_retriever or self.retriever,
+                    self.hybrid_retriever,
                     self.generator,
                     self.config.QUERY_TECHNIQUE_CONFIG
                 )
@@ -145,14 +142,12 @@ class AgenticRAGPipeline(BaseRAGPipeline):
             'GRADER_CONFIDENCE_THRESHOLD': getattr(self.config, 'GRADER_CONFIDENCE_THRESHOLD', 0.6),
             'RETRY_ON_LOW_CONFIDENCE': getattr(self.config, 'RETRY_ON_LOW_CONFIDENCE', True),
             'AGENT_DECISION_LOGGING': getattr(self.config, 'AGENT_DECISION_LOGGING', True),
-            # # Backward compatibility: support old MAX_RETRIES
-            # 'MAX_RETRIES': getattr(self.config, 'AGENT_MAX_RETRIES', getattr(self.config, 'MAX_RETRIES', 2)),
         }
         
         self.agentic_graph = build_agentic_graph( # Build the LangGraph StateGraph using the builder function, passing all dependencies
             self.agent_llm,  # LLM for agent decisions
             self.embedder,
-            self.multimodal_retriever or self.hybrid_retriever or self.retriever,  # Use multimodal if available, otherwise fall back
+            self.multimodal_retriever or self.hybrid_retriever,  # Use multimodal if available, otherwise hybrid
             self.generator,  # LLM for final answer generation (VisionGenerator if multimodal enabled)
             query_techniques_dict,
             config_dict
@@ -190,17 +185,17 @@ class AgenticRAGPipeline(BaseRAGPipeline):
             grade_confidence=0.0,
             grade_reasoning="",
             retry_count=0,
-            max_retries=getattr(self.config, 'AGENT_MAX_RETRIES', 1), # Use config value or default to 1
+            max_retries=getattr(self.config, 'AGENT_MAX_RETRIES', 1),
             last_technique_used="",
             chosen_prompting_strategy="",
             generated_answer="",
             generation_confidence=0.0,
-            agent_decisions={}
+            agent_decisions={} # Dictionary to log all agent decisions
         )
         
         # Run the graph with the initial state, and get the final state after all agents have processed
         try:
-            final_state = self.agentic_graph.invoke(initial_state) # Invoke the graph with the initial state and get the final state after all agents have processed
+            final_state = self.agentic_graph.invoke(initial_state) # Invoke the graph
         except Exception as e:
             print(f"Error running graph: {e}")
             raise
@@ -209,7 +204,7 @@ class AgenticRAGPipeline(BaseRAGPipeline):
         if isinstance(final_state, dict): # If the graph returns a dict instead of an AgenticRAGState
             # retrieved_documents from agentic nodes are in Qdrant format with payload
             raw_docs = final_state.get('retrieved_documents') or []
-            result = {
+            result = { # Extract fields from the final state dict
                 "question": question,
                 "answer": final_state.get('generated_answer', ''),
                 "raw_answer": final_state.get('raw_answer', final_state.get('generated_answer', '')),  # Preserve raw answer
@@ -301,8 +296,9 @@ class AgenticRAGPipeline(BaseRAGPipeline):
             )
         
         # Extract predictions and ground truths for generation evaluation
-        # IMPORTANT: Support DUAL EVALUATION - raw answers for text-based metrics (BLEU/ROUGE/Token F1),
-        # validated answers for semantic metrics (exact match, semantic similarity)
+        # Note: Here we support dual evaluation:
+        # - raw answers for text-based metrics (BLEU/ROUGE/Token F1) (retrieval metrics)
+        # - validated answers for semantic metrics (exact match, semantic similarity)  (generation metrics)
         predictions = [r.get("answer", "") for r in results]  # validated answer for pipeline
         raw_predictions = [r.get("raw_answer", r.get("answer", "")) for r in results]  # raw answer for BLEU/ROUGE
         ground_truths = [r.get("ground_truth", "") for r in results]
@@ -311,7 +307,7 @@ class AgenticRAGPipeline(BaseRAGPipeline):
             predictions,  # validated answers
             ground_truths,
             embedder=self.embedder,
-            raw_predictions=raw_predictions  # raw answers for surface-level metrics
+            raw_predictions=raw_predictions  # raw answers
         )
         
         elapsed = time.time() - eval_start
