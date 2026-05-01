@@ -85,7 +85,7 @@ class BaselineConfig:
     # ===== VECTOR DATABASE SETTINGS =====
     VECTOR_DB_MODE: str = "local"
     VECTOR_DB_PATH: str = str(SRC_DIR / "local_qdrant")
-    VECTOR_DB_COLLECTION: str = "baseline_documents_jina"
+    VECTOR_DB_COLLECTION: str = "advanced_fixed_size_2000"
     VECTOR_DB_DISTANCE: str = "COSINE"
 
     # ===== RETRIEVAL SETTINGS =====
@@ -95,12 +95,12 @@ class BaselineConfig:
     # ===== CHUNKING SETTINGS =====
     USE_PREPROCESSED_CHUNKS: bool = True
     CHUNKING_STRATEGY: str = "fixed_size"
-    CHUNK_SIZE: int = 1000
+    CHUNK_SIZE: int = 2000
     CHUNK_OVERLAP: int = 200
     CONTEXT_WINDOW: int = 0  # adjacent chunks to prepend/append at retrieval time
 
     # ===== EVALUATION SETTINGS =====
-    EVAL_SUBSET_SIZE: int = 20
+    EVAL_SUBSET_SIZE: int = 150
     RETRIEVAL_WORKERS: int = 4
     GENERATION_WORKERS: int = 2
 
@@ -127,10 +127,10 @@ class AdvancedConfig(BaselineConfig):
     # ===== ADVANCED APP OVERRIDES =====
     # override the chunk file to use the semantic chunks instead of the fixed-size ones
     PREPROCESSED_CHUNKS_FILE: str = str(
-        SRC_DIR / "data" / "preprocessed" / "chunks_fixed_size.json"
+        SRC_DIR / "data" / "preprocessed" / "chunks_fixed_size_2000.json"
     )
 
-    VECTOR_DB_COLLECTION: str = "advanced_multimodal"
+    VECTOR_DB_COLLECTION: str = "advanced_fixed_size_2000"
     """Separate collection from baseline so the two don't interfere"""
 
     # Use one model for everything — no server model swapping = no OOM crashes
@@ -194,7 +194,7 @@ class AdvancedConfig(BaselineConfig):
     PROMPTING_STRATEGY_CONFIG: Dict[str, Any] = field(
         default_factory=lambda: {
             # Role strategy
-            "role_type": "rag_specialist",
+            "role_type": "financial_analyst_role",
             # CoT strategy
             "show_reasoning": False,  # set to False to hide reasoning
             # Ensemble strategy

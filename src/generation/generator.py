@@ -311,7 +311,8 @@ class BaselineGenerator:
         self,
         question: str,
         context: str,
-        system_prompt: str
+        system_prompt: str,
+        think: bool = False
     ) -> str:
         """
         Generate an answer given a question and context.

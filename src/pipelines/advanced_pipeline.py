@@ -71,6 +71,7 @@ class AdvancedRAGPipeline(BaseRAGPipeline):
             logger.info(f"Index loaded in {time.time() - start_time:.2f}s")
             return
 
+        # WE should have ran preprocessing pipeline first..
         # ---------- Build from scratch ----------
         logger.info("Building new multimodal index from scratch...")
 

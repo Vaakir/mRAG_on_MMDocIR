@@ -1,0 +1,6 @@
+Pipeline,model,Building multimodal index: sliding_window,Building multimodal index: semantic,Building multimodal index: hierarchical,Building multimodal index: enhanced_hierarchical,Total Pipeline Runtime
+Unknown,Unknown,1526.6412,1457.9792,1511.678,1640.878,6137.1765
+Pipeline,model,Extracting PDFs using docling,Saving extracted JSON to C:\Media\UiS\Dat560\Group\DAT560project\src\data\preprocessed\all_documents.json,Loading documents for chunking,Running chunking methods and saving outputs,Total Pipeline Runtime
+Unknown,Unknown,3782.3718,1.028,1.1049,11.0458,3795.5527
+Pipeline,model,Extracting PDFs using docling,Saving extracted JSON to C:\Media\UiS\Dat560\Group\DAT560project\src\data\preprocessed\all_documents.json,Loading documents for chunking,Running chunking methods and saving outputs,Total Pipeline Runtime
+Unknown,Unknown,3911.6404,0.7245,0.5259,3.9025,3916.7953

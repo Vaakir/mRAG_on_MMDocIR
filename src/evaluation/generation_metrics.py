@@ -36,7 +36,7 @@ def normalize_answer(answer: Any) -> str:
     # Remove commas in numbers (1,358,000 → 1358000)
     text = re.sub(r'(\d),(\d)', r'\1\2', text)
     # Strip common unit suffixes after numbers (714.3 million --> 714.3)
-    text = re.sub(r'(\d+\.?\d*)\s*(million|billion|usd|%)', r'\1', text)
+    # text = re.sub(r'(\d+\.?\d*)\s*(million|billion|usd|%)', r'\1', text)
     # Strip punctuation except digits and letters
     text = re.sub(r'[^\w\s\.\-]', ' ', text)
     # Collapse whitespace
